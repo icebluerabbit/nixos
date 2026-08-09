@@ -97,6 +97,7 @@
             torrentDir = null;
             useClientTorrents = true;
             matchMode = "safe";
+            includeSingleEpisodes = true;
             # Both webhook triggers are edge-triggered on *new* things: autobrr's
             # /api/announce fires only on a grab, qbt's /api/webhook only on a
             # completion. Nothing re-examines the back catalogue, so anything
