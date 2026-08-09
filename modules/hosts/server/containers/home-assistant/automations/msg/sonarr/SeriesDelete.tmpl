@@ -1,0 +1,8 @@
+<b>📺 Sonarr</b> · <font color="#ed4245">🗑️ Series Deleted</font>
+<ul>
+<li><b>Series:</b> {{ trigger.payload_json.series.title }} ({{ trigger.payload_json.series.year | default('') }})</li>
+<li><b>TVDb:</b> {{ trigger.payload_json.series.tvdbId | default('—') }} | <b>IMDb:</b> {{ trigger.payload_json.series.imdbId | default('—') }}</li>
+<li><b>Path:</b> <code>{{ trigger.payload_json.series.path | default('—') }}</code></li>
+<li><b>Files deleted:</b> {{ trigger.payload_json.deletedFiles | default(false) }}</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

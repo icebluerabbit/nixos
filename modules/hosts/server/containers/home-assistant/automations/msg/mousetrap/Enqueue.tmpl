@@ -1,0 +1,6 @@
+{% set p = trigger.payload_json.payload %}✅ <b>MaM · enqueued</b>
+<b>{{ p.name }}</b>
+<ul>
+<li><b>Kind:</b> {{ p.kind | default('—') }}</li>
+<li><b>Result:</b> <code>{{ p.result | default('—') }}</code>{% if p.result == 'added_wedge' %} 🎟️ wedged{% endif %}</li>
+</ul>

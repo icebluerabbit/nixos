@@ -1,0 +1,3 @@
+📝 <b>[{{ repo }}]</b> {{ trigger.to_state.state.split('\n')[0] | e }}
+{% if trigger.to_state.attributes.sha %} <code>{{ trigger.to_state.attributes.sha[:7] }}</code>{% endif %}
+{% if trigger.to_state.attributes.url %}<br>{{ trigger.to_state.attributes.url }}{% endif %}

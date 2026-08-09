@@ -1,0 +1,91 @@
+---
+# RetroToon — no upstream autobrr definition exists, so this is loaded from the
+# customDefinitions directory. Modelled on the shipped digitalcore.yaml (version 2:
+# named capture groups, parse nested under the channel).
+#
+# The releaseName pattern is deliberately greedy: it backtracks to the LAST
+# parenthesised group before the URL, so release names containing their own parens
+# ("[Anime Land] Aya to Majo (Earwig and the Witch) (Dual Audio) (...)") still yield
+# the tracker category rather than a fragment of the title.
+#
+# downloadurl is relative so it resolves against urls[0] (www.retrotoon.world). The
+# announce prints the bare host, but the torznab enclosure confirms the www. host is
+# the one that serves .torrent files. The passkey is the same value Prowlarr uses.
+version: 2
+name: RetroToon
+identifier: retrotoon
+description: RetroToon is a private torrent tracker for animated movies / TV.
+language: en-us
+urls:
+  - https://www.retrotoon.world/
+privacy: private
+protocol: torrent
+supports:
+  - irc
+settings:
+  - name: passkey
+    type: secret
+    required: true
+    label: Passkey
+    help: retrotoon.world/prowlarr.php -> Your Passkey.
+
+irc:
+  network: RetroToon
+  server: irc.retrotoon.world
+  port: 6697
+  tls: true
+  settings:
+    - name: nick
+      type: text
+      required: true
+      label: Nick
+      help: Bot nick. Group it to your account so it inherits the registration.
+
+    - name: auth.account
+      type: text
+      required: false
+      label: NickServ Account
+      help: NickServ account. Make sure to group your user and bot.
+
+    - name: auth.password
+      type: secret
+      required: false
+      label: NickServ Password
+      help: NickServ password
+
+  channels:
+    - name: "#announce"
+      announcers:
+        - RetroToon
+      parse:
+        type: single
+        lines:
+          - pattern: '\[NEW\] (?P<releaseName>.+) \((?P<category>[^)]+)\) https?:\/\/(?:www\.)?retrotoon\.world\/details\.php\?id=(?P<torrentId>\d+)'
+            tests:
+              - line: '[NEW] The Real Ghostbusters S04 NTSC DVD REMUX DD 2.0 (Retro) https://retrotoon.world/details.php?id=3886'
+                expect:
+                  releaseName: The Real Ghostbusters S04 NTSC DVD REMUX DD 2.0
+                  category: Retro
+                  torrentId: "3886"
+
+              - line: '[NEW] When Marnie Was There (2014) (1080p BluRay x265 HEVC 10bit AAC 5.0 Japanese Tigole) (Anime) https://retrotoon.world/details.php?id=3883'
+                expect:
+                  releaseName: When Marnie Was There (2014) (1080p BluRay x265 HEVC 10bit AAC 5.0 Japanese Tigole)
+                  category: Anime
+                  torrentId: "3883"
+
+              - line: '[NEW] [Anime Land] Aya to Majo (Earwig and the Witch) (Dual Audio) (BDRip 1080p HEVC QAACx2) [B38887CD].mkv (CGI) https://retrotoon.world/details.php?id=3884'
+                expect:
+                  releaseName: '[Anime Land] Aya to Majo (Earwig and the Witch) (Dual Audio) (BDRip 1080p HEVC QAACx2) [B38887CD].mkv'
+                  category: CGI
+                  torrentId: "3884"
+
+              - line: '[NEW] Scott.Pilgrim.vs.the.Animation.2010.480p.BluRay.MPEG-AC3-2.0 (Feature) https://retrotoon.world/details.php?id=3885'
+                expect:
+                  releaseName: Scott.Pilgrim.vs.the.Animation.2010.480p.BluRay.MPEG-AC3-2.0
+                  category: Feature
+                  torrentId: "3885"
+
+        match:
+          infourl: "/details.php?id={{ .torrentId }}"
+          downloadurl: "/download.php?id={{ .torrentId }}&torrent_pass={{ .passkey }}"

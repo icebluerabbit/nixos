@@ -1,0 +1,13 @@
+<b>📚 LazyLibrarian</b> · <font color="#5865f2">🎣 Started Download</font>
+{% set p = trigger.payload_json %}
+<ul>
+<li><b>Book:</b> {{ p.BookName | default('—') }}{% if p.BookSub %} <i>{{ p.BookSub }}</i>{% endif %}</li>
+<li><b>Author:</b> {{ p.AuthorName | default('—') }}</li>
+<li><b>Type:</b> {{ p.AuxInfo | default('—') }}</li>
+<li><b>Release:</b> <code>{{ p.NZBtitle | default('—') }}</code></li>
+<li><b>Indexer:</b> {{ p.NZBprov | default('—') }}</li>
+<li><b>Size:</b> {% if p.NZBsize %}{{ ((p.NZBsize | int) / 1048576) | round(1) }} MiB{% else %}—{% endif %}</li>
+<li><b>Client:</b> {{ p.Source | default('—') }}{% if p.Label %} ({{ p.Label }}){% endif %}</li>
+<li><b>DownloadID:</b> <code>{{ p.DownloadID | default('—') }}</code></li>
+<li><b>BookID:</b> <code>{{ p.BookID | default('—') }}</code></li>
+</ul>

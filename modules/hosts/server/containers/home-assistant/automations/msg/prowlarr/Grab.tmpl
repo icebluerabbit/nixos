@@ -1,0 +1,14 @@
+<b>🔍 Prowlarr</b> · <font color="#5865f2">🎣 Grab</font>
+<ul>
+<li><b>Release:</b> <code>{{ trigger.payload_json.release.releaseTitle | default('—') }}</code></li>
+<li><b>Indexer:</b> {{ trigger.payload_json.release.indexer | default('—') }}</li>
+<li><b>Categories:</b> {{ trigger.payload_json.release.categories | join(', ') | default('—') }}</li>
+<li><b>Flags:</b> {{ trigger.payload_json.release.indexerFlags | join(', ') | default('none') }}</li>
+<li><b>Size:</b> {{ ((trigger.payload_json.release.size | default(0) | int) / 1073741824) | round(2) }} GiB</li>
+<li><b>Source:</b> {{ trigger.payload_json.source | default('—') }}</li>
+<li><b>Host:</b> {{ trigger.payload_json.host | default('—') }}</li>
+<li><b>Trigger:</b> {{ trigger.payload_json.trigger | default('—') }}</li>
+<li><b>Client:</b> {{ trigger.payload_json.downloadClient | default('—') }} ({{ trigger.payload_json.downloadClientType | default('—') }})</li>
+<li><b>DownloadID:</b> <code>{{ trigger.payload_json.downloadId | default('—') }}</code></li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

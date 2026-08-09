@@ -1,0 +1,6 @@
+<b>🖥️ NixOS</b> · <font color="#5865f2">🔌 Boot</font>
+<ul>
+<li><b>Host:</b> {{ trigger.payload_json.host }}</li>
+<li><b>Kernel:</b> <code>{{ trigger.payload_json.kernel }}</code></li>
+<li><b>Failed units:</b> {{ trigger.payload_json.degraded | default(0) }}</li>
+</ul>

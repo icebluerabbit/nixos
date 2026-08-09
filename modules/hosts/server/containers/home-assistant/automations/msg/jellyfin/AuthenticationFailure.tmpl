@@ -1,0 +1,1 @@
+⚠️ <b>Jellyfin: failed login</b><br>User: <code>{{ trigger.payload_json.NotificationUsername | default('?') }}</code>{% if trigger.payload_json.DeviceName %} · {{ trigger.payload_json.DeviceName }}{% endif %}{% if trigger.payload_json.RemoteEndPoint %} · <code>{{ trigger.payload_json.RemoteEndPoint }}</code>{% endif %}

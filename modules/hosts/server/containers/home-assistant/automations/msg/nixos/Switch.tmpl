@@ -1,0 +1,6 @@
+<b>🖥️ NixOS</b> · <font color="#57f287">🔄 Switch</font>{% if trigger.payload_json.reboot %} · <font color="#faa61a">♻️ reboot required</font>{% endif %}
+<ul>
+<li><b>Host:</b> {{ trigger.payload_json.host }} · <b>Gen:</b> {{ trigger.payload_json.gen }} · <b>Rev:</b> <code>{{ trigger.payload_json.rev }}</code></li>
+<li><b>NixOS:</b> {{ trigger.payload_json.nixos }} · <b>Kernel:</b> <code>{{ trigger.payload_json.kernel }}</code></li>
+</ul>
+{% if trigger.payload_json.diff %}<pre>{{ trigger.payload_json.diff }}</pre>{% endif %}

@@ -1,0 +1,7 @@
+<b>🔍 Prowlarr</b> · <font color="#9b59b6">🔄 Application Updated</font>
+<ul>
+<li><b>Previous:</b> {{ trigger.payload_json.previousVersion | default('—') }}</li>
+<li><b>New:</b> {{ trigger.payload_json.newVersion | default('—') }}</li>
+<li><b>Message:</b> {{ trigger.payload_json.message | default('—') }}</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

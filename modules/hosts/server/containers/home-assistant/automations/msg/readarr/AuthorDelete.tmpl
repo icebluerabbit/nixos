@@ -1,0 +1,8 @@
+<b>📚 Readarr</b> · <font color="#ed4245">🗑️ Author Deleted</font>
+<ul>
+<li><b>Author:</b> {{ trigger.json.author.name | default('—') }}</li>
+<li><b>Goodreads:</b> {{ trigger.json.author.goodreadsId | default('—') }}</li>
+<li><b>Path:</b> <code>{{ trigger.json.author.path | default('—') }}</code></li>
+<li><b>Files deleted:</b> {{ trigger.json.deletedFiles | default(false) }}</li>
+<li><b>Instance:</b> {{ trigger.json.instanceName }}</li>
+</ul>

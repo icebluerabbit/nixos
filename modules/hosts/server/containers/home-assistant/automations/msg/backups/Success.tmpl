@@ -1,0 +1,7 @@
+<b>💾 Backup</b> · <font color="#57f287">✅ appdata</font>
+<ul>
+<li><b>Host:</b> {{ trigger.payload_json.host }} · <b>Repo:</b> <code>{{ trigger.payload_json.repo }}</code></li>
+<li><b>Snapshot:</b> <code>{{ trigger.payload_json.snapshot }}</code></li>
+<li><b>Files:</b> +{{ trigger.payload_json.files_new }} new · ~{{ trigger.payload_json.files_changed }} changed</li>
+<li><b>Added:</b> {{ (trigger.payload_json.data_added / 1048576) | round(1) }} MiB · <b>Took:</b> {{ trigger.payload_json.duration }}s</li>
+</ul>

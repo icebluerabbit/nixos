@@ -1,0 +1,9 @@
+{% set r = trigger.payload_json.data.release %}✅ <b>autobrr · accepted</b>{% if trigger.payload_json.data.filter.name %} · {{ trigger.payload_json.data.filter.name }}{% endif %}
+<b>{{ r.title | default(r.name) }}</b>{% if r.year %} ({{ r.year }}){% endif %}
+<ul>
+<li><b>Release:</b> <code>{{ r.name }}</code></li>
+<li><b>Quality:</b> {{ r.resolution | default('—') }}{% if r.source %} · {{ r.source }}{% endif %}{% if r.group %} · {{ r.group }}{% endif %}</li>
+<li><b>Freeleech:</b> {% if r.freeleech %}🎟️ yes{% if r.freeleech_percent and r.freeleech_percent != 100 %} ({{ r.freeleech_percent }}%){% endif %}{% else %}no{% endif %}</li>
+<li><b>Size:</b> {% if r.size %}{{ ((r.size | int) / 1073741824) | round(2) }} GiB{% else %}—{% endif %}{% if r.uploader %} · by {{ r.uploader }}{% endif %}</li>
+<li><b>Sent to:</b> {{ trigger.payload_json.data.action.type | default('—') }}{% if trigger.payload_json.data.action.client %} ({{ trigger.payload_json.data.action.client }}){% endif %}</li>
+</ul>

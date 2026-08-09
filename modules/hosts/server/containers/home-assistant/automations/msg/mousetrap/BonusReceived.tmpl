@@ -1,0 +1,6 @@
+{% set p = trigger.payload_json.payload %}🎁 <b>MaM · bonus received</b>
+<ul>
+<li><b>Type:</b> <code>{{ p.type | default('—') }}</code></li>
+<li><b>Amount:</b> {{ p.amount | default(0) }}</li>
+{% if p.other_name %}<li><b>From:</b> {{ p.other_name }}</li>{% endif %}
+</ul>

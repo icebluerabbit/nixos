@@ -1,0 +1,2 @@
+{% set a = trigger.payload_json -%}
+{% if a.status == 'firing' %}{% if a.labels.severity == 'critical' %}🔴{% else %}🟠{% endif %} <b>{{ a.annotations.summary | default(a.labels.alertname) }}</b> — <b>firing</b>{% else %}🟢 <b>{{ a.annotations.summary | default(a.labels.alertname) }}</b> — <b>resolved</b>{% endif %}{% if a.annotations.description %}<br>{{ a.annotations.description }}{% endif %}

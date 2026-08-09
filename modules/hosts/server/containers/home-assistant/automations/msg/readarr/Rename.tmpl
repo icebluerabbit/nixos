@@ -1,0 +1,9 @@
+<b>📚 Readarr</b> · <font color="#3498db">✏️ Renamed</font>
+<ul>
+<li><b>Author:</b> {{ trigger.json.author.name | default('—') }}</li>
+<li><b>Files renamed:</b> {{ trigger.json.renamedBookFiles | length }}</li>
+{% for f in trigger.json.renamedBookFiles %}
+<li><code>{{ f.previousPath }}</code> → <code>{{ f.path }}</code></li>
+{% endfor %}
+<li><b>Instance:</b> {{ trigger.json.instanceName }}</li>
+</ul>

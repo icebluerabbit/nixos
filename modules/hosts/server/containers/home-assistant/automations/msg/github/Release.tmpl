@@ -1,0 +1,3 @@
+🏷️ <b>[{{ repo }}]</b> {{ trigger.to_state.state | e }}
+{% if trigger.to_state.attributes.tag %} <code>{{ trigger.to_state.attributes.tag | e }}</code>{% endif %}
+{% if trigger.to_state.attributes.url %}<br>{{ trigger.to_state.attributes.url }}{% endif %}

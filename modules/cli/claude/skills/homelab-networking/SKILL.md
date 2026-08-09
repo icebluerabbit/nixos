@@ -1,0 +1,43 @@
+---
+name: homelab-networking
+description: Knowledge reference for this homelab's network architecture — VLAN bridges, the bonded trunk, how containers attach to VLANs, Layer-2 vs router-firewalled traffic, and the deterministic MAC address scheme. Use when adding or reasoning about a VLAN/bridge, deciding which VLAN a container belongs on, computing or validating a MAC, or understanding why two services can/can't reach each other. Also load alongside nixos-container-create when placing a container on a VLAN or assigning its MAC; pairs with homelab-topology (which looks up where things currently are).
+---
+
+# Homelab Networking (reference)
+
+## Container bridging philosophy
+
+- Containers bridge **directly** to a VLAN — **no host NAT**. Each is a first-class LAN client: own static IP, virtual MAC, DNS name. Traffic is routed/firewalled by the upstream UniFi router like any physical device.
+- **Same bridge = Layer 2.** Two containers on the same bridge (e.g. PostgreSQL + pgAdmin on `br-services`) talk directly at L2, **bypassing the router firewall**. If you need a firewall boundary between two containers, put them on **different VLANs**.
+- Container aspects are **network-agnostic**: no hardcoded IPs, ports, or VLAN knowledge inside `modules/containers/<name>.nix`. All networking is offloaded to the router/switch and wired at the host layer.
+
+## Server interface stack
+
+The server has a bonded trunk over its physical NICs. Each VLAN gets an 802.1Q sub-interface and a bridge:
+```
+bond0 (trunk)
+  └── vlan-<name> (802.1Q tagged, deterministic MAC from infra client server-vlan-<name>)
+        └── br-<name> (bridge, holds the host IP on that VLAN; containers attach here)
+```
+Each VLAN bridge is its own aspect: `modules/hosts/server/networking/vlans/<vlan>.nix`. Bridge MAC and host IP both come from infra clients (`server-vlan-<name>`, `server-bridge-<name>`), never hardcoded.
+
+**Adding a container VLAN**: a bridge aspect must exist and be registered in `modules/hosts/server/host.nix` under `networking.vlans.<name>`.
+
+## Deterministic MAC scheme
+
+MACs derive from the **VLAN ID** so they're easy to trace. `next_free_mac <vlan>` (sys-mcp) computes a globally-unique one for you — **always use it; never hand-pick a MAC.**
+
+> ⚠️ **The last byte is a single shared 8-bit space, NOT per-VLAN.** The container byte `vlanId + index` can collide *across* VLANs whenever two VLAN bases are within `#containers` of each other. Real example: media (base `0x78`/120) index ≥10 lands on `0x82`+ and collides with download (base `0x82`/130) — `:82` (cross-seed vs download host) and `:84` (autobrr vs vpn-gw) both clashed. UniFi keys clients by MAC, so a duplicate makes two Terraform clients fight over one controller record (name/IP thrash). `next_free_mac` now skips globally-used bytes, and `validate_container` fails on `mac_unique` if a duplicate slips in. If a VLAN's containers would spill into the next VLAN's base, that byte is taken by `next_free_mac` from a free slot instead — the resulting MAC is unique but no longer strictly `vlanId+index` (annotate it in the client file).
+
+| Interface type | OUI prefix | Last byte (`xx`) | Example (VLAN 130 / DOWNLOAD) |
+|:---|:---|:---|:---|
+| Host VLAN client | `62:f5:a4:5b:20:xx` | `vlanId` (hex) | `62:f5:a4:5b:20:82` (130 = `0x82`) |
+| Container client | `62:f5:a4:5b:20:xx` | `(vlanId + index)` (hex), index ≥ 1 | `62:f5:a4:5b:20:83` (130+1 = `0x83`) |
+| Host bridge | `82:13:8a:a0:4f:xx` | `(vlanId + 32)` (hex) | `82:13:8a:a0:4f:a2` (130+32 = `0xa2`) |
+
+Collision-prevention rules:
+1. **Container indexing**: increment `index` per container on a VLAN, starting at `1` (host VLAN client occupies index 0).
+2. **Bridge offset**: bridges use the `82:13:8a:a0:4f:` OUI with a `+32` decimal offset from the VLAN ID — never overlaps VLAN/trunk interfaces.
+3. **Locally-administered bit**: both OUIs have the LAA bit set (second hex digit `2`/`a`), so they never collide with real hardware MACs.
+
+IPs are allocated only in `modules/infra/networks/<vlan>.nix` `staticAddresses` (use `next_free_ip <vlan>`). See `nixos-container-conventions` for the no-hardcoding rules and `nixos-container-create` for the full add procedure.

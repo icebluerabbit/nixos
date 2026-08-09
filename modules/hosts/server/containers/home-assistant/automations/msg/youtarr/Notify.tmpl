@@ -1,0 +1,2 @@
+📺 <b>{{ trigger.payload_json.title | default('Youtarr') }}</b>
+{% if trigger.payload_json.message %}<pre>{{ trigger.payload_json.message }}</pre>{% endif %}

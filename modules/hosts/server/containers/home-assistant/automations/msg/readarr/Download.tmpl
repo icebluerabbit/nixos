@@ -1,0 +1,13 @@
+<b>📚 Readarr</b> · <font color="#57f287">⬇️ Download</font>{% if trigger.json.isUpgrade %} ⬆️{% endif %}
+{% set au = trigger.json.author | default({}, true) %}
+{% set bf = trigger.json.bookFiles | default([]) %}
+<ul>
+<li><b>Author:</b> {{ au.name | default('—') }}</li>
+<li><b>Books:</b> {% for b in trigger.json.books | default([]) %}{{ b.title }}{% if not loop.last %}, {% endif %}{% endfor %}</li>
+<li><b>Files:</b> {{ bf | length }}{% if bf %}</li>
+<li><b>Path:</b> <code>{{ bf[0].path | default('—') }}</code></li>
+<li><b>Quality:</b> {{ bf[0].quality | default('—') }}{% endif %}</li>
+<li><b>Client:</b> {{ trigger.json.downloadClient | default('—') }} ({{ trigger.json.downloadClientType | default('—') }})</li>
+<li><b>DownloadID:</b> <code>{{ trigger.json.downloadId | default('—') }}</code></li>
+<li><b>Instance:</b> {{ trigger.json.instanceName }}</li>
+</ul>

@@ -1,0 +1,9 @@
+<b>📺 Sonarr</b> · <font color="#3498db">✏️ Renamed</font>
+<ul>
+<li><b>Series:</b> {{ trigger.payload_json.series.title }}</li>
+<li><b>Files renamed:</b> {{ trigger.payload_json.renamedEpisodeFiles | length }}</li>
+{% for f in trigger.payload_json.renamedEpisodeFiles %}
+<li><code>{{ f.previousRelativePath }}</code> → <code>{{ f.relativePath }}</code></li>
+{% endfor %}
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

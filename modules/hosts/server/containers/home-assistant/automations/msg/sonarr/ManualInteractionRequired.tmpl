@@ -1,0 +1,12 @@
+<b>📺 Sonarr</b> · <font color="#ed4245">🚨 Manual Interaction Required</font>
+{% set s = trigger.payload_json.series | default({}, true) %}
+{% set d = trigger.payload_json.downloadInfo | default({}, true) %}
+<ul>
+<li><b>Series:</b> {{ s.title | default('—') }}</li>
+<li><b>Episodes:</b> {% for e in trigger.payload_json.episodes | default([]) %}S{{ '%02d' | format(e.seasonNumber) }}E{{ '%02d' | format(e.episodeNumber) }}{% if not loop.last %}, {% endif %}{% endfor %}</li>
+<li><b>Download:</b> {{ d.name | default('—') }}</li>
+<li><b>Status:</b> {{ d.trackedDownloadStatus | default('—') }}</li>
+<li><b>State:</b> {{ d.trackedDownloadState | default('—') }}</li>
+<li><b>Client:</b> {{ trigger.payload_json.downloadClient | default('—') }} ({{ trigger.payload_json.downloadClientType | default('—') }})</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

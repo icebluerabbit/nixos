@@ -1,0 +1,5 @@
+<b>🖥️ NixOS</b> · <font color="#57f287">🧹 Btrfs scrub</font>{% if trigger.payload_json.errors %} · <font color="#ed4245">⚠️ errors</font>{% endif %}
+<ul>
+<li><b>Host:</b> {{ trigger.payload_json.host }} · <b>Mount:</b> <code>{{ trigger.payload_json.mount }}</code></li>
+</ul>
+{% if trigger.payload_json.text %}<pre>{{ trigger.payload_json.text }}</pre>{% endif %}

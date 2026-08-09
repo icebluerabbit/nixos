@@ -1,0 +1,16 @@
+<b>🎵 Lidarr</b> · <font color="#5865f2">🎣 Grab</font>
+<ul>
+<li><b>Artist:</b> {{ trigger.payload_json.artist.name | default('—') }}</li>
+<li><b>MBId:</b> {{ trigger.payload_json.artist.mbId | default('—') }}</li>
+<li><b>Albums:</b> {% for a in trigger.payload_json.albums %}{{ a.title }} ({{ a.releaseDate | default('—') }}){% if not loop.last %}, {% endif %}{% endfor %}</li>
+<li><b>Release:</b> <code>{{ trigger.payload_json.release.releaseTitle | default('—') }}</code></li>
+<li><b>Quality:</b> {{ trigger.payload_json.release.quality | default('—') }}</li>
+<li><b>Group:</b> {{ trigger.payload_json.release.releaseGroup | default('—') }}</li>
+<li><b>Indexer:</b> {{ trigger.payload_json.release.indexer | default('—') }}</li>
+<li><b>Size:</b> {{ ((trigger.payload_json.release.size | int) / 1073741824) | round(2) }} GiB</li>
+<li><b>Formats:</b> {{ trigger.payload_json.release.customFormats | join(', ') | default('none') }}</li>
+<li><b>Score:</b> {{ trigger.payload_json.release.customFormatScore | default(0) }}</li>
+<li><b>Client:</b> {{ trigger.payload_json.downloadClient | default('—') }} ({{ trigger.payload_json.downloadClientType | default('—') }})</li>
+<li><b>DownloadID:</b> <code>{{ trigger.payload_json.downloadId | default('—') }}</code></li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

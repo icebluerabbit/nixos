@@ -1,0 +1,7 @@
+{% set r = trigger.payload_json.data.release %}⚠️ <b>autobrr · error</b>{% if trigger.payload_json.data.filter.name %} · {{ trigger.payload_json.data.filter.name }}{% endif %}
+<b>{{ r.title | default(r.name) }}</b>{% if r.year %} ({{ r.year }}){% endif %}
+<ul>
+<li><b>Release:</b> <code>{{ r.name }}</code></li>
+<li><b>Sent to:</b> {{ trigger.payload_json.data.action.type | default('—') }}{% if trigger.payload_json.data.action.client %} ({{ trigger.payload_json.data.action.client }}){% endif %}</li>
+<li><b>Error:</b> {% if trigger.payload_json.data.result and trigger.payload_json.data.result.rejections %}{{ trigger.payload_json.data.result.rejections | join('; ') }}{% else %}—{% endif %}</li>
+</ul>

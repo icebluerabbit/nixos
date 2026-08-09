@@ -1,0 +1,9 @@
+<b>🎵 Lidarr</b> · <font color="#3498db">✏️ Renamed</font>
+<ul>
+<li><b>Artist:</b> {{ trigger.payload_json.artist.name | default('—') }}</li>
+<li><b>Files renamed:</b> {{ trigger.payload_json.renamedTrackFiles | length }}</li>
+{% for f in trigger.payload_json.renamedTrackFiles %}
+<li><code>{{ f.previousRelativePath }}</code> → <code>{{ f.relativePath }}</code></li>
+{% endfor %}
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

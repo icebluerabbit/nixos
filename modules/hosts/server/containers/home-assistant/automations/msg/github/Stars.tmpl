@@ -1,0 +1,4 @@
+{% set new = trigger.to_state.state | int(0) -%}
+{% set old = trigger.from_state.state | int(0) -%}
+{% set delta = new - old -%}
+⭐ <b>[{{ repo }}]</b> {{ new }} {% if delta > 0 %}(+{{ delta }}){% else %}({{ delta }}){% endif %}

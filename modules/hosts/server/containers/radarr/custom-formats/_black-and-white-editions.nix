@@ -1,0 +1,91 @@
+# Dumped verbatim from the live arr (was recyclarr-managed via TRaSH).
+_: {
+  name = "Black and White Editions";
+  include_custom_format_when_renaming = false;
+  specifications = [
+    {
+      name = "Blackout/B&W/Black&Chrome";
+      implementation = "ReleaseTitleSpecification";
+      negate = false;
+      required = false;
+      fields = [
+        {
+          name = "value";
+          value = "(?<=\\b[12]\\d{3}\\b).*\\b((B(lack)?[ ._-]?(out|(and|[n&])?[ ._-]?(W(hite)?|Chrome))))\\b(?!$)";
+        }
+      ];
+    }
+    {
+      name = "Monochrome";
+      implementation = "ReleaseTitleSpecification";
+      negate = false;
+      required = false;
+      fields = [
+        {
+          name = "value";
+          value = "(?<=\\b[12]\\d{3}\\b).*\\b(Monochrome)\\b(?!$)";
+        }
+      ];
+    }
+    {
+      name = "Noir";
+      implementation = "ReleaseTitleSpecification";
+      negate = false;
+      required = false;
+      fields = [
+        {
+          name = "value";
+          value = "(?<=\\b[12]\\d{3}\\b).*\\b(Noir)\\b(?!$)";
+        }
+      ];
+    }
+    {
+      name = "Shush Cut";
+      implementation = "ReleaseTitleSpecification";
+      negate = false;
+      required = false;
+      fields = [
+        {
+          name = "value";
+          value = "(?<=\\b[12]\\d{3}\\b).*\\b(Shush[ ._-]?Cut)\\b(?!$)";
+        }
+      ];
+    }
+    {
+      name = "No/Minus Color";
+      implementation = "ReleaseTitleSpecification";
+      negate = false;
+      required = false;
+      fields = [
+        {
+          name = "value";
+          value = "(?<=\\b[12]\\d{3}\\b).*\\b((No|Minus)[ ._-]?Colou?r)\\b(?!$)";
+        }
+      ];
+    }
+    {
+      name = "Grayscale";
+      implementation = "ReleaseTitleSpecification";
+      negate = false;
+      required = false;
+      fields = [
+        {
+          name = "value";
+          value = "(?<=\\b[12]\\d{3}\\b).*\\b(Gr[ae]y([ ._-]?(scale))?)\\b(?!$)";
+        }
+      ];
+    }
+    {
+      name = "Darkness and Light";
+      implementation = "ReleaseTitleSpecification";
+      negate = false;
+      required = false;
+      fields = [
+        {
+          name = "value";
+          value = "(?<=\\b[12]\\d{3}\\b).*\\b(Darkness?[ ._-]?(and|&)[ ._-]?(Light))\\b(?!$)";
+        }
+      ];
+    }
+  ];
+}

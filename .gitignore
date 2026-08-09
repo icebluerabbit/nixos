@@ -1,0 +1,40 @@
+# Nix build symlinks
+result
+result-*
+.pre-commit-config.yaml
+
+# VM / disk images
+*.qcow2
+*.raw
+*.img
+*.iso
+
+# Development environment
+.direnv/
+.devenv/
+.env
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+
+# Backup and temp files
+*~
+*.swp
+
+# OS generated files
+.DS_Store
+
+# Ignore everything under .claude EXCEPT the shared skills, so contributor LLMs
+# get the same canonical add-resource / add-service / architecture procedures.
+.claude/*
+!.claude/skills/
+!.claude/skills/**
+
+# OpenTofu environment
+/*/.terraform*
+/*/config.tf.json
+/*/terraform.tfstate*
+homelab/
+
+MIGRATION.md

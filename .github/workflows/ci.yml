@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Lint & Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v16
+
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Generate CI Runtime Config
+        run: |
+          cat <<-EOF > modules/ci-runtime.nix
+          {
+            _module.args.CI = true;
+          }
+          EOF
+
+      - name: Check Flake schema & outputs
+        run: nix flake check
+
+      - name: Verify Formatting
+        run: |
+          nix fmt
+          git diff --exit-code

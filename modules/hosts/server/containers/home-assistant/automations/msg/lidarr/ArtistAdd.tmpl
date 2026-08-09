@@ -1,0 +1,9 @@
+<b>🎵 Lidarr</b> · <font color="#57f287">➕ Artist Added</font>
+<ul>
+<li><b>Artist:</b> {{ trigger.payload_json.artist.name | default('—') }}</li>
+<li><b>MBId:</b> {{ trigger.payload_json.artist.mbId | default('—') }}</li>
+<li><b>Type:</b> {{ trigger.payload_json.artist.artistType | default('—') }}</li>
+<li><b>Genres:</b> {{ trigger.payload_json.artist.genres | join(', ') | default('—') }}</li>
+<li><b>Path:</b> <code>{{ trigger.payload_json.artist.path | default('—') }}</code></li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

@@ -1,0 +1,41 @@
+{ den, ... }:
+{
+  den.aspects.cli._.television._.tmux-sessions = {
+    aspect-name = "cli.television.tmux-sessions";
+    includes = [ den.aspects.cli._.tmux ];
+
+    homeManager =
+      { pkgs, lib, ... }:
+      let
+        tmux = lib.getExe pkgs.tmux;
+      in
+      {
+        programs.television.channels.tmux-sessions = {
+          metadata = {
+            name = "tmux-sessions";
+            description = "List and manage tmux sessions";
+          };
+          source = {
+            command = "${tmux} list-sessions -F '#{session_name}\t#{session_windows} windows\t#{session_created_string}'";
+            display = "{split:\t:0} ({split:\t:1})";
+            output = "{split:\t:0}";
+          };
+          preview = {
+            command = "${tmux} capture-pane -t '{split:\t:0}' -p 2>/dev/null || echo 'No preview available'";
+          };
+          actions = {
+            attach = {
+              description = "Attach to the selected session";
+              command = "${tmux} attach-session -t '{split:\t:0}'";
+              mode = "execute";
+            };
+            kill = {
+              description = "Kill the selected session";
+              command = "${tmux} kill-session -t '{split:\t:0}'";
+              mode = "fork";
+            };
+          };
+        };
+      };
+  };
+}

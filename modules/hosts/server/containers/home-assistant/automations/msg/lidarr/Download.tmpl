@@ -1,0 +1,16 @@
+<b>🎵 Lidarr</b> · <font color="#57f287">⬇️ Download</font>{% if trigger.payload_json.isUpgrade %} ⬆️{% endif %}
+{% set ar = trigger.payload_json.artist | default({}, true) %}
+{% set tf = trigger.payload_json.trackFiles | default([]) %}
+<ul>
+<li><b>Artist:</b> {{ ar.name | default('—') }}</li>
+<li><b>Albums:</b> {% for a in trigger.payload_json.albums | default([]) %}{{ a.title }}{% if not loop.last %}, {% endif %}{% endfor %}</li>
+<li><b>Tracks:</b> {{ trigger.payload_json.tracks | default([]) | length }}</li>
+<li><b>Track files:</b> {{ tf | length }}{% if tf %}{% set mi = tf[0].mediaInfo | default({}, true) %}</li>
+<li><b>Quality:</b> {{ tf[0].quality | default('—') }}</li>
+<li><b>Codec:</b> {{ mi.audioCodec | default('—') }}</li>
+<li><b>Sample rate:</b> {{ mi.audioSampleRate | default('—') }} Hz</li>
+<li><b>Bits:</b> {{ mi.audioBits | default('—') }}{% endif %}</li>
+<li><b>Client:</b> {{ trigger.payload_json.downloadClient | default('—') }} ({{ trigger.payload_json.downloadClientType | default('—') }})</li>
+<li><b>DownloadID:</b> <code>{{ trigger.payload_json.downloadId | default('—') }}</code></li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

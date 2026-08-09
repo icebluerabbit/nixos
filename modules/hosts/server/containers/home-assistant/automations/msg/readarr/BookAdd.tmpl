@@ -1,0 +1,11 @@
+<b>📚 Readarr</b> · <font color="#57f287">➕ Book Added</font>
+<ul>
+<li><b>Author:</b> {{ trigger.json.author.name | default('—') }}</li>
+<li><b>Book:</b> {{ trigger.json.book.title | default('—') }}</li>
+<li><b>Goodreads:</b> {{ trigger.json.book.goodreadsId | default('—') }}</li>
+<li><b>Release date:</b> {{ trigger.json.book.releaseDate | default('—') }}</li>
+<li><b>Added via:</b> {{ trigger.json.addMethod | default('—') }}</li>
+<li><b>Genres:</b> {{ trigger.json.book.genres | join(', ') | default('—') }}</li>
+<li><b>Overview:</b> {{ trigger.json.book.overview | truncate(120) | default('—') }}</li>
+<li><b>Instance:</b> {{ trigger.json.instanceName }}</li>
+</ul>

@@ -1,0 +1,8 @@
+{% set r = trigger.payload_json.data.release %}✅ <b>autobrr · approved</b>{% if trigger.payload_json.data.filter.name %} · {{ trigger.payload_json.data.filter.name }}{% endif %}
+<b>{{ r.title | default(r.name) }}</b>{% if r.year %} ({{ r.year }}){% endif %}
+<ul>
+<li><b>Release:</b> <code>{{ r.name }}</code></li>
+<li><b>Quality:</b> {{ r.resolution | default('—') }}{% if r.group %} · {{ r.group }}{% endif %}</li>
+<li><b>Grabbed via:</b> 👍 manual approval</li>
+</ul>
+<i>Ref {{ grab_id }}</i>

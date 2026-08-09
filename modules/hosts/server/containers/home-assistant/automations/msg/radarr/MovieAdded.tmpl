@@ -1,0 +1,10 @@
+<b>🎬 Radarr</b> · <font color="#57f287">➕ Movie Added</font>
+<ul>
+<li><b>Movie:</b> {{ trigger.payload_json.movie.title }} ({{ trigger.payload_json.movie.year }})</li>
+<li><b>IMDb:</b> {{ trigger.payload_json.movie.imdbId | default('—') }} | <b>TMDb:</b> {{ trigger.payload_json.movie.tmdbId | default('—') }}</li>
+<li><b>Folder:</b> <code>{{ trigger.payload_json.movie.folderPath | default('—') }}</code></li>
+<li><b>Added via:</b> {{ trigger.payload_json.movie.addMethod | default('—') }}</li>
+<li><b>Release date:</b> {{ trigger.payload_json.movie.releaseDate | default('—') }}</li>
+<li><b>Overview:</b> {{ trigger.payload_json.movie.overview | truncate(120) | default('—') }}</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

@@ -1,0 +1,10 @@
+<b>📺 Sonarr</b> · <font color="#ed4245">🗑️ Episode File Deleted</font>
+<ul>
+<li><b>Series:</b> {{ trigger.payload_json.series.title }}</li>
+<li><b>Episodes:</b> {% for e in trigger.payload_json.episodes %}S{{ '%02d' | format(e.seasonNumber) }}E{{ '%02d' | format(e.episodeNumber) }} – {{ e.title }}{% if not loop.last %}, {% endif %}{% endfor %}</li>
+<li><b>File:</b> <code>{{ trigger.payload_json.episodeFile.relativePath | default('—') }}</code></li>
+<li><b>Quality:</b> {{ trigger.payload_json.episodeFile.quality | default('—') }}</li>
+<li><b>Group:</b> {{ trigger.payload_json.episodeFile.releaseGroup | default('—') }}</li>
+<li><b>Reason:</b> {{ trigger.payload_json.deleteReason | default('—') }}</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

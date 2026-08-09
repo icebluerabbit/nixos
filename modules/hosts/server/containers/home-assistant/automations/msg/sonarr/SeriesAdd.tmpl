@@ -1,0 +1,10 @@
+<b>📺 Sonarr</b> · <font color="#57f287">➕ Series Added</font>
+<ul>
+<li><b>Series:</b> {{ trigger.payload_json.series.title }} ({{ trigger.payload_json.series.year | default('') }})</li>
+<li><b>TVDb:</b> {{ trigger.payload_json.series.tvdbId | default('—') }} | <b>IMDb:</b> {{ trigger.payload_json.series.imdbId | default('—') }}</li>
+<li><b>Network:</b> {{ trigger.payload_json.series.network | default('—') }}</li>
+<li><b>Type:</b> {{ trigger.payload_json.series.type | default('—') }}</li>
+<li><b>Genres:</b> {{ trigger.payload_json.series.genres | join(', ') | default('—') }}</li>
+<li><b>Path:</b> <code>{{ trigger.payload_json.series.path | default('—') }}</code></li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

@@ -1,0 +1,9 @@
+<b>🎬 Radarr</b> · <font color="#3498db">✏️ Renamed</font>
+<ul>
+<li><b>Movie:</b> {{ trigger.payload_json.movie.title }} ({{ trigger.payload_json.movie.year }})</li>
+<li><b>Files renamed:</b> {{ trigger.payload_json.renamedMovieFiles | length }}</li>
+{% for f in trigger.payload_json.renamedMovieFiles %}
+<li><code>{{ f.previousRelativePath }}</code> → <code>{{ f.relativePath }}</code></li>
+{% endfor %}
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

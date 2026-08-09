@@ -1,0 +1,9 @@
+<b>🎬 Radarr</b> · <font color="#ed4245">🗑️ Movie File Deleted</font>
+<ul>
+<li><b>Movie:</b> {{ trigger.payload_json.movie.title }} ({{ trigger.payload_json.movie.year }})</li>
+<li><b>File:</b> <code>{{ trigger.payload_json.movieFile.relativePath | default('—') }}</code></li>
+<li><b>Quality:</b> {{ trigger.payload_json.movieFile.quality | default('—') }}</li>
+<li><b>Group:</b> {{ trigger.payload_json.movieFile.releaseGroup | default('—') }}</li>
+<li><b>Reason:</b> {{ trigger.payload_json.deleteReason | default('—') }}</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

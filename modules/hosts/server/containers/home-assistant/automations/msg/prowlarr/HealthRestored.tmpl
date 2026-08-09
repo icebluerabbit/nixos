@@ -1,0 +1,8 @@
+<b>🔍 Prowlarr</b> · <font color="#57f287">💚 Health Restored</font>
+<ul>
+<li><b>Level:</b> {{ trigger.payload_json.level | default('—') }}</li>
+<li><b>Type:</b> {{ trigger.payload_json.type | default('—') }}</li>
+<li><b>Message:</b> {{ trigger.payload_json.message | default('—') }}</li>
+<li><b>Wiki:</b> {{ trigger.payload_json.wikiUrl | default('—') }}</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

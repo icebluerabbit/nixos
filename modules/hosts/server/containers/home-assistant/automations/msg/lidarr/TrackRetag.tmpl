@@ -1,0 +1,12 @@
+<b>🎵 Lidarr</b> · <font color="#3498db">🏷️ Track Retagged</font>
+<ul>
+<li><b>Artist:</b> {{ trigger.payload_json.artist.name | default('—') }}</li>
+<li><b>Album:</b> {{ trigger.payload_json.album.title | default('—') }}</li>
+<li><b>File:</b> <code>{{ trigger.payload_json.trackFile.relativePath | default('—') }}</code></li>
+<li><b>Scrubbed:</b> {{ trigger.payload_json.scrubbed | default(false) }}</li>
+<li><b>Changes:</b></li>
+{% for d in trigger.payload_json.diff %}
+<li><b>{{ d.field }}:</b> {{ d.oldValue | default('—') }} → {{ d.newValue | default('—') }}</li>
+{% endfor %}
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

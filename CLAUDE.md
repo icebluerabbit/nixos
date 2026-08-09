@@ -1,0 +1,113 @@
+# CLAUDE.md — NixOS Homelab Configuration
+
+Modular NixOS flake for multiple hosts (`desktop`, `server`). Built on [den](https://github.com/vic/den) (aspect framework) + [denful-networks](https://github.com/icebluerabbit/denful-networks) (co-orchestrates NixOS with UniFi + Cloudflare via Terranix/Terraform). Covers system config, home-manager, custom packages, and physical network infra.
+
+This file holds **project-wide conventions and guardrails** (always loaded). Topic detail and task procedures live in **skills**, loaded on demand — see *Skills*. Don't add procedural or subsystem detail here; put it in a skill.
+
+---
+
+## ⛔ Operational Safety — never touch the live system
+
+The assistant **NEVER** runs commands that affect the running OS or live network, even temporarily:
+`just switch*` / `nixos-rebuild switch`, `just test*` / `nixos-rebuild test`, `just infra-apply-homelab`, `terraform apply`/`import`.
+
+**Allowed** (zero live effect): `just eval-*`, `just build-*` (dry-run), `just infra-plan-homelab` (read-only), `nix fmt`, `just flake`, `git add`.
+
+Validate with eval/build/plan, then **hand off** any switch/test/apply — give the user the exact command to run themselves.
+
+---
+
+## Working Agreement
+
+- **Turn-by-turn authorization** for writes to container configs: propose the exact changes, then wait for `"lgtm"`/`"sgtm"` — no other phrasing. (Detail: `nixos-container-create`.)
+- **Dialogue-first**: a question or design discussion in the request → discuss; do not write files that turn, even if a command is also present.
+- **Never blame undeployed changes** for an issue. Assume deployed unless there's concrete evidence otherwise.
+- **Never ask for info you can fetch yourself** — status, logs, IPs, file content: use sys-mcp / SSH / the repo first.
+
+---
+
+## Environment
+
+NixOS. Standard tools (`python`, `go`, `node`…) may not be on `PATH`. Bring missing tools in temporarily — never install permanently for a one-off:
+```bash
+nix shell nixpkgs#jq nixpkgs#curl -c bash -c 'curl ... | jq .'
+```
+Fetching remote repos (2+ files): shallow + blobless clone into the session scratchpad, not bare `/tmp`:
+```bash
+git clone --depth 1 --filter=blob:none --sparse <url> <scratchpad-path>
+```
+
+---
+
+## Build & Workflow
+
+- **Formatter**: `nixfmt` — always `nix fmt` before evaluating.
+- **flake.nix is auto-generated** (`import-tree ./modules` auto-imports every `.nix`; `_`-prefixed paths and non-`.nix` files are ignored). Never hand-edit it. Run `just flake` after adding/removing modules.
+- **Flakes ignore untracked files** — `git add` (or `git add -N`) new files before Nix can evaluate them. `just format` runs `git add -N .` first.
+- Commands: `just build-*` / `eval-*` (safe checks), `just vm-*`, `just sops-host-secrets` / `sops-user-secrets`, `just gc`, `just infra-plan-homelab`. See *Operational Safety* for the human-only set.
+
+---
+
+## Topology & Diagnostics
+
+An MCP server (**sys-mcp**, `packages/sys-mcp/`) resolves hosts / containers / clients / IPs / ports / VLANs and runs diagnostics with **auto-SSH to the correct host** — prefer it over grep or manual ssh; running a diagnostic on the wrong host returns wrong data with no error. `server` runs all nspawn containers; `desktop` runs none. Full resolution model + tool catalog: skill `homelab-topology`.
+
+Other MCP servers: `nixos` (packages/options), `grafana`, `github`, `git`, `context7`, `fetch`, `memory`, `sequential-thinking`, `home-assistant`.
+
+---
+
+## Repository Layout
+
+```
+modules/
+  apps/ boot/ cli/ dev/ fonts/ groups/ gui/ hw/ iso/ networking/ security/ services/ style/ users/
+  cli/claude/   # this CLI's config + skills/
+  containers/   # nspawn container aspects (+ _base.nix, _options.nix)
+  hosts/        # per-host profiles: desktop/, server/ (host.nix, containers/, networking/, security.nix, …)
+  infra/        # single source of truth for network topology → NixOS + Terranix (clients/, networks/, devices/, …)
+  logging/      # Vector sidecar module
+packages/       # custom Nix packages (incl. sys-mcp)
+secrets/        # SOPS-encrypted YAML (never commit plaintext)
+```
+
+---
+
+## den Aspects (the core idiom)
+
+Everything is an **aspect**: a self-contained unit with `includes` (composition), and engine sections `nixos` / `homeManager` / `terranix` / `provides.to-hosts.nixos`.
+```nix
+den.aspects.<category>._.<name> = { includes = [ … ]; nixos = { … }; terranix = { … }; };
+```
+`_` separators are den's namespace convention, not literal name characters. Full structure, composition, and the container two-layer pattern: skill `den-aspects`.
+
+---
+
+## Skills
+
+`modules/cli/claude/skills/<name>/SKILL.md`.
+
+**Procedures (workflows):**
+| Skill | Use for |
+|:---|:---|
+| `nixos-container-create` | Add a new container end-to-end |
+| `nixos-container-debug` | Logs / status / connectivity for a running container or host service |
+| `nixos-secret-add` | Add/wire a sops-nix secret |
+| `nixos-infra-provision` | Prepare UniFi/Cloudflare/Terranix changes (apply handed to user) |
+| `nixos-web-expose` | Caddy reverse-proxy + Homepage card for a web UI |
+| `homelab-observability` | Grafana / Loki / Prometheus / Tempo investigation |
+
+**Knowledge (reference):**
+| Skill | Covers |
+|:---|:---|
+| `homelab-topology` | host/container/IP/VLAN resolution, sys-mcp catalog, SSH fallbacks |
+| `homelab-networking` | VLAN/bridge/bond architecture, direct-bridging philosophy, MAC formula |
+| `nixos-container-conventions` | `_base.nix`, port/UID/tmpfiles/firewall/glue invariants |
+| `den-aspects` | den framework structure + patterns |
+| `nixos-vector-logging` | Vector sidecar options + wiring |
+| `nix-style` | nixfmt/statix/deadnix conformance + repo Nix idioms |
+
+---
+
+## Git Workflow
+
+`main` = stable, `dev` = active. CI: `.github/workflows/ci.yml` (build check), `promote.yml` (release PR). Stage new files with `git add` before evaluating; run `just flake` after adding/removing modules.

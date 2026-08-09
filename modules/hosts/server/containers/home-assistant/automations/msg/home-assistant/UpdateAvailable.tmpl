@@ -1,0 +1,6 @@
+⬆️ <b>{{ trigger.to_state.attributes.title | default(trigger.to_state.name) }}</b> update available
+<ul>
+<li><b>Installed:</b> {{ trigger.to_state.attributes.installed_version | default('—') }}</li>
+<li><b>Latest:</b> {{ trigger.to_state.attributes.latest_version | default('—') }}</li>
+{% if trigger.to_state.attributes.release_url %}<li><b>Notes:</b> {{ trigger.to_state.attributes.release_url }}</li>{% endif %}
+</ul>

@@ -1,0 +1,5 @@
+<b>💾 Backup</b> · <font color="#ed4245">❌ appdata FAILED</font>
+<ul>
+<li><b>Host:</b> {{ trigger.payload_json.host }} · <b>Repo:</b> <code>{{ trigger.payload_json.repo }}</code></li>
+{% if trigger.payload_json.error %}<li><b>Error:</b> <code>{{ trigger.payload_json.error }}</code></li>{% endif %}
+</ul>

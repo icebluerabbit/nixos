@@ -1,0 +1,7 @@
+{% set p = trigger.payload_json.payload %}📥 <b>MaM · grab</b>
+<b>{{ p.name }}</b>
+<ul>
+<li><b>Category:</b> {{ p.category | default('—') }} ({{ p.kind | default('—') }})</li>
+<li><b>Size:</b> {% if p.size %}{{ (p.size / 1073741824) | round(2) }} GiB{% else %}—{% endif %}</li>
+<li><b>Result:</b> <code>{{ p.result | default('—') }}</code></li>
+</ul>

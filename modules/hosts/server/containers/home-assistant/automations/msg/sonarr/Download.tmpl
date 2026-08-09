@@ -1,0 +1,19 @@
+<b>📺 Sonarr</b> · <font color="#57f287">⬇️ Download</font>{% if trigger.payload_json.isUpgrade %} ⬆️{% endif %}
+{% set ef = trigger.payload_json.episodeFile | default({}, true) %}
+{% set mi = ef.mediaInfo | default({}, true) %}
+<ul>
+<li><b>Series:</b> {{ trigger.payload_json.series.title }} ({{ trigger.payload_json.series.year | default('') }})</li>
+<li><b>TVDb:</b> {{ trigger.payload_json.series.tvdbId | default('—') }} | <b>IMDb:</b> {{ trigger.payload_json.series.imdbId | default('—') }}</li>
+<li><b>Episodes:</b> {% for e in trigger.payload_json.episodes %}S{{ '%02d' | format(e.seasonNumber) }}E{{ '%02d' | format(e.episodeNumber) }} – {{ e.title }}{% if not loop.last %}, {% endif %}{% endfor %}</li>
+<li><b>File:</b> <code>{{ ef.relativePath | default('—') }}</code></li>
+<li><b>Quality:</b> {{ ef.quality | default('—') }}</li>
+<li><b>Group:</b> {{ ef.releaseGroup | default('—') }}</li>
+<li><b>Video:</b> {{ mi.videoCodec | default('—') }} {{ mi.width | default('') }}×{{ mi.height | default('') }}</li>
+<li><b>Audio:</b> {{ mi.audioCodec | default('—') }} {{ mi.audioChannels | default('') }}ch</li>
+<li><b>Subs:</b> {{ mi.subtitles | default([]) | join(', ') | default('none') }}</li>
+<li><b>Formats:</b> {{ trigger.payload_json.release.customFormats | join(', ') | default('none') }}</li>
+<li><b>Score:</b> {{ trigger.payload_json.release.customFormatScore | default(0) }}</li>
+<li><b>Client:</b> {{ trigger.payload_json.downloadClient | default('—') }} ({{ trigger.payload_json.downloadClientType | default('—') }})</li>
+<li><b>DownloadID:</b> <code>{{ trigger.payload_json.downloadId | default('—') }}</code></li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

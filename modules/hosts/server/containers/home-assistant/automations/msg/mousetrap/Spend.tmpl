@@ -1,0 +1,6 @@
+{% set p = trigger.payload_json.payload %}💸 <b>MaM · spend</b>
+<ul>
+<li><b>Type:</b> <code>{{ p.type | default('—') }}</code></li>
+<li><b>Amount:</b> {{ p.amount | default(0) }}</li>
+<li><b>Reason:</b> <code>{{ p.reason | default('—') }}</code></li>
+</ul>

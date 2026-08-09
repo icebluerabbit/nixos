@@ -1,0 +1,11 @@
+<b>🎵 Lidarr</b> · <font color="#57f287">➕ Album Added</font>
+<ul>
+<li><b>Artist:</b> {{ trigger.payload_json.artist.name | default('—') }}</li>
+<li><b>Album:</b> {{ trigger.payload_json.album.title | default('—') }}</li>
+<li><b>MBId:</b> {{ trigger.payload_json.album.mbId | default('—') }}</li>
+<li><b>Release date:</b> {{ trigger.payload_json.album.releaseDate | default('—') }}</li>
+<li><b>Label:</b> {{ trigger.payload_json.album.label | join(', ') | default('—') }}</li>
+<li><b>Genres:</b> {{ trigger.payload_json.album.genres | join(', ') | default('—') }}</li>
+<li><b>Disambiguation:</b> {{ trigger.payload_json.album.disambiguation | default('—') }}</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

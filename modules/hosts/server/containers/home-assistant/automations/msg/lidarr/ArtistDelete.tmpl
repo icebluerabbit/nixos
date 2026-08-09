@@ -1,0 +1,8 @@
+<b>🎵 Lidarr</b> · <font color="#ed4245">🗑️ Artist Deleted</font>
+<ul>
+<li><b>Artist:</b> {{ trigger.payload_json.artist.name | default('—') }}</li>
+<li><b>MBId:</b> {{ trigger.payload_json.artist.mbId | default('—') }}</li>
+<li><b>Path:</b> <code>{{ trigger.payload_json.artist.path | default('—') }}</code></li>
+<li><b>Files deleted:</b> {{ trigger.payload_json.deletedFiles | default(false) }}</li>
+<li><b>Instance:</b> {{ trigger.payload_json.instanceName }}</li>
+</ul>

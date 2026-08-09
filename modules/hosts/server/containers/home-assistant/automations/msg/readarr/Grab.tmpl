@@ -1,0 +1,15 @@
+<b>📚 Readarr</b> · <font color="#5865f2">🎣 Grab</font>
+<ul>
+<li><b>Author:</b> {{ trigger.json.author.name | default('—') }}</li>
+<li><b>Books:</b> {% for b in trigger.json.books %}{{ b.title }} ({{ b.releaseDate | default('—') }}){% if not loop.last %}, {% endif %}{% endfor %}</li>
+<li><b>Release:</b> <code>{{ trigger.json.release.releaseTitle | default('—') }}</code></li>
+<li><b>Quality:</b> {{ trigger.json.release.quality | default('—') }}</li>
+<li><b>Group:</b> {{ trigger.json.release.releaseGroup | default('—') }}</li>
+<li><b>Indexer:</b> {{ trigger.json.release.indexer | default('—') }}</li>
+<li><b>Size:</b> {{ ((trigger.json.release.size | int) / 1073741824) | round(2) }} GiB</li>
+<li><b>Formats:</b> {{ trigger.json.release.customFormats | join(', ') | default('none') }}</li>
+<li><b>Score:</b> {{ trigger.json.release.customFormatScore | default(0) }}</li>
+<li><b>Client:</b> {{ trigger.json.downloadClient | default('—') }} ({{ trigger.json.downloadClientType | default('—') }})</li>
+<li><b>DownloadID:</b> <code>{{ trigger.json.downloadId | default('—') }}</code></li>
+<li><b>Instance:</b> {{ trigger.json.instanceName }}</li>
+</ul>
