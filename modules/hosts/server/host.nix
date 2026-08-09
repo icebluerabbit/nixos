@@ -66,6 +66,7 @@
       den.aspects.hosts._.server._.containers._.flaresolverr
       den.aspects.hosts._.server._.containers._.cross-seed
       den.aspects.hosts._.server._.containers._.cleanuparr
+      den.aspects.hosts._.server._.containers._.seasonpackarr
       den.aspects.hosts._.server._.containers._.autobrr
       den.aspects.hosts._.server._.containers._.mousetrap
       den.aspects.hosts._.server._.containers._.unpackerr

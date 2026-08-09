@@ -64,6 +64,7 @@
                   (import ./indexers/_torrentleech.nix { inherit config; })
                   (import ./indexers/_digitalcore.nix { inherit config; })
                   (import ./indexers/_retrotoon.nix { inherit config; })
+                  (import ./indexers/_darkpeers.nix { inherit config; })
                 ];
                 download_clients = [
                   (import ./download-clients/_qbittorrent.nix { inherit config; })

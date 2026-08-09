@@ -85,6 +85,16 @@ _: {
               default = false;
               description = "Session\\CoalesceReadWrite — batch disk I/O";
             };
+            pieceExtentAffinity = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Session\\PieceExtentAffinity — bias the piece picker toward pieces in the same file extent, so concurrent peers pull from a narrow region of the file instead of spreading seeks across the whole torrent";
+            };
+            suggestMode = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Session\\SuggestMode — send SUGGEST messages naming pieces already in cache so peers request those first. libtorrent maps this to suggest_read_cache, which needs a disk backend that tracks cached pieces";
+            };
             chokingAlgorithm = lib.mkOption {
               type = lib.types.enum [
                 "FixedSlots"
@@ -163,6 +173,34 @@ _: {
               type = lib.types.int;
               default = 30;
               description = "Session\\SocketBacklogSize — inbound listen backlog";
+            };
+            multiConnectionsPerIp = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Session\\MultiConnectionsPerIp — allow more than one peer connection from a single IP (peers behind shared NAT, or several clients on one seedbox)";
+            };
+
+            # ── peer turnover — libtorrent's periodic peer churn ──
+            # Fires when total connections reach maxConnections * cutoff%, or (failing
+            # that) when a single torrent reaches maxConnectionsPerTorrent * cutoff%.
+            # Which peers get dropped is NOT tunable: compare_disconnect_peer ranks on
+            # is_interesting / is_seed / payload DOWNLOAD rate, all of which are
+            # degenerate or inverted on a completed torrent, and it never looks at
+            # upload rate. These three only control how often and how many.
+            peerTurnover = lib.mkOption {
+              type = lib.types.int;
+              default = 4;
+              description = "Session\\PeerTurnover — % of a torrent's peers to disconnect per pass. Note 0 does NOT disable it: libtorrent floors the count at 1 peer (max(n * pct / 100, 1)), capped by the number of connect candidates";
+            };
+            peerTurnoverCutOff = lib.mkOption {
+              type = lib.types.int;
+              default = 90;
+              description = "Session\\PeerTurnoverCutOff — only churn once connections reach this % of the limit; 100 = only at the limit itself";
+            };
+            peerTurnoverInterval = lib.mkOption {
+              type = lib.types.int;
+              default = 300;
+              description = "Session\\PeerTurnoverInterval — seconds between churn passes";
             };
 
             # ── protocol ──
@@ -528,6 +566,8 @@ _: {
                         "Session\\CheckingMemUsageSize" = bt.checkingMemUsageSize;
                         "Session\\DiskQueueSize" = bt.diskQueueSize;
                         "Session\\CoalesceReadWrite" = bt.coalesceReadWrite;
+                        "Session\\PieceExtentAffinity" = bt.pieceExtentAffinity;
+                        "Session\\SuggestMode" = bt.suggestMode;
                         "Session\\ChokingAlgorithm" = bt.chokingAlgorithm;
                         "Session\\SeedChokingAlgorithm" = bt.seedChokingAlgorithm;
                         "Session\\QueueingSystemEnabled" = bt.queueingSystemEnabled;
@@ -550,6 +590,10 @@ _: {
                         "Session\\SendBufferWatermarkFactor" = bt.sendBufferWatermarkFactor;
                         "Session\\ConnectionSpeed" = bt.connectionSpeed;
                         "Session\\SocketBacklogSize" = bt.socketBacklogSize;
+                        "Session\\MultiConnectionsPerIp" = bt.multiConnectionsPerIp;
+                        "Session\\PeerTurnover" = bt.peerTurnover;
+                        "Session\\PeerTurnoverCutOff" = bt.peerTurnoverCutOff;
+                        "Session\\PeerTurnoverInterval" = bt.peerTurnoverInterval;
                         "Session\\DHTEnabled" = bt.dht;
                         "Session\\PeXEnabled" = bt.pex;
                         "Session\\LSDEnabled" = bt.lsd;

@@ -22,6 +22,17 @@
   checkingMemUsageSize = 1024;
   diskQueueSize = 67108864;
   coalesceReadWrite = true;
+  # narrows concurrent peers onto the same file extent instead of letting them
+  # scatter requests across the torrent. Same motive as the finite maxUploads:
+  # cut random-read spread on the HDD-backed NFS library. Piece-picker level, so
+  # it works regardless of diskIOType.
+  pieceExtentAffinity = true;
+  # maps to libtorrent suggest_read_cache — suggests pieces already in the disk
+  # cache. libtorrent 2.0 dropped the dedicated read cache, and diskIOType is
+  # SimplePreadPwrite (posix backend, no cache tracking at all), so expect this
+  # to be close to inert here. Set for parity with the mmap path; revisit if
+  # diskIOType ever moves back to MMap.
+  suggestMode = true;
   # FixedSlots (not RateBased): RateBased gates unchoke slots on measured
   # upload rate, so a cold/idle pure seed (0 rate) never opens a slot →
   # leechers stay choked forever → 0 upload (verified: RateBased never sent
@@ -64,6 +75,26 @@
   sendBufferWatermarkFactor = 300;
   connectionSpeed = 300;
   socketBacklogSize = 1000;
+  # several peers behind one NAT (or one seedbox running multiple clients) would
+  # otherwise collapse to a single connection. Cheap reach win on private
+  # trackers where a chunk of the swarm sits behind shared IPs.
+  multiConnectionsPerIp = true;
+
+  # Peer turnover — minimised, not disabled (it can't be). libtorrent's picker
+  # (compare_disconnect_peer) ranks candidates on is_interesting, is_seed and
+  # payload DOWNLOAD rate. On a completed torrent the first and third are
+  # uniform (we want nothing from anyone; we download nothing from anyone) and
+  # is_seed is inverted for our case — it protects other seeds and evicts the
+  # leechers we're actually uploading to. Upload rate is never consulted, so
+  # turnover can drop the exact fast peer FastestUpload just promoted to a slot.
+  # At ~200ms peer RTT that costs a full slow-start ramp on a 32MiB-watermark
+  # connection. 0 floors at 1 peer per pass, so push the gate and the timer
+  # instead: churn only at the actual limit, at most 1 peer/hour.
+  # Self-limits further — the count is capped by num_connect_candidates(), which
+  # trends to 0 on a private swarm we're already fully connected to.
+  peerTurnover = 0;
+  peerTurnoverCutOff = 100;
+  peerTurnoverInterval = 3600;
 
   # protocol — private trackers only: no DHT/PeX/LSD
   dht = false;

@@ -31,10 +31,16 @@
     directory.root_dir = "/mnt/media/";
     # Mandatory: category -> save path (must match qbt's own category paths).
     cat = categories;
+    # Keys are substring-matched against the announce URL and split on "|", so one
+    # entry covers a tracker's alternate announce domains (TL's tleechreload, PreToMe's
+    # preto.me) — without them those torrents fall through to no tag at all.
     tracker = {
-      torrentleech.tag = "TL";
-      pretome.tag = "PreToMe";
-      myanonamouse.tag = "MAM";
+      "torrentleech|tleechreload".tag = "tracker-TL";
+      "pretome|preto.me".tag = "tracker-PTM";
+      "myanonamouse".tag = "tracker-MAM";
+      "digitalcore".tag = "tracker-DC";
+      "retrotoon".tag = "tracker-RTW";
+      "darkpeers".tag = "tracker-DP";
     };
     # Categories scanned for no-hardlink tagging. ignore_root_dir=false is REQUIRED
     # here: root_dir (/mnt/media/) contains the library (/mnt/media/library), so the

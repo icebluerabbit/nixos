@@ -26,6 +26,7 @@ let
     # ⚠ Do NOT assign 10.10.120.12 to any container — reserved.
     mousetrap = "10.10.120.20";
     cleanuparr = "10.10.120.21";
+    seasonpackarr = "10.10.120.22";
   };
   domain = "media.internal";
 

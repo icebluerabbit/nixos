@@ -101,6 +101,7 @@
       den.aspects.infra._.clients._.container-flaresolverr
       den.aspects.infra._.clients._.container-cross-seed
       den.aspects.infra._.clients._.container-cleanuparr
+      den.aspects.infra._.clients._.container-seasonpackarr
       den.aspects.infra._.clients._.container-autobrr
       den.aspects.infra._.clients._.container-mousetrap
       den.aspects.infra._.clients._.container-unpackerr

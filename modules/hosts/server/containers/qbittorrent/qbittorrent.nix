@@ -38,6 +38,13 @@
           audiobooks = "/mnt/media/complete/audiobooks";
           music = "/mnt/media/complete/music";
           misc = "/mnt/media/complete/misc";
+          # seasonpackarr's preImportPath — packs it assembles from episodes
+          # already held here are added under this category by autobrr, so the
+          # save path must match what seasonpackarr hardlinked into. Kept out of
+          # Sonarr's `tv` category on purpose: Sonarr would try to import these
+          # packs and reject them as "not an upgrade", which turns into strikes
+          # once cleanuparr's failed_import rule leaves phase 0.
+          seasonpacks = "/mnt/media/complete/seasonpacks";
         };
         categoriesJson = pkgs.writeText "categories.json" (
           builtins.toJSON (lib.mapAttrs (_: sp: { save_path = sp; }) categories)

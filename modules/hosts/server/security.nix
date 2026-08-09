@@ -36,23 +36,6 @@ _: {
             # mousetrap's MAM API session cookie (jsonLoad poller; rotating, sole owner).
             # 0444: read directly by the mousetrap container's non-root service user.
             mam-api-id.mode = "0444";
-            # Public-network IRC nicks (Libera.Chat, Rizon). Not sensitive like a
-            # tracker username, but kept out of the Nix store for the same reason.
-            libera-nickserv-password = {
-              mode = "0444";
-            };
-            rizon-nickserv-password = {
-              mode = "0444";
-            };
-            libera-username = {
-              mode = "0444";
-            };
-            rizon-username = {
-              mode = "0444";
-            };
-            snoonet-username = {
-              mode = "0444";
-            };
             pretome-username = {
               mode = "0444";
             };
@@ -144,6 +127,8 @@ _: {
             digitalcore-apikey = { };
             digitalcore-passkey = { };
             retrotoon-passkey = { };
+            darkpeers-apikey = { };
+            darkpeers-rsskey = { };
             digitalcore-username = {
               mode = "0444";
             };
@@ -156,8 +141,21 @@ _: {
             retrotoon-irc-password = {
               mode = "0444";
             };
+            darkpeers-username = {
+              mode = "0444";
+            };
+            darkpeers-irc-password = {
+              mode = "0444";
+            };
+            darkpeers-irckey = {
+              mode = "0444";
+            };
             autobrr-session-secret = { };
             autobrr-api-token = { };
+            # Bearer token for seasonpackarr's /api/pack and /api/parse. autobrr
+            # is the only caller; it passes the token as ?apikey= on both, so the
+            # value is needed in autobrr-env as well as seasonpackarr's config.
+            seasonpackarr-api-token = { };
             # Cleanuparr mints its API key with the admin account during first-run
             # setup and only serves it from the API, so the password is needed on
             # every boot to log in and re-read the key — not just once.
@@ -288,6 +286,15 @@ _: {
               RETROTOON_PASSKEY=${config.sops.placeholder.retrotoon-passkey}
               RETROTOON_NICK=${config.sops.placeholder.retrotoon-username}
               RETROTOON_IRC_PASSWORD=${config.sops.placeholder.retrotoon-irc-password}
+              DARKPEERS_RSSKEY=${config.sops.placeholder.darkpeers-rsskey}
+              DARKPEERS_NICK=${config.sops.placeholder.darkpeers-username}
+              SEASONPACKARR_API_TOKEN=${config.sops.placeholder.seasonpackarr-api-token}
+            '';
+            # Every other seasonpackarr setting is a typed option generated into
+            # the store; only the token can't be. New() applies the environment
+            # after the config file, so this is what supplies apiToken.
+            "seasonpackarr-env".content = ''
+              SEASONPACKARR__API_TOKEN=${config.sops.placeholder.seasonpackarr-api-token}
             '';
             "cleanuparr-env".content = ''
               CLEANUPARR_ADMIN_USER=admin
@@ -307,6 +314,7 @@ _: {
               TORRENTLEECH_PASSWORD=${config.sops.placeholder.torrentleech-password}
               DIGITALCORE_APIKEY=${config.sops.placeholder.digitalcore-apikey}
               RETROTOON_PASSKEY=${config.sops.placeholder.retrotoon-passkey}
+              DARKPEERS_APIKEY=${config.sops.placeholder.darkpeers-apikey}
               RADARR__AUTH__APIKEY=${config.sops.placeholder.radarr-apikey}
               SONARR__AUTH__APIKEY=${config.sops.placeholder.sonarr-apikey}
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}

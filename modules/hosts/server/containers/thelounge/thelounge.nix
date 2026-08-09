@@ -49,9 +49,7 @@
                 (import ./networks/_myanonamouse.nix)
                 (import ./networks/_digitalcore.nix)
                 (import ./networks/_retrotoon.nix)
-                (import ./networks/_libera.nix)
-                (import ./networks/_rizon.nix)
-                (import ./networks/_snoonet.nix)
+                (import ./networks/_darkpeers.nix)
               ];
               # Enforced into users/admin.json clientSettings every boot (merged —
               # declared keys win, other UI tweaks preserved). Theme CSS is read
@@ -81,26 +79,6 @@
               hostPath = config.sops.secrets."mam-irc-password".path;
               isReadOnly = true;
             };
-            "/run/secrets/libera-username" = {
-              hostPath = config.sops.secrets."libera-username".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/rizon-username" = {
-              hostPath = config.sops.secrets."rizon-username".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/libera-nickserv-password" = {
-              hostPath = config.sops.secrets."libera-nickserv-password".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/rizon-nickserv-password" = {
-              hostPath = config.sops.secrets."rizon-nickserv-password".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/snoonet-username" = {
-              hostPath = config.sops.secrets."snoonet-username".path;
-              isReadOnly = true;
-            };
             "/run/secrets/torrentleech-username" = {
               hostPath = config.sops.secrets."torrentleech-username".path;
               isReadOnly = true;
@@ -127,6 +105,18 @@
             };
             "/run/secrets/retrotoon-irc-password" = {
               hostPath = config.sops.secrets."retrotoon-irc-password".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/darkpeers-username" = {
+              hostPath = config.sops.secrets."darkpeers-username".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/darkpeers-irc-password" = {
+              hostPath = config.sops.secrets."darkpeers-irc-password".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/darkpeers-irckey" = {
+              hostPath = config.sops.secrets."darkpeers-irckey".path;
               isReadOnly = true;
             };
           };

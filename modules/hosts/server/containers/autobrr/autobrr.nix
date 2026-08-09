@@ -8,6 +8,8 @@
       den.aspects.infra._.clients._.container-autobrr
       den.aspects.infra._.clients._.container-cross-seed
       den.aspects.infra._.clients._.container-mousetrap
+      den.aspects.infra._.clients._.container-qbittorrent
+      den.aspects.infra._.clients._.container-seasonpackarr
       den.aspects.infra._.clients._.container-sonarr
       den.aspects.infra._.clients._.container-radarr
       den.aspects.infra._.clients._.container-lidarr
@@ -52,6 +54,7 @@
                 (import ./download-clients/_sonarr.nix { inherit config; })
                 (import ./download-clients/_radarr.nix { inherit config; })
                 (import ./download-clients/_lidarr.nix { inherit config; })
+                (import ./download-clients/_qbittorrent.nix { inherit config; })
               ];
               indexers = [
                 (import ./indexers/_pretome.nix { inherit config; })
@@ -59,6 +62,7 @@
                 (import ./indexers/_myanonamouse.nix { inherit config; })
                 (import ./indexers/_digitalcore.nix { inherit config; })
                 (import ./indexers/_retrotoon.nix { inherit config; })
+                (import ./indexers/_darkpeers.nix { inherit config; })
               ];
               irc_networks = [
                 (import ./irc-networks/_pretome.nix { inherit config; })
@@ -66,8 +70,11 @@
                 (import ./irc-networks/_myanonamouse.nix { inherit config; })
                 (import ./irc-networks/_digitalcore.nix { inherit config; })
                 (import ./irc-networks/_retrotoon.nix { inherit config; })
+                (import ./irc-networks/_darkpeers.nix { inherit config; })
               ];
               filters = [
+                # Priority 100 — must be evaluated before every TV filter below.
+                (import ./filters/_seasonpackarr.nix { inherit config; })
                 (import ./filters/_torrentleech-tv.nix { inherit config; })
                 (import ./filters/_torrentleech-movies.nix { inherit config; })
                 (import ./filters/_torrentleech-music.nix { inherit config; })
@@ -78,6 +85,9 @@
                 (import ./filters/_pretome-tv.nix { inherit config; })
                 (import ./filters/_pretome-movies.nix { inherit config; })
                 (import ./filters/_pretome-music.nix { inherit config; })
+                (import ./filters/_darkpeers-tv.nix { inherit config; })
+                (import ./filters/_darkpeers-movies.nix { inherit config; })
+                (import ./filters/_darkpeers-music.nix { inherit config; })
               ];
               notifications = [
                 (import ./notifications/_home-assistant.nix { inherit config; })
