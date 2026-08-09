@@ -90,6 +90,7 @@ den.aspects.<category>._.<name> = { includes = [ … ]; nixos = { … }; terrani
 | Skill | Use for |
 |:---|:---|
 | `nixos-container-create` | Add a new container end-to-end |
+| `github-repo-create` | Create + wire a new GitHub repo (binary, `-flake` wrapper, nix lib) |
 | `nixos-container-debug` | Logs / status / connectivity for a running container or host service |
 | `nixos-secret-add` | Add/wire a sops-nix secret |
 | `nixos-infra-provision` | Prepare UniFi/Cloudflare/Terranix changes (apply handed to user) |
