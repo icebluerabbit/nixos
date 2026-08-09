@@ -72,7 +72,7 @@
                 description = "Enable built-in authentication.";
               };
             };
-            settings = import (inputs.youtarr-flake + "/modules/settings.nix") { inherit lib pkgs; };
+            settings = inputs.youtarr-flake.lib.settingsOption { inherit lib pkgs; };
             secretSettings = lib.mkOption {
               type = lib.types.attrsOf lib.types.str;
               default = { };

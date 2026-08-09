@@ -1619,11 +1619,11 @@
         "systems": "systems_9"
       },
       "locked": {
-        "lastModified": 1786254842,
-        "narHash": "sha256-67MnWk9K4rabyMZr+Mo3Nniqv4IBWY00iYHsopZO7QE=",
+        "lastModified": 1786267222,
+        "narHash": "sha256-W7gt8Iusl2f7pdiEXmXofu0ePsl+C6LIfqLQm8WpnJE=",
         "owner": "icebluerabbit",
         "repo": "youtarr-flake",
-        "rev": "aa8fbb30ff95899b523abc6cbd9fde870a45db2c",
+        "rev": "07cba620108bbd114d6b09be91530babb9e94529",
         "type": "github"
       },
       "original": {
