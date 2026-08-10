@@ -2,8 +2,9 @@
   soularr — automated Soulseek acquisition of Lidarr's wanted list via slskd.
   https://github.com/mrusse/soularr
 
-  Not in nixpkgs (bare script, 3 PyPI deps also absent), so the package is built
-  inline below. Two units: a webui daemon (port cfg.port) and a oneshot `soularr`
+  Not in nixpkgs (bare script, 3 PyPI deps also absent) — binary is
+  pkgs.homelab.soularr (see packages/soularr). Two units: a webui daemon
+  (port cfg.port) and a oneshot `soularr`
   run fired on a timer (cfg.intervalSeconds). The whole config.ini is rendered
   here from typed options; the only secret (the Lidarr API key) is substituted at
   runtime from a bound sops secret, so nothing secret lands in the store.
@@ -14,7 +15,12 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       {
         options.containerConfigs.soularr =
           (import ../_options.nix {
@@ -214,6 +220,9 @@ _: {
         config.containers.soularr =
           let
             cfg = config.containerConfigs.soularr;
+            # Resolved from host pkgs so the homelab overlay is in scope; the
+            # store path pulls into the container closure via ExecStart.
+            inherit (pkgs.homelab) soularr;
           in
           {
             inherit (cfg) autoStart;
@@ -226,94 +235,6 @@ _: {
             config =
               { pkgs, lib, ... }:
               let
-                py = pkgs.python3.pkgs;
-
-                music-tag = py.buildPythonPackage rec {
-                  pname = "music-tag";
-                  version = "0.4.3";
-                  pyproject = true;
-                  src = pkgs.fetchPypi {
-                    inherit pname version;
-                    hash = "sha256-Cqtubu2o3w9TFuwtIZC9dFYbfgNWKrCRzo1Wh828//Y=";
-                  };
-                  build-system = [ py.setuptools ];
-                  dependencies = [ py.mutagen ];
-                  pythonImportsCheck = [ "music_tag" ];
-                };
-
-                slskd-api = py.buildPythonPackage rec {
-                  pname = "slskd-api";
-                  version = "0.1.5";
-                  pyproject = true;
-                  src = pkgs.fetchPypi {
-                    inherit pname version;
-                    hash = "sha256-LmWP7bnK5IVid255qS2NGOmyKzGpUl3xsO5vi5uJI88=";
-                  };
-                  build-system = [
-                    py.setuptools
-                    py.setuptools-git-versioning
-                  ];
-                  dependencies = [ py.requests ];
-                  pythonImportsCheck = [ "slskd_api" ];
-                };
-
-                pyarr = py.buildPythonPackage rec {
-                  pname = "pyarr";
-                  version = "5.2.0";
-                  pyproject = true;
-                  src = pkgs.fetchPypi {
-                    inherit pname version;
-                    hash = "sha256-jlcc9Kj1MYSsnvJkKZXXWWJVDx3KIuojjbGtl8kDUpw=";
-                  };
-                  # Upstream declares the legacy backend `poetry.masonry.api`, which
-                  # poetry-core does not provide (only `poetry.core.masonry.api`).
-                  postPatch = ''
-                    substituteInPlace pyproject.toml \
-                      --replace-fail 'poetry.masonry.api' 'poetry.core.masonry.api'
-                  '';
-                  build-system = [ py.poetry-core ];
-                  dependencies = [
-                    py.requests
-                    py.overrides
-                    py.types-requests
-                  ];
-                  pythonImportsCheck = [ "pyarr" ];
-                };
-
-                pythonEnv = pkgs.python3.withPackages (ps: [
-                  pyarr
-                  slskd-api
-                  music-tag
-                  ps.flask
-                  ps.waitress
-                  ps.mutagen
-                ]);
-
-                soularr = pkgs.stdenvNoCC.mkDerivation {
-                  pname = "soularr";
-                  version = "0-unstable-2026-04-27";
-                  src = pkgs.fetchFromGitHub {
-                    owner = "mrusse";
-                    repo = "soularr";
-                    rev = "f9e0ab922fd928a6d5d39cc9ddc0b0734006ddac";
-                    hash = "sha256-gtz99+DiFjJZuq54qo5C+5Exx++S+ePzldgDM9NHAOA=";
-                  };
-                  nativeBuildInputs = [ pkgs.makeWrapper ];
-                  dontConfigure = true;
-                  dontBuild = true;
-                  installPhase = ''
-                    runHook preInstall
-                    mkdir -p $out/share/soularr
-                    cp -r soularr.py webui resources $out/share/soularr/
-                    makeWrapper ${pythonEnv}/bin/python $out/bin/soularr \
-                      --add-flags "$out/share/soularr/soularr.py"
-                    makeWrapper ${pythonEnv}/bin/python $out/bin/soularr-webui \
-                      --add-flags "$out/share/soularr/webui/webui.py"
-                    runHook postInstall
-                  '';
-                  meta.mainProgram = "soularr";
-                };
-
                 # configparser wants Python-style True/False, not nix's true/false.
                 b = x: if x then "True" else "False";
                 configTemplate = pkgs.writeText "soularr-config.ini" (
