@@ -3,13 +3,19 @@ _: {
   den.aspects.hosts._.desktop._.mounts = {
     aspect-name = "hosts.desktop.mounts";
     nixos = {
+      # Dev workspace — dedicated 4TB NVMe. Previously exFat, which cannot store
+      # symlinks, unix permissions or hardlinks; btrfs restores all three. Keyed
+      # by label rather than uuid so a future reformat doesn't break this entry.
       fileSystems."/projects" = {
-        device = "/dev/disk/by-uuid/805F-4BA7";
-        fsType = "exfat";
+        device = "/dev/disk/by-label/projects";
+        fsType = "btrfs";
         options = [
-          "uid=1000"
-          "gid=1000"
-          "umask=0022"
+          "subvol=projects"
+          "compress=zstd:1"
+          "noatime"
+          "ssd"
+          "discard=async"
+          "space_cache=v2"
           "nofail"
         ];
       };
@@ -32,8 +38,13 @@ _: {
         ];
       };
 
-      # Library root owned by zms so Steam can create steamapps/ + compatdata/.
-      systemd.tmpfiles.rules = [ "d /games 0755 zms users -" ];
+      systemd.tmpfiles.rules = [
+        # Library root owned by zms so Steam can create steamapps/ + compatdata/.
+        "d /games 0755 zms users -"
+        # Workspace root owned by zms — btrfs carries real ownership, replacing
+        # the uid=/gid=/umask= mount options exFat needed to fake it.
+        "d /projects 0755 zms users -"
+      ];
     };
   };
 }

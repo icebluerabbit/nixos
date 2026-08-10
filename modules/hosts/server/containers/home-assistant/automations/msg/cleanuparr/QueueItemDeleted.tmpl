@@ -1,0 +1,4 @@
+{% set n = trigger.payload_json -%}
+🗑️ <b>Cleanuparr · {{ n.title | default('queue item deleted') | lower }}</b>
+{% if n.message %}{{ n.message }}{% endif %}
+<i>Pulled from the *arr queue and blocklisted, so the *arr will re-search. Files are untouched.</i>

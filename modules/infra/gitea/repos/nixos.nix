@@ -24,6 +24,13 @@
           ];
         };
       };
+
+      import = [
+        {
+          to = "gitea_repository.nixos";
+          id = "1";
+        }
+      ];
     };
   };
 }

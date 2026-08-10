@@ -84,6 +84,7 @@
       den.aspects.infra._.clients._.container-sonarr
       den.aspects.infra._.clients._.container-radarr
       den.aspects.infra._.clients._.container-lidarr
+      den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.networks._.apps
       den.aspects.infra._.networks._.media
       den.aspects.hosts._.server._.security
@@ -99,6 +100,7 @@
         cfg = config.containerConfigs.cleanuparr;
         cl = config.infra.clients;
         port = cl.container-cleanuparr.ports.default;
+        exporter = import ./_exporter.nix { inherit port; };
         apps = config.infra.vlans.apps;
         # Every category qBittorrent defines (see qbittorrent/_bittorrent.nix) —
         # the unlinked/dead scans are scoped to downloads the *arr apps own.
@@ -236,6 +238,37 @@
               # one Prowlarr. cross-seed's daily sweep + rssCadence already cover
               # that ground, under a rate limit tuned for those trackers.
               seeker.search_enabled = false;
+
+              # Notifications for Home Assistant. Cleanuparr has no plain
+              # webhook provider, and configuratarr enforces Discord's
+              # https://discord.com/api/webhooks/ prefix, so ntfy is the one
+              # provider whose endpoint is genuinely free-form: it POSTs to
+              # server_url with no auth required. That endpoint is the
+              # container's own Vector sidecar, which republishes to MQTT
+              # (homelab/notify/cleanuparr) for HA to trigger on.
+              #
+              # Every event is enabled: the sidecar is a fanout, not the
+              # audience, and filtering belongs in HA where the routing is. In
+              # phase 0 that means on_category_changed carries the tagging
+              # traffic and the strike toggles stay quiet, since nothing
+              # strikes yet — which is exactly the signal to watch for when
+              # phase 1 flips the thresholds.
+              ntfy_providers = [
+                {
+                  name = "vector";
+                  is_enabled = true;
+                  server_url = "http://localhost:9001";
+                  topics = [ "cleanuparr" ];
+                  on_failed_import_strike = true;
+                  on_stalled_strike = true;
+                  on_slow_strike = true;
+                  on_queue_item_deleted = true;
+                  on_download_cleaned = true;
+                  on_category_changed = true;
+                  on_search_triggered = true;
+                  on_search_item_grabbed = true;
+                }
+              ];
 
               # `version` only picks a client shape for Whisparr (see Cleanuparr's
               # ArrClientFactory); for these four it is the *arr API version.
@@ -451,6 +484,35 @@
             lokiAddress = "http://${cl.container-loki.ip}:${toString cl.container-loki.ports.default}";
             prometheusAddress = "http://${cl.container-prometheus.ip}:${toString cl.container-prometheus.ports.default}/api/v1/write";
             tempoAddress = "http://${cl.container-tempo.ip}:${toString cl.container-tempo.ports.otlp-http}/v1/traces";
+            inherit (exporter) prometheusInputs;
+            # Cleanuparr's ntfy provider posts here (loopback, the Vector
+            # sidecar); republished verbatim to MQTT so HA consumes via an mqtt
+            # trigger. Same arrangement cross-seed uses.
+            extraSettings = lib.recursiveUpdate exporter.extraSettings {
+              sources.webhook_in = {
+                type = "http_server";
+                address = "127.0.0.1:9001";
+                method = "POST";
+                path = "/";
+                # ntfy publishes either as JSON to the server root or as a body
+                # to /<topic>, and Cleanuparr's client picks one; accepting any
+                # path means that choice cannot silently 404 the notifications.
+                strict_path = false;
+                decoding.codec = "bytes"; # keep the ntfy JSON verbatim → .message
+                framing.method = "bytes"; # one event per request body, not per line
+              };
+              sinks.webhook_mqtt = {
+                type = "mqtt";
+                inputs = [ "webhook_in" ];
+                host = cl.container-mosquitto.ip;
+                port = cl.container-mosquitto.ports.default;
+                client_id = "vector-cleanuparr"; # unique per container → no broker client-id collision
+                topic = "homelab/notify/cleanuparr";
+                quality_of_service = "atleastonce";
+                retain = false;
+                encoding.codec = "text"; # emit .message raw
+              };
+            };
           };
         };
 

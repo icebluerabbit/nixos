@@ -1,0 +1,5 @@
+{% set n = trigger.payload_json -%}
+{% set t = n.title | default('Cleanuparr') -%}
+{% if 'Strike' in t %}⚠️{% elif 'Delet' in t or 'Remov' in t %}🗑️{% elif 'Clean' in t %}🧹{% elif 'Search' in t or 'Grab' in t %}🔍{% else %}🧹{% endif %} <b>Cleanuparr · {{ t }}</b>
+{%- if n.message %}<br>{{ n.message }}{% endif %}
+{%- if n.tags %}<br><i>{{ n.tags | join(' · ') }}</i>{% endif %}

@@ -58,13 +58,12 @@ in
           skip_forget_on_destroy = false;
         };
 
-        # Uncomment after the first `just infra-apply-homelab`.
-        # import = [
-        #   {
-        #     to = "unifi_client.container_seasonpackarr";
-        #     id = mac;
-        #   }
-        # ];
+        import = [
+          {
+            to = "unifi_client.container_seasonpackarr";
+            id = mac;
+          }
+        ];
       };
   };
 }

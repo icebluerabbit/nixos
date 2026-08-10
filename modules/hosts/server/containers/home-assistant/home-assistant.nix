@@ -151,6 +151,8 @@
                 "#myanonamouse:matrix.services.internal"
                 "#qbittorrent:matrix.services.internal"
                 "#cross-seed:matrix.services.internal"
+                "#cleanuparr:matrix.services.internal"
+                "#seasonpackarr:matrix.services.internal"
                 "#soulseek:matrix.services.internal"
                 "#lazylibrarian:matrix.services.internal"
                 "#automations:matrix.services.internal"
@@ -199,6 +201,8 @@
               (import ./automations/_backup-webhook.nix { })
               (import ./automations/_grafana-alerts-webhook.nix { inherit lib; })
               (import ./automations/_cross-seed-webhook.nix { })
+              (import ./automations/_cleanuparr-webhook.nix { })
+              (import ./automations/_seasonpackarr-webhook.nix { })
               (import ./automations/_presence.nix { })
               (import ./automations/_new-client.nix { })
               (import ./automations/_device-down.nix { })

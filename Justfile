@@ -1,3 +1,6 @@
+# ssh target for the server host; desktop recipes run locally
+server := "zms@10.10.20.2"
+
 default:
     @just --list
 
@@ -30,7 +33,7 @@ switch-desktop: flake format
     nh os switch .#desktop
 
 switch-server: flake format
-    nh os switch . --target-host zms@10.10.20.2 --hostname server
+    nh os switch . --target-host {{ server }} --hostname server
 
 switch: infra-apply-homelab switch-server switch-desktop
 
@@ -38,7 +41,17 @@ boot-desktop: flake format
     nh os boot .#desktop
 
 boot-server: flake format
-    nh os boot . --target-host zms@10.10.20.2 --hostname server
+    nh os boot . --target-host {{ server }} --hostname server
+
+backup-desktop:
+    -sudo systemctl start restic-projects.service
+    systemctl status restic-projects.service --no-pager -n 20
+
+backup-server:
+    -ssh {{ server }} sudo systemctl start restic-appdata.service
+    ssh {{ server }} systemctl status restic-appdata.service --no-pager -n 20
+
+backup: backup-server backup-desktop
 
 format: _track
     nix fmt

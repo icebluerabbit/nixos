@@ -18,13 +18,6 @@
           ignore_changes = [ "content" ];
         };
       };
-
-      import = [
-        {
-          to = "cloudflare_dns_record.home";
-          id = "\${var.cf_zone_id}/467a8bd707ee79cb55712bfc68f8744e";
-        }
-      ];
     };
   };
 }

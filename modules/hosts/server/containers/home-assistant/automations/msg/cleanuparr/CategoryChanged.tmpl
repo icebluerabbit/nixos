@@ -1,0 +1,3 @@
+{% set n = trigger.payload_json -%}
+🏷️ <b>Cleanuparr · {{ n.title | default('category changed') | lower }}</b>
+{% if n.message %}{{ n.message }}{% endif %}

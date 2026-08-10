@@ -1,0 +1,4 @@
+{% set n = trigger.payload_json -%}
+⚠️ <b>Cleanuparr · {{ n.title | default('strike') | lower }}</b>
+{% if n.message %}{{ n.message }}{% endif %}
+<i>Struck, not removed — the download stays in qBittorrent with its files.</i>

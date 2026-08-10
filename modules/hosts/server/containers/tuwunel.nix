@@ -102,6 +102,8 @@
               (room "myanonamouse" "MyAnonaMouse" "media" "calibre")
               (room "qbittorrent" "qBittorrent" "media" "qbittorrent")
               (room "cross-seed" "cross-seed" "media" "transmission")
+              (room "cleanuparr" "Cleanuparr" "media" "sweeper")
+              (room "seasonpackarr" "seasonpackarr" "media" "archive-manager")
               (room "soulseek" "Soulseek" "media" "soulseek")
               (room "jellyfin" "Jellyfin" "media" "jellyfin")
               (room "youtarr" "Youtarr" "media" "youtube")

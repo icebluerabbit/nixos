@@ -14,10 +14,10 @@
         };
       };
 
-      moved = [
+      import = [
         {
-          from = "cloudflare_zone.zms_network";
           to = "cloudflare_zone.primary";
+          id = "\${var.cf_zone_id}";
         }
       ];
     };

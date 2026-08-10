@@ -29,7 +29,11 @@
         sonarr = config.infra.clients.container-sonarr;
         radarr = config.infra.clients.container-radarr;
         qbit = config.infra.clients.container-qbittorrent;
-        exporter = import ./_exporter.nix;
+        # Reads the infra client rather than cfg.port: cfg is the option set
+        # this module is defining, so going through it here would be a cycle.
+        exporter = import ./_exporter.nix {
+          port = config.infra.clients.container-cross-seed.ports.default;
+        };
       in
       {
         # cross-seed's own daemon API key + the secret indexer/client URLs

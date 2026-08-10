@@ -97,6 +97,21 @@ _: {
               default = "INFO";
               description = "seasonpackarr log level";
             };
+            notificationWebhook = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = ''
+                URL seasonpackarr POSTs its notifications to, rendered into
+                upstream's `notifications.discord`.
+
+                Upstream only ships a Discord notifier, but it validates
+                nothing: discord.go hands this string straight to
+                http.NewRequest and treats 200 or 204 as delivered. So a plain
+                HTTP collector works — the homelab points it at the container's
+                own Vector sidecar, which republishes the Discord embed to MQTT
+                and derives pack-outcome metrics from its title.
+              '';
+            };
             notificationLevel = lib.mkOption {
               type = lib.types.listOf (
                 lib.types.enum [
@@ -169,6 +184,9 @@ _: {
                   };
                   notifications = {
                     inherit (cfg) notificationLevel;
+                  }
+                  // lib.optionalAttrs (cfg.notificationWebhook != null) {
+                    discord = cfg.notificationWebhook;
                   };
                 }
               );
@@ -190,7 +208,7 @@ _: {
                 });
 
               config =
-                { lib, ... }:
+                { pkgs, lib, ... }:
                 {
                   imports = [ (import ./_base.nix { inherit lib cfg; }) ];
 
@@ -206,6 +224,10 @@ _: {
                     wantedBy = [ "multi-user.target" ];
                     after = [ "network.target" ];
                     serviceConfig = {
+                      # /mnt/media is autofs on the host, and systemd-tmpfiles
+                      # skips anything under an autofs mount, so preImportPath
+                      # has to be created from inside the unit.
+                      ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p ${cfg.preImportPath}";
                       ExecStart = "${seasonpackarrBin} start --config ${configDir}";
                       EnvironmentFile = lib.mkIf (cfg.envFile != null) "/run/secrets/seasonpackarr-env";
                       User = "seasonpackarr";

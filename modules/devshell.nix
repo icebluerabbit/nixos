@@ -12,10 +12,8 @@ _: {
         shellHook =
           if config ? pre-commit then
             ''
-              # Copy the nix-generated pre-commit config file to the workspace
-              # to avoid symlink failures on exfat filesystems where symlinking is not allowed.
-              cp -f ${config.pre-commit.settings.configFile} .pre-commit-config.yaml
-              chmod +w .pre-commit-config.yaml
+              # Link the nix-generated pre-commit config into the workspace.
+              ln -sf ${config.pre-commit.settings.configFile} .pre-commit-config.yaml
 
               # Run pre-commit install to write the executable script in .git/hooks/pre-commit
               if [ -d .git ]; then
