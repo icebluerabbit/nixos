@@ -8,7 +8,8 @@ files at runtime, so they never enter the Nix store.
 
 Env:
   THELOUNGE_SEED_FILE  JSON list of {name, networks:[{name,host,port,tls,
-                       rejectUnauthorized,nickPath,channels}]}
+                       rejectUnauthorized,nickPath,channels,sasl,
+                       saslAccountPath,saslPasswordPath}]}
   THELOUNGE_USERS_DIR  users dir (default /var/lib/thelounge/users)
 """
 
@@ -39,6 +40,14 @@ for u in users:
             net["nick"] = open(n["nickPath"]).read().strip()
         if n.get("passwordPath"):
             net["password"] = open(n["passwordPath"]).read().strip()
+        if n.get("sasl"):
+            net["sasl"] = n["sasl"]
+            if n.get("saslAccountPath"):
+                net["saslAccount"] = open(n["saslAccountPath"]).read().strip()
+            if n.get("saslPasswordPath"):
+                net["saslPassword"] = (
+                    open(n["saslPasswordPath"]).read().strip()
+                )
         cmd_secrets = {
             k: open(v).read().strip()
             for k, v in n.get("commandsSecretPaths", {}).items()

@@ -46,7 +46,7 @@
             content = builtins.toJSON {
               apiKey = config.sops.placeholder.cross-seed-apikey;
               # Prowlarr per-indexer Torznab feeds (id 1 = PreToMe, 2 = TorrentLeech,
-              # 3 = DigitalCore, 4 = RetroToon, 5 = DarkPeers). Only *enabled* indexers belong here:
+              # 3 = DigitalCore, 4 = RetroToon, 5 = DarkPeers, 6 = YU-Scene). Only *enabled* indexers belong here:
               # Prowlarr answers a disabled indexer's feed with 410 Gone, which fails
               # every updateIndexerCaps run.
               torznab = [
@@ -55,6 +55,7 @@
                 "http://${prowlarr.ip}:${toString prowlarr.ports.default}/3/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
                 "http://${prowlarr.ip}:${toString prowlarr.ports.default}/4/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
                 "http://${prowlarr.ip}:${toString prowlarr.ports.default}/5/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
+                "http://${prowlarr.ip}:${toString prowlarr.ports.default}/6/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
               ];
               # No creds: cross-seed's media-VLAN IP is in qBittorrent's
               # authSubnetWhitelist, so its WebUI bypasses auth for us.

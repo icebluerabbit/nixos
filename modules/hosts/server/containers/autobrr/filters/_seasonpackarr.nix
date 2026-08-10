@@ -38,6 +38,7 @@ in
     { id = "\${ref.indexer.PreToMe}"; }
     { id = "\${ref.indexer.DarkPeers}"; }
     { id = "\${ref.indexer.RetroToon}"; }
+    { id = "\${ref.indexer.YU-Scene}"; }
   ];
   # Match gate only: no filesystem writes, nothing added to the client. 250 is
   # seasonpackarr's own "matched" status, not an HTTP convention.

@@ -81,6 +81,26 @@ _: {
                               default = null;
                               description = "In-container path to a file holding the IRC server password (sops secret); null = none";
                             };
+                            sasl = lib.mkOption {
+                              type = lib.types.nullOr (
+                                lib.types.enum [
+                                  "plain"
+                                  "external"
+                                ]
+                              );
+                              default = null;
+                              description = "SASL mechanism; null = no SASL";
+                            };
+                            saslAccountPath = lib.mkOption {
+                              type = lib.types.nullOr lib.types.str;
+                              default = null;
+                              description = "In-container path to a file holding the SASL account (sops secret)";
+                            };
+                            saslPasswordPath = lib.mkOption {
+                              type = lib.types.nullOr lib.types.str;
+                              default = null;
+                              description = "In-container path to a file holding the SASL password (sops secret)";
+                            };
                             channels = lib.mkOption {
                               type = lib.types.listOf lib.types.str;
                               default = [ ];

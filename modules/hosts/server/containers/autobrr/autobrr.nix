@@ -63,6 +63,7 @@
                 (import ./indexers/_digitalcore.nix { inherit config; })
                 (import ./indexers/_retrotoon.nix { inherit config; })
                 (import ./indexers/_darkpeers.nix { inherit config; })
+                (import ./indexers/_yuscene.nix { inherit config; })
               ];
               irc_networks = [
                 (import ./irc-networks/_pretome.nix { inherit config; })
@@ -71,6 +72,7 @@
                 (import ./irc-networks/_digitalcore.nix { inherit config; })
                 (import ./irc-networks/_retrotoon.nix { inherit config; })
                 (import ./irc-networks/_darkpeers.nix { inherit config; })
+                (import ./irc-networks/_yuscene.nix { inherit config; })
               ];
               filters = [
                 # Priority 100 — must be evaluated before every TV filter below.
@@ -88,6 +90,9 @@
                 (import ./filters/_darkpeers-tv.nix { inherit config; })
                 (import ./filters/_darkpeers-movies.nix { inherit config; })
                 (import ./filters/_darkpeers-music.nix { inherit config; })
+                (import ./filters/_yuscene-tv.nix { inherit config; })
+                (import ./filters/_yuscene-movies.nix { inherit config; })
+                (import ./filters/_yuscene-music.nix { inherit config; })
               ];
               notifications = [
                 (import ./notifications/_home-assistant.nix { inherit config; })

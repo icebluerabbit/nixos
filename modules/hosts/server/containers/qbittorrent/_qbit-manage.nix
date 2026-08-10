@@ -41,6 +41,7 @@
       "digitalcore".tag = "tracker-DC";
       "retrotoon".tag = "tracker-RTW";
       "darkpeers".tag = "tracker-DP";
+      "yu-scene".tag = "tracker-YS";
     };
     # Categories scanned for no-hardlink tagging. ignore_root_dir=false is REQUIRED
     # here: root_dir (/mnt/media/) contains the library (/mnt/media/library), so the

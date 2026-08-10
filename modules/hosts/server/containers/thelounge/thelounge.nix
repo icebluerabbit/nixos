@@ -49,6 +49,7 @@
                 (import ./networks/_digitalcore.nix)
                 (import ./networks/_retrotoon.nix)
                 (import ./networks/_darkpeers.nix)
+                (import ./networks/_yuscene.nix)
               ];
               # Enforced into users/admin.json clientSettings every boot (merged —
               # declared keys win, other UI tweaks preserved). Theme CSS is read
@@ -116,6 +117,14 @@
             };
             "/run/secrets/darkpeers-irckey" = {
               hostPath = config.sops.secrets."darkpeers-irckey".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/yuscene-username" = {
+              hostPath = config.sops.secrets."yuscene-username".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/yuscene-irckey" = {
+              hostPath = config.sops.secrets."yuscene-irckey".path;
               isReadOnly = true;
             };
           };

@@ -129,6 +129,8 @@ _: {
             retrotoon-passkey = { };
             darkpeers-apikey = { };
             darkpeers-rsskey = { };
+            yuscene-apikey = { };
+            yuscene-rsskey = { };
             digitalcore-username = {
               mode = "0444";
             };
@@ -148,6 +150,12 @@ _: {
               mode = "0444";
             };
             darkpeers-irckey = {
+              mode = "0444";
+            };
+            yuscene-username = {
+              mode = "0444";
+            };
+            yuscene-irckey = {
               mode = "0444";
             };
             autobrr-session-secret = { };
@@ -288,6 +296,9 @@ _: {
               RETROTOON_IRC_PASSWORD=${config.sops.placeholder.retrotoon-irc-password}
               DARKPEERS_RSSKEY=${config.sops.placeholder.darkpeers-rsskey}
               DARKPEERS_NICK=${config.sops.placeholder.darkpeers-username}
+              YUSCENE_RSSKEY=${config.sops.placeholder.yuscene-rsskey}
+              YUSCENE_NICK=${config.sops.placeholder.yuscene-username}
+              YUSCENE_IRCKEY=${config.sops.placeholder.yuscene-irckey}
               SEASONPACKARR_API_TOKEN=${config.sops.placeholder.seasonpackarr-api-token}
             '';
             # Every other seasonpackarr setting is a typed option generated into
@@ -315,6 +326,7 @@ _: {
               DIGITALCORE_APIKEY=${config.sops.placeholder.digitalcore-apikey}
               RETROTOON_PASSKEY=${config.sops.placeholder.retrotoon-passkey}
               DARKPEERS_APIKEY=${config.sops.placeholder.darkpeers-apikey}
+              YUSCENE_APIKEY=${config.sops.placeholder.yuscene-apikey}
               RADARR__AUTH__APIKEY=${config.sops.placeholder.radarr-apikey}
               SONARR__AUTH__APIKEY=${config.sops.placeholder.sonarr-apikey}
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}
