@@ -8,7 +8,12 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         # ── [BitTorrent] section — maps to Session\* conf keys ──
         bitTorrentSubmodule = lib.types.submodule {
@@ -473,6 +478,10 @@ _: {
               cfg = config.containerConfigs.qbittorrent;
               bt = cfg.bitTorrentConfig;
               pref = cfg.preferences;
+              # Resolved from host pkgs so the homelab overlay is in scope; the
+              # store paths pull into the container closure via ExecStart.
+              vpnClient = lib.getExe pkgs.homelab.vpn-broker-client-qbt;
+              qbtScripts = pkgs.homelab.qbt-scripts;
               # VPN tunnel pool — the client's OWN wiring (decoupled from vpn-gw). Each entry
               # is a p2p veth into br-vpnN with the routing bits for egress. The broker (on
               # vpn-gw) selects which tunnel to bind and hands its name back; the broker client
@@ -687,7 +696,7 @@ _: {
                           Restart = "always";
                           RestartSec = "10s";
                           ExecStartPre = lib.mkAfter [
-                            "+${lib.getExe pkgs.python3} ${./vpn_broker_client.py} prestart ${brokerClientCfg}"
+                            "+${vpnClient} prestart ${brokerClientCfg}"
                           ];
                         };
                       };
@@ -704,7 +713,7 @@ _: {
                         path = lib.optionals cfg.mam.enable [ pkgs.curl ];
                         serviceConfig = {
                           Type = "oneshot";
-                          ExecStart = "${lib.getExe pkgs.python3} ${./vpn_broker_client.py} keepalive ${brokerClientCfg}";
+                          ExecStart = "${vpnClient} keepalive ${brokerClientCfg}";
                         };
                       };
 
@@ -716,7 +725,7 @@ _: {
                           Type = "oneshot";
                           User = "qbittorrent";
                           ExecStart =
-                            "${pkgs.python3}/bin/python3 ${./watch.py}"
+                            "${qbtScripts}/bin/qbt-watch"
                             + " --api http://127.0.0.1:${toString cfg.webuiPort}"
                             + " --watch-dir ${cfg.watchDir}"
                             + " --backup-dir ${bt.finishedTorrentExportDirectory}"
@@ -731,7 +740,7 @@ _: {
                         serviceConfig = {
                           Type = "oneshot";
                           User = "qbittorrent";
-                          ExecStart = "${pkgs.python3}/bin/python3 ${./reannounce.py} --api http://127.0.0.1:${toString cfg.webuiPort}";
+                          ExecStart = "${qbtScripts}/bin/qbt-reannounce --api http://127.0.0.1:${toString cfg.webuiPort}";
                         };
                       };
 
@@ -742,7 +751,7 @@ _: {
                         serviceConfig = {
                           Type = "oneshot";
                           User = "qbittorrent";
-                          ExecStart = "${pkgs.python3}/bin/python3 ${./tag_sync.py} --api http://127.0.0.1:${toString cfg.webuiPort}";
+                          ExecStart = "${qbtScripts}/bin/qbt-tag-sync --api http://127.0.0.1:${toString cfg.webuiPort}";
                         };
                       };
 

@@ -4,9 +4,17 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         hostConfig = config;
+        # Resolved from host pkgs so the homelab overlay is in scope; the store
+        # path pulls into the container closure via ExecStart.
+        tuwunelInit = lib.getExe pkgs.homelab.tuwunel-init;
       in
       {
         options.containerConfigs.tuwunel =
@@ -114,10 +122,7 @@ _: {
 
                   adminUser = lib.findFirst (u: u.admin) null cfg.initUsers;
 
-                  initScript = pkgs.writeTextFile {
-                    name = "tuwunel-init.py";
-                    text = builtins.readFile ./init.py;
-                  };
+                  initScript = tuwunelInit;
 
                   # Room/user avatars: Papirus app SVGs rasterised to PNG at build time (Matrix
                   # clients refuse SVG avatars, and the server thumbnailer is raster-only). Room
@@ -212,7 +217,7 @@ _: {
                               usersJson = builtins.toJSON usersWithAvatar;
                               roomsJson = builtins.toJSON roomsWithIcon;
                             in
-                            "${lib.getExe pkgs.python3} ${initScript} ${toString cfg.port} ${cfg.serverName} ${adminUser.username} '${usersJson}' '${roomsJson}'";
+                            "${initScript} ${toString cfg.port} ${cfg.serverName} ${adminUser.username} '${usersJson}' '${roomsJson}'";
                         };
                       };
                 };

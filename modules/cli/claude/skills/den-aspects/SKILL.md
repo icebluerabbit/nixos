@@ -13,6 +13,7 @@ This repo uses [den](https://github.com/vic/den). Everything is an **aspect** �
 den.aspects.<category>._.<name>                    # top-level
 den.aspects.hosts._.server._.containers._.radarr   # nested
 ```
+
 The `_` separators are den's **namespace convention** — not literal characters in the name. Aspects usually set `aspect-name = "<category>.<name>"`.
 
 ## Structure
@@ -49,11 +50,11 @@ den.aspects.<category>._.<name> = {
 
 ## Engines
 
-| Section | Evaluated as | Produces |
-|:--|:--|:--|
-| `nixos` | NixOS module on the host | system config |
-| `homeManager` | home-manager module for the user | user config |
-| `terranix` | Terranix | `.tf.json` for UniFi + Cloudflare |
-| `provides.to-hosts.nixos` | injected into host's NixOS eval | host-visible options |
+| Section                   | Evaluated as                     | Produces                          |
+| :------------------------ | :------------------------------- | :-------------------------------- |
+| `nixos`                   | NixOS module on the host         | system config                     |
+| `homeManager`             | home-manager module for the user | user config                       |
+| `terranix`                | Terranix                         | `.tf.json` for UniFi + Cloudflare |
+| `provides.to-hosts.nixos` | injected into host's NixOS eval  | host-visible options              |
 
 Infra clients/networks are **dual-engine** (both `nixos` and `terranix`). Flake regeneration: `just flake` after adding/removing modules — never hand-edit `flake.nix`.

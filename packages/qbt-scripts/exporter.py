@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Aggregate qBittorrent per-peer choke/interest state into global gauges.
 
 The WebAPI exposes no global peer list, so peer flags are only reachable
@@ -7,16 +6,23 @@ per-torrent via /sync/torrentPeers. Cost scales with ACTIVE torrents
 budget bound the worst case, and both are reported so the scrape is never
 silently sampled. Emits one JSON line to stdout; Vector parses it into gauges.
 
-Peer flag vocabulary (qBittorrent): U = peer interested + we unchoked (uploading),
-u = peer interested + we choked them (upload demand we refuse), D = downloading,
-O = optimistic unchoke, S = snubbed, I = incoming (peer dialed us, not us them).
+Peer flag vocabulary (qBittorrent):
+  U = peer interested + we unchoked them (uploading)
+  u = peer interested + we choked them (upload demand we refuse)
+  D = downloading
+  O = optimistic unchoke
+  S = snubbed
+  I = incoming (peer dialed us, not us them)
 """
+
 import json
 import sys
 import time
 import urllib.request
 
-BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080").rstrip("/")
+BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080").rstrip(
+    "/"
+)
 CAP = int(sys.argv[2]) if len(sys.argv) > 2 else 200
 BUDGET_S = 15.0
 CALL_TIMEOUT_S = 2.0

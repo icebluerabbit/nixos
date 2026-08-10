@@ -28,7 +28,7 @@
             config.system.configurationRevision
           else
             "dirty";
-        report = "${pkgs.python3}/bin/python3 ${./nixos-notify.py} ${mosquittoPub} ${mq.ip} ${toString mq.ports.default} ${topic}";
+        report = "${lib.getExe pkgs.homelab.nixos-notify} ${mosquittoPub} ${mq.ip} ${toString mq.ports.default} ${topic}";
         base = {
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];

@@ -1,0 +1,16 @@
+# shellcheck — shell lint configuration (see modules/formatter.nix)
+#
+# Most shell here is a fragment readFile'd into writeShellApplication rather
+# than a standalone program, so it has no shebang for shellcheck to read the
+# dialect from. `shell=bash` sets the default; the fragments also carry a
+# `# shellcheck shell=bash` directive on line 1 so editors agree without
+# needing this file.
+shell=bash
+
+# No rules are disabled. writeShellApplication runs shellcheck at build time
+# too, so anything silenced here would still fail the package build — keeping
+# the two in agreement matters more than a quiet lint run.
+
+# Do not follow `source` into files outside the checked set; the fragments
+# source nothing, and following store paths would be non-reproducible.
+external-sources=false

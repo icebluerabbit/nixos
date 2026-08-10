@@ -1,5 +1,8 @@
-#!/usr/bin/env python3
-"""Import .torrent files from watch/<category>/ into qBittorrent, tagged by category."""
+"""Import .torrent files from watch/<category>/ into qBittorrent.
+
+Each import is tagged with the category its watch subdirectory names.
+"""
+
 import argparse
 import glob
 import json
@@ -69,7 +72,9 @@ def main():
             if not ok:
                 print(f"watch: add rejected {tf}", file=sys.stderr)
                 continue
-            shutil.move(tf, os.path.join(args.backup_dir, os.path.basename(tf)))
+            shutil.move(
+                tf, os.path.join(args.backup_dir, os.path.basename(tf))
+            )
             print(f"watch: added {os.path.basename(tf)} category={cat}")
 
 

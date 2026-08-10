@@ -1,0 +1,21 @@
+# ruff — Python formatter + linter config for packages/*
+#
+# line-length 79 is not a taste choice: every Python package is built with
+# pkgs.writers.writePython3Bin, which runs flake8 with no ignores, and flake8's
+# default max-line-length is 79. Anything wider fails the package build (E501),
+# so the formatter has to target the same width the builder enforces.
+line-length = 79
+target-version = "py313"
+
+[lint]
+# E/W pycodestyle + F pyflakes — the flake8 rule set writePython3Bin applies at
+# build time, so a clean `nix fmt` implies a buildable package.
+select = [
+  "E",
+  "F",
+  "W",
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"

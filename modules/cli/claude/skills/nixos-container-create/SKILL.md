@@ -6,6 +6,7 @@ description: Create or scaffold a new systemd-nspawn container in this NixOS hom
 # Create a NixOS Container
 
 End-to-end procedure. The rules behind each step live in knowledge skills — load them as needed:
+
 - **`nixos-container-conventions`** — `_base.nix`/`_options.nix`, port/UID/tmpfiles/firewall/glue invariants.
 - **`homelab-networking`** — VLAN/bridge architecture + MAC formula.
 - **`homelab-topology`** — resolving hosts/IPs/clients.
@@ -13,8 +14,9 @@ End-to-end procedure. The rules behind each step live in knowledge skills — lo
 ## ⛔ Hard gates — read before any file write
 
 Override everything (also in CLAUDE.md):
+
 1. **VLAN selection** — if the target VLAN isn't explicitly stated, STOP and ask. Suggest, but approval is not implied.
-2. **Turn-by-turn authorization** — before any file write, output the exact proposed changes + justification and ask *"Do you authorize these changes for this turn?"*. Wait for `"lgtm"`/`"sgtm"` — no other phrasing.
+2. **Turn-by-turn authorization** — before any file write, output the exact proposed changes + justification and ask _"Do you authorize these changes for this turn?"_. Wait for `"lgtm"`/`"sgtm"` — no other phrasing.
 3. **Dialogue gating** — any question/design discussion in the request → dialogue only, no writes that turn.
 
 ## Step 0 — Allocations (tools, not guesses)
@@ -23,16 +25,21 @@ Override everything (also in CLAUDE.md):
 next_free_ip <vlan>     → lowest unused host IP ≥ .3
 next_free_mac <vlan>    → deterministic container MAC + expected bridge MAC
 ```
+
 Pick a **unique** static UID/GID — search first: `grep -rn "defaultUid\|defaultGid" modules/containers/`. (MAC scheme → `homelab-networking`; UID/port/no-magic rules → `nixos-container-conventions`.)
 
 ## Step 1 — VLAN static address — `modules/infra/networks/<vlan>.nix`
+
 ```nix
 staticAddresses = { gateway = "10.10.120.1"; server = "10.10.120.2"; radarr = "10.10.120.3"; };  # ← from next_free_ip
 ```
+
 Only place an IP literal appears.
 
 ## Step 2 — Infra client — `modules/infra/clients/container-<name>.nix`
+
 Both `nixos` and `terranix` sections, kept identical. Register MAC/IP/named ports (+ `proxy.port` if web-facing → `nixos-web-expose`).
+
 ```nix
 { den, ... }:
 let name = "Radarr Container"; mac = "62:f5:a4:5b:20:79"; in   # mac from next_free_mac
@@ -65,10 +72,13 @@ let name = "Radarr Container"; mac = "62:f5:a4:5b:20:79"; in   # mac from next_f
   };
 }
 ```
+
 Named ports = single source of truth; `import` stays commented until applied (→ `nixos-infra-provision`).
 
 ## Step 3 — Container aspect — `modules/containers/<name>.nix`
+
 Declares host options via `provides.to-hosts.nixos` (imports `_options.nix`), then the nspawn container importing `_base.nix` (what it provides → `nixos-container-conventions`).
+
 ```nix
 { den, lib, ... }:
 {
@@ -97,7 +107,9 @@ Declares host options via `provides.to-hosts.nixos` (imports `_options.nix`), th
 ```
 
 ## Step 4 — Host override — `modules/hosts/server/containers/<name>.nix`
+
 Network-specific values, storage, secrets, logging. All inter-container glue lives here (→ `nixos-container-conventions`; logging → `nixos-vector-logging`).
+
 ```nix
 { den, ... }:
 {
@@ -142,20 +154,25 @@ Network-specific values, storage, secrets, logging. All inter-container glue liv
   };
 }
 ```
+
 Startup deps (e.g. needs postgres): add the provider aspect to `includes` and
+
 ```nix
 systemd.services."container@radarr" = { wants = [ "container@postgresql.service" ]; after = [ "container@postgresql.service" ]; };
 ```
 
 ## Step 5 — Register
+
 - `modules/hosts/server/host.nix` → add `den.aspects.hosts._.server._.containers._.radarr` to `includes`.
 - `modules/infra/homelab.nix` → add `den.aspects.infra._.clients._.container-radarr` to `includes`.
 - New VLAN? bridge aspect must exist + be registered (→ `homelab-networking`).
 
 ## Step 6 — Web-facing? → `nixos-web-expose`
+
 Set `proxy.port` on the infra client (step 2) → Caddy auto-proxies; DNS is automatic. Homepage card + Caddy `includes` are the `nixos-web-expose` skill.
 
 ## Step 7 — Stage, format, validate (zero-effect commands)
+
 ```bash
 git add modules/infra/clients/container-radarr.nix modules/containers/radarr.nix \
         modules/hosts/server/containers/radarr.nix    # flakes ignore untracked files
@@ -163,6 +180,7 @@ just flake && nix fmt
 validate_container radarr     # vlan addr, client, ports, IP/VLAN match, MAC formula, host decl, sources
 just eval-server              # fast eval — fix every failing check before handing off
 ```
+
 **Deploy is human-only.** The assistant never runs `switch*`/`test*`/`infra-apply`. After eval passes, hand the user `just switch-server`.
 
 All invariants referenced above are detailed in `nixos-container-conventions` — follow them exactly.

@@ -18,7 +18,12 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       {
         options.containerConfigs.qui =
           (import ../_options.nix {
@@ -53,6 +58,9 @@ _: {
           containers.qui =
             let
               cfg = config.containerConfigs.qui;
+              # Resolved from host pkgs so the homelab overlay is in scope; the
+              # store path pulls into the container closure via ExecStart.
+              quiProvision = lib.getExe pkgs.homelab.qui-provision;
             in
             {
               inherit (cfg) autoStart;
@@ -65,7 +73,7 @@ _: {
               inherit (cfg) bindMounts;
 
               config =
-                { pkgs, lib, ... }:
+                { lib, ... }:
                 {
                   imports = [
                     (import ../_base.nix { inherit lib cfg; })
@@ -106,7 +114,7 @@ _: {
                     wantedBy = [ "multi-user.target" ];
                     serviceConfig = {
                       Type = "oneshot";
-                      ExecStart = "${lib.getExe pkgs.python3} ${./qui_provision.py} http://127.0.0.1:${toString cfg.port} ${cfg.qbtUrl} qbittorrent";
+                      ExecStart = "${quiProvision} http://127.0.0.1:${toString cfg.port} ${cfg.qbtUrl} qbittorrent";
                     };
                   };
                 };

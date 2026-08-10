@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 tmp=$(mktemp -d /tmp/rip.XXXXXXXX)
 echo ">> ripping to $tmp ..."
 whipper cd rip -O "$tmp" || true
@@ -14,8 +15,8 @@ flacs=$(find "$tmp" -type f -name '*.flac' | wc -l)
 ripped=0
 notver=0
 for f in "${logs[@]}"; do
-  ripped=$(( ripped + $(grep -ci 'accurately ripped' "$f" || true) ))
-  notver=$(( notver + $(grep -ci 'cannot be verified' "$f" || true) ))
+  ripped=$((ripped + $(grep -ci 'accurately ripped' "$f" || true)))
+  notver=$((notver + $(grep -ci 'cannot be verified' "$f" || true)))
 done
 
 {
@@ -36,19 +37,19 @@ fi
 
 read -rp "Keep this rip for beets? [y/N] " ans
 case "$ans" in
-  y | Y)
-    mkdir -p /mnt/media/rips
-    # cp -a (not mv): /tmp is tmpfs and /mnt/media is NFS, so this is
-    # always a cross-device copy — and mv cannot merge into an existing
-    # non-empty dir (whipper's Type dir, e.g. ep/, may already be there
-    # from a prior rip), failing with "Directory not empty". cp -a merges
-    # dir-by-dir; then drop the tmp staging.
-    cp -a "$tmp"/. /mnt/media/rips/
-    rm -rf "$tmp"
-    echo ">> promoted album subdirs to /mnt/media/rips/ — beets will import"
-    ;;
-  *)
-    rm -rf "$tmp"
-    echo ">> discarded $tmp"
-    ;;
+y | Y)
+  mkdir -p /mnt/media/rips
+  # cp -a (not mv): /tmp is tmpfs and /mnt/media is NFS, so this is
+  # always a cross-device copy — and mv cannot merge into an existing
+  # non-empty dir (whipper's Type dir, e.g. ep/, may already be there
+  # from a prior rip), failing with "Directory not empty". cp -a merges
+  # dir-by-dir; then drop the tmp staging.
+  cp -a "$tmp"/. /mnt/media/rips/
+  rm -rf "$tmp"
+  echo ">> promoted album subdirs to /mnt/media/rips/ — beets will import"
+  ;;
+*)
+  rm -rf "$tmp"
+  echo ">> discarded $tmp"
+  ;;
 esac

@@ -18,6 +18,9 @@ result-*
 __pycache__/
 *.pyc
 
+# Formatter/linter caches
+.ruff_cache/
+
 # Backup and temp files
 *~
 *.swp

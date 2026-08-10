@@ -23,9 +23,9 @@ func makeFullFlakeDir(t *testing.T) string {
 	files := map[string]string{
 		"modules/infra/wlans/home.nix":                    "{}",
 		"modules/infra/wlans/rtorrent-peer.nix":           "{}",
-		"modules/infra/portforwards/http.nix":              "{}",
-		"modules/infra/portforwards/https.nix":             "{}",
-		"modules/infra/devices/dream-machine-pro-max.nix":  "{}",
+		"modules/infra/portforwards/http.nix":             "{}",
+		"modules/infra/portforwards/https.nix":            "{}",
+		"modules/infra/devices/dream-machine-pro-max.nix": "{}",
 	}
 	for rel, content := range files {
 		if err := os.WriteFile(filepath.Join(root, rel), []byte(content), 0644); err != nil {

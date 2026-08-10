@@ -2,7 +2,7 @@
 
 Modular NixOS flake for multiple hosts (`desktop`, `server`). Built on [den](https://github.com/vic/den) (aspect framework) + [denful-networks](https://github.com/icebluerabbit/denful-networks) (co-orchestrates NixOS with UniFi + Cloudflare via Terranix/Terraform). Covers system config, home-manager, custom packages, and physical network infra.
 
-This file holds **project-wide conventions and guardrails** (always loaded). Topic detail and task procedures live in **skills**, loaded on demand — see *Skills*. Don't add procedural or subsystem detail here; put it in a skill.
+This file holds **project-wide conventions and guardrails** (always loaded). Topic detail and task procedures live in **skills**, loaded on demand — see _Skills_. Don't add procedural or subsystem detail here; put it in a skill.
 
 ---
 
@@ -29,10 +29,13 @@ Validate with eval/build/plan, then **hand off** any switch/test/apply — give 
 ## Environment
 
 NixOS. Standard tools (`python`, `go`, `node`…) may not be on `PATH`. Bring missing tools in temporarily — never install permanently for a one-off:
+
 ```bash
 nix shell nixpkgs#jq nixpkgs#curl -c bash -c 'curl ... | jq .'
 ```
+
 Fetching remote repos (2+ files): shallow + blobless clone into the session scratchpad, not bare `/tmp`:
+
 ```bash
 git clone --depth 1 --filter=blob:none --sparse <url> <scratchpad-path>
 ```
@@ -41,10 +44,10 @@ git clone --depth 1 --filter=blob:none --sparse <url> <scratchpad-path>
 
 ## Build & Workflow
 
-- **Formatter**: `nixfmt` — always `nix fmt` before evaluating.
+- **Formatter**: `nix fmt` (treefmt — `modules/formatter.nix`) — always run before evaluating. Covers nix (nixfmt-rfc-style), python (ruff), go (gofmt), shell (shfmt + shellcheck), markdown (prettier, `*.md` only). Configs are explicit at the repo root: `ruff.toml`, `.prettierrc.toml`, `.editorconfig` (drives shfmt), `.shellcheckrc`. The pre-commit hook runs the same wrapper, so hook and `nix fmt` cannot disagree.
 - **flake.nix is auto-generated** (`import-tree ./modules` auto-imports every `.nix`; `_`-prefixed paths and non-`.nix` files are ignored). Never hand-edit it. Run `just flake` after adding/removing modules.
 - **Flakes ignore untracked files** — `git add` (or `git add -N`) new files before Nix can evaluate them. `just format` runs `git add -N .` first.
-- Commands: `just build-*` / `eval-*` (safe checks), `just vm-*`, `just sops-host-secrets` / `sops-user-secrets`, `just gc`, `just infra-plan-homelab`. See *Operational Safety* for the human-only set.
+- Commands: `just build-*` / `eval-*` (safe checks), `just vm-*`, `just sops-host-secrets` / `sops-user-secrets`, `just gc`, `just infra-plan-homelab`. See _Operational Safety_ for the human-only set.
 
 ---
 
@@ -66,18 +69,22 @@ modules/
   hosts/        # per-host profiles: desktop/, server/ (host.nix, containers/, networking/, security.nix, …)
   infra/        # single source of truth for network topology → NixOS + Terranix (clients/, networks/, devices/, …)
   logging/      # Vector sidecar module
-packages/       # custom Nix packages (incl. sys-mcp)
+packages/       # custom packages — auto-registered, see below
 secrets/        # SOPS-encrypted YAML (never commit plaintext)
 ```
+
+**packages/** — every `packages/<name>/` is auto-`callPackage`d by `modules/overlays.nix` into `pkgs.homelab.<name>` and exposed as a flake output (`nix build .#<name>`). A new package is just a new directory; git-add it before Nix can see it. **`modules/` holds no `.py` or `.go`** — scripts that used to sit beside a container aspect are packages now, referenced as `lib.getExe pkgs.homelab.<name>`. Config still travels by argv/env/JSON: packages are fixed, hosts vary the flags. Referencing `pkgs.homelab.*` from inside a container body fails — see skill `nixos-container-conventions`.
 
 ---
 
 ## den Aspects (the core idiom)
 
 Everything is an **aspect**: a self-contained unit with `includes` (composition), and engine sections `nixos` / `homeManager` / `terranix` / `provides.to-hosts.nixos`.
+
 ```nix
 den.aspects.<category>._.<name> = { includes = [ … ]; nixos = { … }; terranix = { … }; };
 ```
+
 `_` separators are den's namespace convention, not literal name characters. Full structure, composition, and the container two-layer pattern: skill `den-aspects`.
 
 ---

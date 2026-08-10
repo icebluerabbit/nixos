@@ -103,10 +103,10 @@ func makeFlakeDir(t *testing.T) string {
 	}
 	// create expected source files
 	files := map[string]string{
-		"modules/infra/clients/container-grafana.nix":   "{}",
-		"modules/infra/networks/services.nix":           "{}",
-		"modules/containers/grafana.nix":                "{}",
-		"modules/hosts/server/containers/grafana.nix":   "{}",
+		"modules/infra/clients/container-grafana.nix": "{}",
+		"modules/infra/networks/services.nix":         "{}",
+		"modules/containers/grafana.nix":              "{}",
+		"modules/hosts/server/containers/grafana.nix": "{}",
 	}
 	for rel, content := range files {
 		if err := os.WriteFile(filepath.Join(root, rel), []byte(content), 0644); err != nil {

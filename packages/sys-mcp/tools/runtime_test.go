@@ -90,7 +90,7 @@ func makeHostAC(localHostname string) *app.AppContext {
 		Cfg: &config.Config{Hostname: localHostname},
 		IC:  cache.NewInfraCacheWithData(testData),
 		HC: cache.NewHostsCacheWithData(cache.HostsData{
-			"server": {Containers: map[string]cache.ContainerConf{"grafana": {}, "radarr": {}}},
+			"server":  {Containers: map[string]cache.ContainerConf{"grafana": {}, "radarr": {}}},
 			"desktop": {},
 		}),
 		SI: nil,

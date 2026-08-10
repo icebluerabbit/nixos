@@ -30,12 +30,12 @@ func TestAcceptRules(t *testing.T) {
 	e := mustEngine(t, cfg)
 
 	good := types.Release{
-		Kind:     types.KindEbook,
-		Category: "Ebooks - Fantasy",
-		Filetype: "epub",
+		Kind:      types.KindEbook,
+		Category:  "Ebooks - Fantasy",
+		Filetype:  "epub",
 		Languages: []string{"English"},
-		Size:     500,
-		Name:     "A Great Book",
+		Size:      500,
+		Name:      "A Great Book",
 	}
 
 	cases := []struct {

@@ -12,10 +12,10 @@ import (
 )
 
 type ContainerConf struct {
-	HostBridge   string                `json:"hostBridge"`
-	LocalAddress string                `json:"localAddress"`
-	AutoStart    bool                  `json:"autoStart"`
-	BindMounts   map[string]BindMount  `json:"bindMounts"`
+	HostBridge   string               `json:"hostBridge"`
+	LocalAddress string               `json:"localAddress"`
+	AutoStart    bool                 `json:"autoStart"`
+	BindMounts   map[string]BindMount `json:"bindMounts"`
 }
 
 type BindMount struct {

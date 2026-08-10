@@ -5,16 +5,16 @@ import "strings"
 // Release is a torrent candidate the policy evaluates — normalized from an autobrr
 // announce or a MAM search result into the fields the decision engine needs.
 type Release struct {
-	TID          int64
-	Name         string
-	Category     string   // exact MAM category, e.g. "Ebooks - Fantasy"
-	Kind         Kind     // derived from Category
-	Filetype     string   // e.g. epub, m4b, mp3
-	Languages    []string // reduced language set (autobrr list, or name-parsed fallback)
-	Size         int64    // bytes
-	VIP          bool     // raw release VIP flag
-	Freeleech    bool     // raw release freeleech flag
-	DownloadURL  string
+	TID         int64
+	Name        string
+	Category    string   // exact MAM category, e.g. "Ebooks - Fantasy"
+	Kind        Kind     // derived from Category
+	Filetype    string   // e.g. epub, m4b, mp3
+	Languages   []string // reduced language set (autobrr list, or name-parsed fallback)
+	Size        int64    // bytes
+	VIP         bool     // raw release VIP flag
+	Freeleech   bool     // raw release freeleech flag
+	DownloadURL string
 }
 
 // AccountState is the latest polled MAM account snapshot consumed by the grab-gate.

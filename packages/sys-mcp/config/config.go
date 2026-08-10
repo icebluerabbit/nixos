@@ -6,11 +6,11 @@ import (
 )
 
 type Config struct {
-	FlakePath  string
-	Hostname   string
-	UnifiURL   string
+	FlakePath   string
+	Hostname    string
+	UnifiURL    string
 	UnifiAPIKey string
-	UnifiSite  string
+	UnifiSite   string
 }
 
 func Load() (*Config, error) {

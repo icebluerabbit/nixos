@@ -1,4 +1,7 @@
-import json, os, sys, pathlib
+import json
+import os
+import pathlib
+import sys
 from datetime import datetime, timezone
 
 seed_entries = json.loads(os.path.expandvars(sys.stdin.read()))
@@ -36,11 +39,15 @@ for entry in seed_entries:
         for existing in storage["data"]["entries"]:
             if existing["entry_id"] == entry["entry_id"]:
                 entry_changed = False
-                if seed_data and any(existing.get("data", {}).get(k) != v for k, v in seed_data.items()):
+                if seed_data and any(
+                    existing.get("data", {}).get(k) != v
+                    for k, v in seed_data.items()
+                ):
                     existing["data"].update(seed_data)
                     entry_changed = True
                 # Sync top-level identity fields the integration relies on
-                # (e.g. unique_id) so a re-seed can repair a bad existing entry.
+                # (e.g. unique_id) so a re-seed can repair a bad existing
+                # entry.
                 for field in ("unique_id", "title", "minor_version"):
                     if field in entry and existing.get(field) != entry[field]:
                         existing[field] = entry[field]
@@ -53,15 +60,23 @@ for entry in seed_entries:
                 # the UI. Integrations key entity unique_ids off their own ids
                 # (not subentry_id), so re-declaring a subentry reuses them.
                 if "subentries" in entry:
-                    declared = {s["subentry_id"]: s for s in entry["subentries"]}
-                    current = {s["subentry_id"]: s for s in existing.get("subentries", [])}
+                    declared = {
+                        s["subentry_id"]: s for s in entry["subentries"]
+                    }
+                    current = {
+                        s["subentry_id"]: s
+                        for s in existing.get("subentries", [])
+                    }
                     if declared != current:
                         existing["subentries"] = entry["subentries"]
                         entry_changed = True
                 if entry_changed:
                     existing["modified_at"] = now
                     changed = True
-                    print(f"Updated config entry: {entry['domain']} ({entry['entry_id']})")
+                    print(
+                        "Updated config entry: "
+                        f"{entry['domain']} ({entry['entry_id']})"
+                    )
                 break
 
 if changed:

@@ -88,7 +88,6 @@ func makePathAC(t *testing.T) (*testAppContext, string) {
 // We call the functions directly so we need to satisfy the same interface the functions use.
 // Since classifyPath takes *app.AppContext, we use makeHostAC-style real AppContext here.
 
-
 // --- toRelPath ---
 
 func TestToRelPath_AbsoluteStripped(t *testing.T) {
@@ -362,7 +361,7 @@ func TestResolvePath_FileContentInResponse(t *testing.T) {
 	root := makePathFlake(t)
 	ac := makeHostAC("desktop")
 	ac.IC = cache.NewInfraCacheWithData(&cache.InfraData{
-		Vlans: map[string]cache.Vlan{},
+		Vlans:   map[string]cache.Vlan{},
 		Clients: map[string]cache.Client{},
 		Devices: map[string]cache.Device{},
 	})

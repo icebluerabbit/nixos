@@ -1,15 +1,16 @@
-#!/usr/bin/env python3
 """Declaratively provision tuwunel users, then rooms/spaces, after startup.
 
 Usage: init.py <port> <server_name> <admin_user> <users_json> <rooms_json>
 
 Users are created via tuwunel's Synapse-compatible shared-secret registration
 API (GET nonce + HMAC-SHA1 over nonce\\0user\\0pass\\0(admin|notadmin), then
-POST /_synapse/admin/v1/register) — passwords ride in the request body, never on
-the server's argv. Per-user passwords come from TUWUNEL_<USER>_PASS env vars; the
-shared secret from TUWUNEL_REG_SECRET. Idempotent: an already-registered user
+POST /_synapse/admin/v1/register) — passwords ride in the request body,
+never on the server's argv. Per-user passwords come from TUWUNEL_<USER>_PASS
+env vars; the shared secret from TUWUNEL_REG_SECRET. Idempotent: an
+already-registered user
 returns "in use" and is skipped, and benign room conflicts are ignored.
 """
+
 import hashlib
 import hmac
 import json
@@ -30,7 +31,9 @@ reg_secret = os.environ["TUWUNEL_REG_SECRET"]
 
 
 def pass_for(user):
-    return os.environ.get("TUWUNEL_" + user.upper().replace("-", "_") + "_PASS")
+    return os.environ.get(
+        "TUWUNEL_" + user.upper().replace("-", "_") + "_PASS"
+    )
 
 
 def req(method, url, token=None, body=None):
@@ -43,7 +46,8 @@ def req(method, url, token=None, body=None):
         with urllib.request.urlopen(r) as resp:
             return json.loads(resp.read() or "null")
     except urllib.error.HTTPError as e:
-        # Idempotent re-runs hit user-in-use / alias-in-use / already-joined; fine.
+        # Idempotent re-runs hit user-in-use / alias-in-use /
+        # already-joined; all fine.
         return {"_error": e.code, "_body": e.read().decode(errors="replace")}
 
 
@@ -54,16 +58,23 @@ def upload(path, token):
             data = f.read()
     except OSError:
         return None
+    fname = enc(os.path.basename(path))
     r = urllib.request.Request(
-        f"{base}/_matrix/media/v3/upload?filename={enc(os.path.basename(path))}",
-        data=data, method="POST")
+        f"{base}/_matrix/media/v3/upload?filename={fname}",
+        data=data,
+        method="POST",
+    )
     r.add_header("Content-Type", "image/png")
     r.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(r) as resp:
             return json.loads(resp.read() or "null").get("content_uri")
     except urllib.error.HTTPError as e:
-        print(f"init: upload failed -> {e.code} {e.read().decode(errors='replace')}", file=sys.stderr)
+        print(
+            f"init: upload failed -> {e.code} "
+            f"{e.read().decode(errors='replace')}",
+            file=sys.stderr,
+        )
         return None
 
 
@@ -83,26 +94,38 @@ def register(username, admin):
         mac.update(part)
         mac.update(b"\x00")
     mac.update(flag)
-    res = req("POST", f"{synapse}/register", body={
-        "nonce": nonce,
-        "username": username,
-        "password": password,
-        "admin": admin,
-        "mac": mac.hexdigest(),
-        "inhibit_login": True,
-    })
+    res = req(
+        "POST",
+        f"{synapse}/register",
+        body={
+            "nonce": nonce,
+            "username": username,
+            "password": password,
+            "admin": admin,
+            "mac": mac.hexdigest(),
+            "inhibit_login": True,
+        },
+    )
     err = res.get("_error")
     if err and "available" not in res.get("_body", "").lower():
-        # "User ID is not available" == already exists (idempotent); anything else is real.
-        print(f"init: register {username} -> {err} {res.get('_body', '')}", file=sys.stderr)
+        # "User ID is not available" == already exists (idempotent);
+        # anything else is a real failure.
+        print(
+            f"init: register {username} -> {err} {res.get('_body', '')}",
+            file=sys.stderr,
+        )
 
 
 def login(user):
-    res = req("POST", f"{api}/login", body={
-        "type": "m.login.password",
-        "identifier": {"type": "m.id.user", "user": user},
-        "password": pass_for(user),
-    })
+    res = req(
+        "POST",
+        f"{api}/login",
+        body={
+            "type": "m.login.password",
+            "identifier": {"type": "m.id.user", "user": user},
+            "password": pass_for(user),
+        },
+    )
     return res.get("access_token")
 
 
@@ -127,7 +150,8 @@ while True:
     except Exception:
         time.sleep(2)
 
-# Provision users first (admin flag from the declared list), so login() below works.
+# Provision users first (admin flag from the declared list), so login()
+# below works.
 for u in users:
     register(u["username"], u.get("admin", False))
 
@@ -139,7 +163,8 @@ for u in users:
     tok = login(u["username"])
     if not tok:
         continue
-    prof = f"{api}/profile/{enc('@' + u['username'] + ':' + server_name)}/avatar_url"
+    mxid = enc("@" + u["username"] + ":" + server_name)
+    prof = f"{api}/profile/{mxid}/avatar_url"
     if req("GET", prof).get("avatar_url"):
         continue
     mxc = upload(af, tok)
@@ -168,20 +193,31 @@ for room in rooms:
 
     # Room avatar (skip if one is already set).
     icf = room.get("iconFile")
-    if icf and not req("GET", f"{api}/rooms/{enc(rid)}/state/m.room.avatar").get("url"):
+    if icf and not req(
+        "GET", f"{api}/rooms/{enc(rid)}/state/m.room.avatar"
+    ).get("url"):
         mxc = upload(icf, admin_token)
         if mxc:
-            req("PUT", f"{api}/rooms/{enc(rid)}/state/m.room.avatar",
-                token=admin_token, body={"url": mxc})
+            req(
+                "PUT",
+                f"{api}/rooms/{enc(rid)}/state/m.room.avatar",
+                token=admin_token,
+                body={"url": mxc},
+            )
 
     for member in room.get("members", []):
-        req("POST", f"{api}/rooms/{enc(rid)}/invite", token=admin_token,
-            body={"user_id": f"@{member}:{server_name}"})
+        req(
+            "POST",
+            f"{api}/rooms/{enc(rid)}/invite",
+            token=admin_token,
+            body={"user_id": f"@{member}:{server_name}"},
+        )
         member_token = login(member)
         if member_token:
             req("POST", f"{api}/join/{enc(rid)}", token=member_token)
 
-# Pass 2: wire space hierarchy (m.space.child on parent, m.space.parent on child).
+# Pass 2: wire space hierarchy (m.space.child on the parent, m.space.parent
+# on the child).
 for room in rooms:
     parent = room.get("parent", "")
     if not parent:
@@ -190,7 +226,15 @@ for room in rooms:
     parent_id = resolve_id(parent)
     if not child_id or not parent_id:
         continue
-    req("PUT", f"{api}/rooms/{enc(parent_id)}/state/m.space.child/{enc(child_id)}",
-        token=admin_token, body={"via": [server_name]})
-    req("PUT", f"{api}/rooms/{enc(child_id)}/state/m.space.parent/{enc(parent_id)}",
-        token=admin_token, body={"via": [server_name], "canonical": True})
+    req(
+        "PUT",
+        f"{api}/rooms/{enc(parent_id)}/state/m.space.child/{enc(child_id)}",
+        token=admin_token,
+        body={"via": [server_name]},
+    )
+    req(
+        "PUT",
+        f"{api}/rooms/{enc(child_id)}/state/m.space.parent/{enc(parent_id)}",
+        token=admin_token,
+        body={"via": [server_name], "canonical": True},
+    )

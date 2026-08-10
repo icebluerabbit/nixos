@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Force re-announce for not-yet-started torrents where all trackers have failed."""
+"""Force re-announce for not-yet-started torrents whose trackers all failed."""
+
 import argparse
 import json
 import urllib.parse
@@ -27,8 +27,9 @@ def all_trackers_failed(trackers):
     if not real:
         return False
     # 4=NotWorking (HTTP error), 5=TrackerError (e.g. "unregistered torrent"),
-    # 6=Unreachable — all failed. 0=Disabled/1=NotContacted/2=Working/3=Updating = ok.
-    # qBittorrent 5.x split the old catch-all 4 into 4/5/6, so `== 4` misses 5 and 6.
+    # 6=Unreachable — all failed. 0=Disabled/1=NotContacted/2=Working/
+    # 3=Updating are all ok. qBittorrent 5.x split the old catch-all 4 into
+    # 4/5/6, so `== 4` misses 5 and 6.
     return all(t["status"] >= 4 for t in real)
 
 
@@ -45,7 +46,10 @@ def main():
         trackers = api_get(args.api, "/api/v2/torrents/trackers", {"hash": h})
         if all_trackers_failed(trackers):
             api_post(args.api, "/api/v2/torrents/reannounce", {"hashes": h})
-            print(f"reannounce: {h[:8]} ({t.get('name', '')[:50]}) all trackers errored, reannouncing")
+            print(
+                f"reannounce: {h[:8]} ({t.get('name', '')[:50]}) "
+                "all trackers errored, reannouncing"
+            )
 
 
 if __name__ == "__main__":

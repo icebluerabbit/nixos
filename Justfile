@@ -43,13 +43,19 @@ boot-desktop: flake format
 boot-server: flake format
     nh os boot . --target-host {{ server }} --hostname server
 
+# `systemctl status` exits 3 on an inactive unit, which is what a successful
+# oneshot looks like once it finishes — so start and status are both allowed to
+# fail, and `is-failed` decides the recipe's exit code. Errors are ignored on
+# the first two lines so the status output still prints when a backup fails.
 backup-desktop:
     -sudo systemctl start restic-projects.service
-    systemctl status restic-projects.service --no-pager -n 20
+    -systemctl status restic-projects.service --no-pager -n 20
+    ! systemctl is-failed --quiet restic-projects.service
 
 backup-server:
     -ssh {{ server }} sudo systemctl start restic-appdata.service
-    ssh {{ server }} systemctl status restic-appdata.service --no-pager -n 20
+    -ssh {{ server }} systemctl status restic-appdata.service --no-pager -n 20
+    ! ssh {{ server }} systemctl is-failed --quiet restic-appdata.service
 
 backup: backup-server backup-desktop
 

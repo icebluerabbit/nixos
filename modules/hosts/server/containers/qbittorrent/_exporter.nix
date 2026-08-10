@@ -1,12 +1,13 @@
 # Vector logging extras for qbittorrent: the martabal exporter scrape and the per-peer
-# choke/interest aggregator (exporter.py → exec → log_to_metric). VPN exit-IP/forwarded-port
-# metrics now come from the vpn-gw broker's /export, not a qbt journal line.
+# choke/interest aggregator (qbt-peer-exporter → exec → log_to_metric). VPN
+# exit-IP/forwarded-port metrics now come from the vpn-gw broker's /export, not a
+# qbt journal line.
 {
   exporterPort,
   webuiPort,
   pkgs,
-  lib,
   capN ? 200,
+  ...
 }:
 {
   prometheusInputs = [
@@ -30,8 +31,7 @@
       mode = "scheduled";
       scheduled.exec_interval_secs = 60;
       command = [
-        (lib.getExe pkgs.python3)
-        "${./exporter.py}"
+        "${pkgs.homelab.qbt-scripts}/bin/qbt-peer-exporter"
         "http://127.0.0.1:${toString webuiPort}"
         (toString capN)
       ];

@@ -347,4 +347,3 @@ func stripCIDR(addr string) string {
 	}
 	return addr
 }
-

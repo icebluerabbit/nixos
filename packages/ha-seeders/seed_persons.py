@@ -1,4 +1,6 @@
-import json, os, sys
+import json
+import os
+import sys
 
 seed_persons = json.load(sys.stdin)
 if not seed_persons:
@@ -20,7 +22,9 @@ for seed in seed_persons:
         print(f"Person not found, skipping: {seed['id']}")
         continue
     existing = person.get("device_trackers") or []
-    merged = existing + [t for t in seed.get("device_trackers", []) if t not in existing]
+    merged = existing + [
+        t for t in seed.get("device_trackers", []) if t not in existing
+    ]
     if merged != existing:
         person["device_trackers"] = merged
         changed = True

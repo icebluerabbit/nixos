@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Resolve declared Matrix room aliases to room IDs for the Hermes gateway.
 
 Usage: resolve_rooms.py <homeserver> <env_file> <home_alias|-> [free_alias ...]
@@ -11,7 +10,8 @@ here and append to the .env the hermes-agent activation script just wrote.
 Runs on every container start, after the .env is rebuilt from scratch, so a
 recreated room heals itself and nothing accumulates. Unresolved aliases are not
 fatal: an absent MATRIX_HOME_ROOM only means unattended output has nowhere to
-go, and an absent MATRIX_FREE_RESPONSE_ROOMS only means @mention stays required.
+go, and an absent MATRIX_FREE_RESPONSE_ROOMS only means @mention stays
+required.
 """
 
 import json
@@ -29,10 +29,10 @@ free_aliases = sys.argv[4:]
 
 
 def resolve(alias):
-    """Return the room ID for an alias, retrying while tuwunel creates its rooms.
+    """Return the room ID for an alias, retrying while tuwunel creates it.
 
-    Returns None once the retry budget is spent. The directory endpoint needs no
-    auth — the same tokenless lookup tuwunel's own init.py makes.
+    Returns None once the retry budget is spent. The directory endpoint
+    needs no auth — the same tokenless lookup tuwunel's own init.py makes.
     """
     url = (
         f"{homeserver}/_matrix/client/v3/directory/room/"
@@ -75,7 +75,7 @@ if free_aliases:
         append("MATRIX_FREE_RESPONSE_ROOMS", ",".join(resolved))
     else:
         print(
-            "could not resolve any free-response room; @mention stays required "
-            "in every room",
+            "could not resolve any free-response room; "
+            "@mention stays required in every room",
             file=sys.stderr,
         )

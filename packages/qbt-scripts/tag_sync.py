@@ -1,5 +1,9 @@
-#!/usr/bin/env python3
-"""Mirror each torrent's category into a matching tag (Flood shows tags, not categories)."""
+"""Mirror each torrent's category into a matching tag.
+
+Flood displays tags, not categories, so the category has to exist as a tag
+too for it to be visible there.
+"""
+
 import argparse
 import json
 import urllib.parse
@@ -26,7 +30,11 @@ def main():
         cat = t.get("category", "")
         if not cat:
             continue
-        tags = [x.strip() for x in (t.get("tags", "") or "").split(",") if x.strip()]
+        tags = [
+            x.strip()
+            for x in (t.get("tags", "") or "").split(",")
+            if x.strip()
+        ]
         if cat in tags:
             continue
         api_post(

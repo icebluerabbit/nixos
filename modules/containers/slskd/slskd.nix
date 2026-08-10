@@ -8,7 +8,12 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       {
         options.containerConfigs.slskd =
           (import ../_options.nix {
@@ -190,6 +195,9 @@ _: {
         config.containers.slskd =
           let
             cfg = config.containerConfigs.slskd;
+            # Resolved from host pkgs so the homelab overlay is in scope; the
+            # store path pulls into the container closure via ExecStart.
+            brokerClient = lib.getExe pkgs.homelab.vpn-broker-client-slskd;
           in
           {
             inherit (cfg) autoStart;
@@ -238,7 +246,7 @@ _: {
                     );
                   }
                 );
-                brokerClient = "${lib.getExe pkgs.python3} ${./slskd_broker_client.py}";
+                inherit brokerClient;
               in
               {
                 imports = [ (import ../_base.nix { inherit lib cfg; }) ]; # opens cfg.port (web) on LAN

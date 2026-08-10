@@ -30,6 +30,9 @@
         # extension-host log). So install it with code-server's OWN installer from the vsix
         # (preStart below) — that registers it in extensions.json, which code-server keeps.
         # Configured via forgejo.instances in settings.json; API token → SecretStorage.
+        # Resolved from host pkgs (the homelab overlay is not in the container's
+        # nixpkgs); the store path pulls into the container closure via preStart.
+        forgejoTokenInject = "${pkgs.homelab.forgejo-token-inject}/bin/forgejo-token-inject";
         forgejoVsix = pkgs.fetchurl {
           url = "https://open-vsx.org/api/maxking/forgejo-vscode/0.3.24/file/maxking.forgejo-vscode-0.3.24.vsix";
           hash = "sha256-BXRLPDx+wnmzNBQ4b9zS46hwtmUv/+uu6hqhynKgcjo=";
@@ -54,7 +57,6 @@
         containers.code-server.config =
           {
             config,
-            pkgs,
             lib,
             ...
           }:
@@ -93,7 +95,7 @@
                 --user-data-dir ${config.services.code-server.userDataDir} \
                 --extensions-dir ${config.services.code-server.extensionsDir} \
                 --install-extension ${openchamberVsix} --force
-              ${pkgs.python3}/bin/python3 ${./inject-forgejo-token.py} \
+              ${forgejoTokenInject} \
                 ${config.services.code-server.userDataDir}/User/settings.json \
                 "$CREDENTIALS_DIRECTORY/forgejo-token"
             '';

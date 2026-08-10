@@ -20,7 +20,6 @@ import (
 // runtime stats not covered by go-unifi's typed structs, and a SourceIndex
 // for enriching responses with Nix source file paths.
 
-
 type unifiConn struct {
 	c      *unificlient.ApiClient
 	site   string
@@ -52,10 +51,10 @@ type clientStat struct {
 }
 
 type deviceStat struct {
-	MAC     string `json:"mac"`
-	Version string `json:"version"`
-	Uptime  *int64 `json:"uptime"`
-	NumSta  *int64 `json:"num_sta"`
+	MAC      string `json:"mac"`
+	Version  string `json:"version"`
+	Uptime   *int64 `json:"uptime"`
+	NumSta   *int64 `json:"num_sta"`
 	SysStats struct {
 		CPU      string `json:"cpu"`
 		Mem      string `json:"mem"`
@@ -238,19 +237,19 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 			st := stats[found.MAC]
 
 			type portRow struct {
-				Idx             int64   `json:"port"`
-				Name            string  `json:"name,omitempty"`
-				Up              bool    `json:"up"`
-				Speed           int64   `json:"speed_mbps"`
-				PoE             bool    `json:"poe"`
-				PoePower        string  `json:"poe_power_w,omitempty"`
-				RxBytes         int64   `json:"rx_bytes"`
-				TxBytes         int64   `json:"tx_bytes"`
-				RxErrors        int64   `json:"rx_errors"`
-				TxErrors        int64   `json:"tx_errors"`
-				NativeNetworkID string  `json:"native_vlan_id,omitempty"`
-				IsUplink        bool    `json:"is_uplink"`
-				Satisfaction    int64   `json:"satisfaction"`
+				Idx             int64  `json:"port"`
+				Name            string `json:"name,omitempty"`
+				Up              bool   `json:"up"`
+				Speed           int64  `json:"speed_mbps"`
+				PoE             bool   `json:"poe"`
+				PoePower        string `json:"poe_power_w,omitempty"`
+				RxBytes         int64  `json:"rx_bytes"`
+				TxBytes         int64  `json:"tx_bytes"`
+				RxErrors        int64  `json:"rx_errors"`
+				TxErrors        int64  `json:"tx_errors"`
+				NativeNetworkID string `json:"native_vlan_id,omitempty"`
+				IsUplink        bool   `json:"is_uplink"`
+				Satisfaction    int64  `json:"satisfaction"`
 			}
 			ports := make([]portRow, 0, len(found.PortTable))
 			for _, p := range found.PortTable {

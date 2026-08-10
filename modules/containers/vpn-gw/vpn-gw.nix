@@ -4,9 +4,17 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         cfg = config.containerConfigs."vpn-gw";
+        # Resolved from host pkgs so the homelab overlay is in scope; the store
+        # path pulls into the container closure via ExecStart.
+        brokerExe = lib.getExe pkgs.homelab.vpn-broker;
       in
       {
         options.containerConfigs."vpn-gw" = (import ../_options.nix { inherit lib; }) // {
@@ -178,7 +186,6 @@ _: {
               config =
                 { pkgs, lib, ... }:
                 let
-                  pythonEnv = pkgs.python3.withPackages (ps: [ ps.flask ]);
                   brokerConfig = pkgs.writeText "vpn-broker.json" (
                     builtins.toJSON {
                       control_port = cfg.controlPort;
@@ -356,7 +363,7 @@ _: {
                             BROKER_IP = "${pkgs.iproute2}/bin/ip";
                           };
                           serviceConfig = {
-                            ExecStart = "${pythonEnv}/bin/python3 ${./broker.py}";
+                            ExecStart = brokerExe;
                             Restart = "on-failure";
                             RestartSec = "5s";
                           };

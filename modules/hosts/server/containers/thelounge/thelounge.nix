@@ -36,7 +36,6 @@
           port = config.infra.clients.container-thelounge.ports.default;
           ldapUrl = "ldap://${config.infra.clients.container-lldap.ip}:${toString config.infra.clients.container-lldap.ports.ldap}";
           ldapBaseDN = "ou=people,dc=homelab";
-          seedScript = ./_seed.py;
           # Networks enforced into users/<name>.json every boot. Edit freely.
           # nick is a sops secret (per-tracker, shared IRC identity with autobrr);
           # host/port/channels are not secret.

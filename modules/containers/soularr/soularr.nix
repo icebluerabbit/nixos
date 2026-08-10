@@ -223,6 +223,7 @@ _: {
             # Resolved from host pkgs so the homelab overlay is in scope; the
             # store path pulls into the container closure via ExecStart.
             inherit (pkgs.homelab) soularr;
+            soularrReclaim = lib.getExe pkgs.homelab.soularr-reclaim;
           in
           {
             inherit (cfg) autoStart;
@@ -395,7 +396,7 @@ _: {
                       serviceConfig = {
                         Type = "oneshot";
                         ExecCondition = "${lib.getExe pkgs.bash} -c '! systemctl is-active --quiet soularr-run.service'";
-                        ExecStart = "${lib.getExe pkgs.python3} ${./soularr_reclaim.py}";
+                        ExecStart = soularrReclaim;
                         Nice = 19;
                         IOSchedulingClass = "idle";
                       };

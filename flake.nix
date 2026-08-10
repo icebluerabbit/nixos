@@ -116,6 +116,10 @@
       url = "github:terranix/terranix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     youtarr-flake = {
       url = "github:icebluerabbit/youtarr-flake/dev";
       inputs.nixpkgs.follows = "nixpkgs";

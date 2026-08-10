@@ -1,4 +1,7 @@
-import json, os, sys, pathlib
+import json
+import os
+import pathlib
+import sys
 
 seed_areas = json.load(sys.stdin)
 
@@ -22,15 +25,17 @@ existing_ids = {a["id"] for a in storage["data"]["areas"]}
 changed = False
 for area in seed_areas:
     if area["area_id"] not in existing_ids:
-        storage["data"]["areas"].append({
-            "aliases": [],
-            "id": area["area_id"],
-            "floor_id": None,
-            "icon": area.get("icon"),
-            "labels": [],
-            "name": area["name"],
-            "picture": None,
-        })
+        storage["data"]["areas"].append(
+            {
+                "aliases": [],
+                "id": area["area_id"],
+                "floor_id": None,
+                "icon": area.get("icon"),
+                "labels": [],
+                "name": area["name"],
+                "picture": None,
+            }
+        )
         changed = True
         print(f"Seeded area: {area['name']} ({area['area_id']})")
 

@@ -37,8 +37,8 @@ decision under one coherent policy. mousetrap is that place.
     reserve,
   - correct freeleech accounting — including that a VIP-freeleech release is free
     only when the account itself is VIP.
-  Decisions account for **optimistic in-flight state** so a burst of grabs cannot
-  overshoot a limit before MAM's own counters catch up.
+    Decisions account for **optimistic in-flight state** so a burst of grabs cannot
+    overshoot a limit before MAM's own counters catch up.
 
 - **R6 — Fetch and deliver.** On approval, fetch the torrent (spending a wedge when
   the policy chose to) and deliver it — to the download client for reactive grabs, or

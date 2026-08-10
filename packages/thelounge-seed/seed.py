@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Merge declared IRC networks into thelounge per-user JSON.
 
 Only the ``.networks`` key is touched — sessions, clientSettings and any other
@@ -12,6 +11,7 @@ Env:
                        rejectUnauthorized,nickPath,channels}]}
   THELOUNGE_USERS_DIR  users dir (default /var/lib/thelounge/users)
 """
+
 import json
 import os
 import uuid
@@ -25,7 +25,9 @@ for u in users:
     nets = []
     for n in u.get("networks", []):
         net = {
-            "uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, f"thelounge/{name}/{n['name']}")),
+            "uuid": str(
+                uuid.uuid5(uuid.NAMESPACE_URL, f"thelounge/{name}/{n['name']}")
+            ),
             "name": n["name"],
             "host": n["host"],
             "port": n.get("port", 6697),
