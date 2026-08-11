@@ -33,37 +33,36 @@ in
             Type = "oneshot";
             RemainAfterExit = true;
             # NZXT Hue2 can enumerate in the OpenRGB SDK server well past 60s on
-            # a cold boot; the until-loop below polls until it appears.
+            # a cold boot, so --retries covers the whole 180s window.
             TimeoutStartSec = "180s";
-            ExecStart = pkgs.writeShellScript "nzxt-fan-controller-rgb" ''
-              rgb() {
-                ${lib.getExe pkgs.openrgb} \
-                  --device "NZXT RGB & Fan Controller" \
-                  --mode Direct \
-                  "$@"
-              }
-
-              echo "Waiting for NZXT RGB & Fan Controller..."
-              until ${lib.getExe pkgs.openrgb} --list-devices 2>/dev/null \
-                | grep -q "NZXT RGB & Fan Controller"; do
-                sleep 1
-              done
-
-              echo "Device detected. Waiting 3s for stabilization..."
-              sleep 3
-
-              for i in 1 2; do
-                echo "Initialization pass $i..."
-                rgb --color ffffff
-                sleep 0.5
-                rgb --zone 1 --color ffffff  # Bottom
-                rgb --zone 2 --color ffffff  # Side
-                rgb --zone 3 --color ffffff  # Back
-                sleep 1
-              done
-
-              echo "Initialization complete."
-            '';
+            # Zones are 1 bottom, 2 side, 3 back; the bare ":ffffff" set is the
+            # whole device, which the per-zone sets then paint over. Two passes
+            # because a single one intermittently leaves a zone dark.
+            ExecStart = lib.escapeShellArgs [
+              (lib.getExe pkgs.homelab.openrgb-init)
+              "--openrgb"
+              (lib.getExe pkgs.openrgb)
+              "--device"
+              "NZXT RGB & Fan Controller"
+              "--retries"
+              "180"
+              "--settle"
+              "3"
+              "--passes"
+              "2"
+              "--set"
+              ":ffffff"
+              "--set"
+              "1:ffffff"
+              "--set"
+              "2:ffffff"
+              "--set"
+              "3:ffffff"
+              "--set-delay"
+              "0.5"
+              "--pass-delay"
+              "1"
+            ];
           };
         };
 

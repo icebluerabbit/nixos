@@ -8,7 +8,12 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         hostConfig = config;
       in
@@ -64,6 +69,21 @@ _: {
             let
               cfg = hostConfig.containerConfigs.kiwix;
               inherit (cfg) port;
+              # Resolved from host pkgs (the homelab overlay is not in the
+              # container's nixpkgs); the store path pulls into the container
+              # closure via ExecStart. The book list is argv, so adding a book is
+              # a host-config change, not a script change.
+              syncCmd = lib.escapeShellArgs (
+                [
+                  (lib.getExe pkgs.homelab.kiwix-sync)
+                  "--mirror"
+                  cfg.sync.mirror
+                ]
+                ++ lib.concatMap (b: [
+                  "--book"
+                  "${b.category}:${b.prefix}"
+                ]) cfg.sync.books
+              );
             in
             {
               inherit (cfg) autoStart;
@@ -76,58 +96,7 @@ _: {
               inherit (cfg) bindMounts;
 
               config =
-                {
-                  pkgs,
-                  lib,
-                  ...
-                }:
-                let
-                  syncScript = pkgs.writeShellApplication {
-                    name = "kiwix-sync";
-                    runtimeInputs = [ pkgs.rsync ];
-                    text = ''
-                      ZIM_DIR=/zim
-
-                      sync_book() {
-                        local category="$1"
-                        local prefix="$2"
-
-                        echo "[$prefix] Querying mirror for latest..."
-                        local latest
-                        latest=$(rsync --list-only "$MIRROR/$category/$prefix"'_*.zim' 2>/dev/null \
-                          | awk '{print $NF}' \
-                          | grep -v '\.part$' \
-                          | sort -V \
-                          | tail -1)
-
-                        if [[ -z "$latest" ]]; then
-                          echo "[$prefix] No files found on mirror, skipping"
-                          return 0
-                        fi
-
-                        if [[ -f "$ZIM_DIR/$latest" ]]; then
-                          echo "[$prefix] Already have $latest, nothing to do"
-                          find "$ZIM_DIR" -name "$prefix"'_*.zim.part' -delete
-                          return 0
-                        fi
-
-                        echo "[$prefix] Syncing $latest..."
-                        find "$ZIM_DIR" -name "$prefix"'_*.zim' -delete
-                        find "$ZIM_DIR" -name "$prefix"'_*.zim.part' -not -name "$latest"'.part' -delete
-
-                        rsync -av --partial --progress "$MIRROR/$category/$latest" "$ZIM_DIR/$latest"'.part'
-                        mv "$ZIM_DIR/$latest"'.part' "$ZIM_DIR/$latest"
-                        echo "[$prefix] Done: $latest"
-                      }
-
-                      ${lib.concatMapStrings (book: ''
-                        sync_book ${lib.escapeShellArg book.category} ${lib.escapeShellArg book.prefix}
-                      '') cfg.sync.books}
-
-                      echo "Kiwix ZIM sync completed."
-                    '';
-                  };
-                in
+                { lib, ... }:
                 {
                   imports = [
                     (import ./_base.nix { inherit lib cfg; })
@@ -165,8 +134,7 @@ _: {
                           TimeoutStartSec = "infinity";
                           Restart = "on-failure";
                           RestartSec = "1800";
-                          Environment = "MIRROR=${cfg.sync.mirror}";
-                          ExecStart = lib.getExe syncScript;
+                          ExecStart = syncCmd;
                         };
                       };
                     };

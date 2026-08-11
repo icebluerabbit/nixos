@@ -153,11 +153,17 @@
           systemd.packages = [ pkgs.coolercontrol.coolercontrold ];
           systemd.services.coolercontrold = {
             wantedBy = [ "multi-user.target" ];
+            # "+" runs it with full privileges, before the service's own user drop.
             serviceConfig.ExecStartPre = [
-              "+${pkgs.writeShellScript "coolercontrol-init-config" ''
-                install -d -m 755 /etc/coolercontrol
-                install -m 644 ${configFile} /etc/coolercontrol/config.toml
-              ''}"
+              "+${
+                lib.escapeShellArgs [
+                  (lib.getExe pkgs.homelab.coolercontrol-init-config)
+                  "--config"
+                  configFile
+                  "--dest"
+                  "/etc/coolercontrol/config.toml"
+                ]
+              }"
             ];
           };
         };

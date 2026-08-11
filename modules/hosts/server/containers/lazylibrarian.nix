@@ -19,7 +19,12 @@
     ];
 
     nixos =
-      { config, pkgs, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         cfg = config.containerConfigs.lazylibrarian;
         # LazyLibrarian's only structured notify hook. It invokes the script as
@@ -28,27 +33,16 @@
         # that feeds Slack/Apprise only gets a flat prose string with no BookID.
         # Rebuild it as JSON and POST to the Vector sidecar, which republishes to
         # MQTT. Container shares the host /nix/store, so this path resolves inside.
+        # LazyLibrarian owns argv — it appends the row's key/value pairs to
+        # whatever path it is given — so the binary's own options cannot be set
+        # by an ExecStart. This wrapper supplies them ahead of `--` and forwards
+        # the rest. Container shares the host /nix/store, so both paths resolve
+        # inside.
         notifyScript = pkgs.writeShellScript "lazylibrarian-notify" ''
-          args=()
-          authorId=""
-          while [ "$#" -ge 2 ]; do
-            [ "$1" = "AuthorID" ] && authorId="$2"
-            args+=(--arg "$1" "$2")
-            shift 2
-          done
-
-          # The payload is a `SELECT * from books` row, which carries AuthorID but not
-          # AuthorName — that lives in `authors`. Join it here so Matrix/HA get a name.
-          if [ -n "$authorId" ]; then
-            authorName=$(${pkgs.sqlite}/bin/sqlite3 \
-              "file:/var/lib/lazylibrarian/lazylibrarian.db?mode=ro" \
-              "SELECT AuthorName FROM authors WHERE AuthorID='$authorId';" 2>/dev/null || true)
-            [ -n "$authorName" ] && args+=(--arg AuthorName "$authorName")
-          fi
-
-          ${pkgs.jq}/bin/jq -n "''${args[@]}" '$ARGS.named' \
-            | ${pkgs.curl}/bin/curl -sS -X POST -H 'Content-Type: application/json' \
-                --data-binary @- http://127.0.0.1:9001/
+          exec ${lib.getExe pkgs.homelab.lazylibrarian-notify} \
+            --db /var/lib/lazylibrarian/lazylibrarian.db \
+            --endpoint http://127.0.0.1:9001/ \
+            -- "$@"
         '';
       in
       {

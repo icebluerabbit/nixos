@@ -18,10 +18,18 @@
       let
         source = "/projects";
         repo = "/mnt/data/backups/projects";
-        restic = lib.getExe pkgs.restic;
-        jq = lib.getExe pkgs.jq;
         mq = config.infra.clients.container-mosquitto;
-        pub = "${pkgs.mosquitto}/bin/mosquitto_pub -h ${mq.ip} -p ${toString mq.ports.default} -q 1 -t homelab/notify/backups -m";
+        # restic-backup is multi-binary, so no mainProgram to getExe.
+        backup = "${pkgs.homelab.restic-backup}/bin/restic-backup";
+        notifyFail = "${pkgs.homelab.restic-backup}/bin/restic-backup-notify-fail";
+        mqttArgs = [
+          "--mqtt-host"
+          mq.ip
+          "--mqtt-port"
+          (toString mq.ports.default)
+          "--topic"
+          "homelab/notify/backups"
+        ];
       in
       {
         sops.secrets."restic-projects-password" = { };
@@ -49,33 +57,34 @@
                   "RESTIC_PASSWORD_FILE=%d/pw"
                   "RESTIC_CACHE_DIR=%C/restic"
                 ];
-                ExecStart = pkgs.writeShellScript "projects-backup" ''
-                  set -euo pipefail
-                  ${restic} cat config >/dev/null 2>&1 || ${restic} init
-                  # exclude reconstructible build output — rust target/ dirs alone
-                  # accounted for 214G of the 217G this disk held before the move
-                  summary=$(${restic} backup --tag projects --json \
-                    --exclude='**/target' \
-                    --exclude='**/node_modules' \
-                    --exclude='**/.direnv' \
-                    --exclude='**/.venv' \
-                    --exclude='**/__pycache__' \
-                    --exclude='**/.cache' \
-                    --exclude='**/result' \
-                    --exclude='**/result-*' \
-                    --exclude='*.iso' \
-                    ${source} | tail -n1)
-                  ${restic} forget --tag projects \
-                    --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
-                  payload=$(${jq} -nc \
-                    --arg host "$(uname -n)" --arg repo "${repo}" --argjson s "$summary" '{
-                      event:"backup", host:$host, result:"success", repo:$repo,
-                      snapshot:($s.snapshot_id[0:8]),
-                      files_new:$s.files_new, files_changed:$s.files_changed,
-                      data_added:$s.data_added, duration:($s.total_duration|floor)
-                    }')
-                  ${pub} "$payload"
-                '';
+                # exclude reconstructible build output — rust target/ dirs alone
+                # accounted for 214G of the 217G this disk held before the move
+                ExecStart = lib.escapeShellArgs (
+                  [
+                    backup
+                    "--tag"
+                    "projects"
+                  ]
+                  ++
+                    lib.concatMap
+                      (p: [
+                        "--exclude"
+                        p
+                      ])
+                      [
+                        "**/target"
+                        "**/node_modules"
+                        "**/.direnv"
+                        "**/.venv"
+                        "**/__pycache__"
+                        "**/.cache"
+                        "**/result"
+                        "**/result-*"
+                        "*.iso"
+                      ]
+                  ++ mqttArgs
+                  ++ [ source ]
+                );
               };
             };
 
@@ -84,14 +93,17 @@
               description = "report failed projects backup to Matrix";
               serviceConfig = {
                 Type = "oneshot";
-                ExecStart = pkgs.writeShellScript "projects-backup-fail" ''
-                  err=$(${pkgs.systemd}/bin/journalctl -u restic-projects.service -o cat -n 3 \
-                        | tail -n1 || true)
-                  payload=$(${jq} -nc \
-                    --arg host "$(uname -n)" --arg repo "${repo}" --arg err "$err" \
-                    '{event:"backup",host:$host,result:"failed",repo:$repo,error:$err}')
-                  ${pub} "$payload"
-                '';
+                # No RESTIC_REPOSITORY in this unit's environment, so name the repo.
+                ExecStart = lib.escapeShellArgs (
+                  [
+                    notifyFail
+                    "--unit"
+                    "restic-projects.service"
+                    "--repo"
+                    repo
+                  ]
+                  ++ mqttArgs
+                );
               };
             };
           };

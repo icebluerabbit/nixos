@@ -26,33 +26,27 @@
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
-            ExecStart = pkgs.writeShellScript "corsair-dominator-rgb" ''
-              # OpenRGB can't read a model string off Corsair DDR5, so it guesses one
-              # per SMBus address: the four sticks come up under three different (wrong)
-              # names, two of them identical. Match on Type: DRAM and drive them by
-              # index instead — the names are unusable as selectors.
-              #
-              # openrgb.service is "started" once its socket is up, but I2C device
-              # enumeration takes a few more seconds — retry until all ${toString dimmCount}
-              # DIMMs appear (or give up after ~30s) so cold boot doesn't race.
-              for i in $(seq 1 30); do
-                dimms=$(${lib.getExe pkgs.openrgb} --list-devices 2>/dev/null | ${pkgs.gawk}/bin/awk '
-                  /^[0-9]+:/ { idx = $1; sub(":", "", idx) }
-                  /Type:[[:space:]]+DRAM/ { print idx }
-                ')
-                if [ "$(printf '%s\n' "$dimms" | ${pkgs.coreutils}/bin/wc -w)" -eq ${toString dimmCount} ]; then
-                  for d in $dimms; do
-                    ${lib.getExe pkgs.openrgb} \
-                      --device "$d" \
-                      --mode Direct \
-                      --color ffffff || exit 1
-                  done
-                  exit 0
-                fi
-                sleep 1
-              done
-              exit 1
-            '';
+            # OpenRGB can't read a model string off Corsair DDR5, so it guesses one
+            # per SMBus address: the four sticks come up under three different (wrong)
+            # names, two of them identical. --by-type matches on "Type: DRAM" and
+            # drives them by index instead — the names are unusable as selectors,
+            # and --expect holds out until all ${toString dimmCount} have enumerated.
+            #
+            # openrgb.service is "started" once its socket is up, but I2C device
+            # enumeration takes a few more seconds, hence --retries.
+            ExecStart = lib.escapeShellArgs [
+              (lib.getExe pkgs.homelab.openrgb-init)
+              "--openrgb"
+              (lib.getExe pkgs.openrgb)
+              "--by-type"
+              "DRAM"
+              "--expect"
+              (toString dimmCount)
+              "--retries"
+              "30"
+              "--set"
+              ":ffffff"
+            ];
           };
         };
       };

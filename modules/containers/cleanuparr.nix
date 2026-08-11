@@ -21,7 +21,12 @@
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       {
         options.containerConfigs.cleanuparr =
           (import ./_options.nix {
@@ -102,6 +107,16 @@
             let
               cfg = config.containerConfigs.cleanuparr;
               cleanuparrModule = inputs.cleanuparr-flake.nixosModules.default;
+              # Resolved from host pkgs (the homelab overlay is not in the
+              # container's nixpkgs). Only the URL and the key path are argv —
+              # the admin credentials still arrive via EnvironmentFile.
+              setupCmd = lib.escapeShellArgs [
+                (lib.getExe pkgs.homelab.cleanuparr-setup)
+                "--base"
+                "http://127.0.0.1:${toString cfg.port}"
+                "--key-file"
+                "/run/cleanuparr/api-key.env"
+              ];
             in
             {
               inherit (cfg) autoStart;
@@ -195,10 +210,7 @@
                       requires = [ "cleanuparr.service" ];
                       before = [ "configuratarr.service" ];
                       wantedBy = [ "multi-user.target" ];
-                      path = [
-                        pkgs.curl
-                        pkgs.jq
-                      ];
+                      # No `path` — cleanuparr-setup pins its own curl and jq.
                       serviceConfig = {
                         Type = "oneshot";
                         RemainAfterExit = true;
@@ -208,29 +220,8 @@
                         # outlive this oneshot.
                         RuntimeDirectoryPreserve = "yes";
                         EnvironmentFile = lib.mkIf (cfg.envFile != null) "/run/secrets/cleanuparr-env";
+                        ExecStart = setupCmd;
                       };
-                      # The credentials reach curl/jq through the environment and a
-                      # pipe, never argv — argv is world-readable in /proc.
-                      script = ''
-                        base=http://127.0.0.1:${toString cfg.port}
-                        until curl -sf "$base/health" >/dev/null; do sleep 1; done
-
-                        if [ "$(curl -sf "$base/api/auth/status" | jq -r .setupCompleted)" != "true" ]; then
-                          jq -nc '{username: env.CLEANUPARR_ADMIN_USER, password: env.CLEANUPARR_ADMIN_PASSWORD}' \
-                            | curl -sf -X POST "$base/api/auth/setup/account" \
-                                -H 'Content-Type: application/json' --data-binary @- >/dev/null
-                          curl -sf -X POST "$base/api/auth/setup/complete" >/dev/null
-                        fi
-
-                        jwt=$(jq -nc '{username: env.CLEANUPARR_ADMIN_USER, password: env.CLEANUPARR_ADMIN_PASSWORD}' \
-                          | curl -sf -X POST "$base/api/auth/login" \
-                              -H 'Content-Type: application/json' --data-binary @- \
-                          | jq -r '.tokens.accessToken')
-                        key=$(curl -sf "$base/api/account/api-key" -H "Authorization: Bearer $jwt" | jq -r .apiKey)
-
-                        umask 077
-                        printf 'CLEANUPARR_API_KEY=%s\n' "$key" > /run/cleanuparr/api-key.env
-                      '';
                     };
 
                     configuratarr = lib.mkIf cfg.configuratarr.enable {

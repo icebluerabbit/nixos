@@ -7,7 +7,12 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         hostConfig = config;
       in
@@ -45,6 +50,23 @@ _: {
           containers.calibre-web =
             let
               cfg = hostConfig.containerConfigs.calibre-web;
+              # Resolved from host pkgs (the homelab overlay is not in the
+              # container's nixpkgs). calibre itself is NOT in the package's
+              # closure — both binaries call calibredb/ebook-convert off PATH,
+              # which the units below supply from the container's own nixpkgs.
+              calibreTools = pkgs.homelab.calibre-tools;
+              libInitCmd = lib.escapeShellArgs [
+                "${calibreTools}/bin/calibre-library-init"
+                "--library"
+                cfg.libraryDir
+              ];
+              ingestCmd = lib.escapeShellArgs [
+                "${calibreTools}/bin/calibre-ingest"
+                "--library"
+                cfg.libraryDir
+                "--ingest"
+                cfg.ingestDir
+              ];
             in
             {
               inherit (cfg) autoStart;
@@ -101,24 +123,14 @@ _: {
                         description = "Create an empty Calibre library if none exists";
                         before = [ "calibre-web.service" ];
                         requiredBy = [ "calibre-web.service" ];
+                        path = [ pkgs.calibre ];
                         serviceConfig = {
                           Type = "oneshot";
                           User = "calibre-web";
                           Group = "calibre-web";
                           RemainAfterExit = true;
+                          ExecStart = libInitCmd;
                         };
-                        script = ''
-                          set -eu
-                          lib=${lib.escapeShellArg cfg.libraryDir}
-                          if [ ! -f "$lib/metadata.db" ]; then
-                            mkdir -p "$lib"
-                            # calibredb initialises an empty library db on first access.
-                            ${pkgs.calibre}/bin/calibredb --with-library="$lib" list >/dev/null 2>&1 || true
-                            if [ ! -f "$lib/metadata.db" ]; then
-                              ${pkgs.calibre}/bin/calibredb --with-library="$lib" restore_database --really-do-it >/dev/null 2>&1 || true
-                            fi
-                          fi
-                        '';
                       };
                       calibre-web.after = [ "calibre-web-libinit.service" ];
 
@@ -130,40 +142,13 @@ _: {
                           User = "calibre-web";
                           Group = "calibre-web";
                           ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p ${lib.escapeShellArg cfg.ingestDir}";
+                          ExecStart = ingestCmd;
                         };
                         path = [
                           pkgs.calibre
                           pkgs.coreutils
                           pkgs.findutils
                         ];
-                        script = ''
-                          set -u
-                          lib=${lib.escapeShellArg cfg.libraryDir}
-                          ingest=${lib.escapeShellArg cfg.ingestDir}
-                          shopt -s nullglob nocaseglob 2>/dev/null || true
-                          find "$ingest" -type f ! -name '.*' | while read -r f; do
-                            # skip files still being written (size changing)
-                            s1=$(stat -c %s "$f" 2>/dev/null || echo x)
-                            sleep 2
-                            s2=$(stat -c %s "$f" 2>/dev/null || echo y)
-                            [ "$s1" = "$s2" ] || continue
-
-                            ext=''${f##*.}; ext=''${ext,,}
-                            add="$f"; tmp=""
-                            if [ "$ext" != "epub" ]; then
-                              tmp="$(mktemp --suffix=.epub)"
-                              if ebook-convert "$f" "$tmp" >/dev/null 2>&1; then
-                                add="$tmp"
-                              else
-                                add="$f"; rm -f "$tmp"; tmp=""
-                              fi
-                            fi
-                            if calibredb --with-library="$lib" add "$add" >/dev/null 2>&1; then
-                              rm -f "$f"
-                            fi
-                            [ -n "$tmp" ] && rm -f "$tmp" || true
-                          done
-                        '';
                       };
                     };
 
