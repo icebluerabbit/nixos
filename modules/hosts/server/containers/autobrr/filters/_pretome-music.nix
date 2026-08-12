@@ -9,7 +9,8 @@
 { config, ... }:
 {
   name = "PreToMe Music";
-  enabled = true;
+  # Disabled — see indexers/_pretome.nix.
+  enabled = false;
   match_categories = "Music*";
   indexers = [ { id = "\${ref.indexer.PreToMe}"; } ];
   actions = [

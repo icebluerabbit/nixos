@@ -11,7 +11,9 @@
 # NickServ auth, so the grant happens; it just is not re-sent if the join fails.
 _: {
   name = "PreToMe";
-  enabled = true;
+  # Disabled alongside the indexer — no point holding the IRC session open when
+  # every PreToMe filter is off. See indexers/_pretome.nix.
+  enabled = false;
   server = "irc.pretome.info";
   port = 6697;
   tls = true;

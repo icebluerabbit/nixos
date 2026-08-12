@@ -43,7 +43,12 @@
             {
               name = "admin";
               networks = [
-                (import ./networks/_pretome.nix)
+                # PreToMe disabled 2026-08-11 — indexer off, see
+                # ../prowlarr/indexers/_pretome.nix. thelounge-seed rewrites
+                # .networks wholesale, so this drops the network from
+                # users/admin.json. The uuid is derived from (user, name), so
+                # re-enabling restores the same scrollback.
+                # (import ./networks/_pretome.nix)
                 (import ./networks/_torrentleech.nix)
                 (import ./networks/_myanonamouse.nix)
                 (import ./networks/_digitalcore.nix)

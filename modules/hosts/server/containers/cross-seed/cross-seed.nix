@@ -48,9 +48,10 @@
               # Prowlarr per-indexer Torznab feeds (id 1 = PreToMe, 2 = TorrentLeech,
               # 3 = DigitalCore, 4 = RetroToon, 5 = DarkPeers, 6 = YU-Scene). Only *enabled* indexers belong here:
               # Prowlarr answers a disabled indexer's feed with 410 Gone, which fails
-              # every updateIndexerCaps run.
+              # every updateIndexerCaps run — hence PreToMe is commented out rather
+              # than left in place. See prowlarr/indexers/_pretome.nix.
               torznab = [
-                "http://${prowlarr.ip}:${toString prowlarr.ports.default}/1/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
+                # "http://${prowlarr.ip}:${toString prowlarr.ports.default}/1/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
                 "http://${prowlarr.ip}:${toString prowlarr.ports.default}/2/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
                 "http://${prowlarr.ip}:${toString prowlarr.ports.default}/3/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
                 "http://${prowlarr.ip}:${toString prowlarr.ports.default}/4/api?apikey=${config.sops.placeholder.prowlarr-apikey}"

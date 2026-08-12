@@ -5,7 +5,8 @@
 { config, ... }:
 {
   name = "PreToMe TV";
-  enabled = true;
+  # Disabled — see indexers/_pretome.nix.
+  enabled = false;
   match_categories = "TV*";
   indexers = [ { id = "\${ref.indexer.PreToMe}"; } ];
   actions = [
