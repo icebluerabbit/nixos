@@ -10,6 +10,6 @@ import (
 // client-agnostic in name so a second client slots in without touching grab policy.
 func registerClient(fs *flag.FlagSet, c *types.ClientConfig) {
 	fs.StringVar(&c.URL, "client-url", "", "download client WebUI base URL")
-	fs.StringToStringVar(&c.Categories, "client-category", nil, "kind=category (repeatable), e.g. ebook=books")
+	fs.StringToStringVar(&c.Categories, "client-category", nil, "mediaType=category (repeatable), e.g. Ebook=books")
 	fs.BoolVar(&c.AddPaused, "client-paused", false, "add torrents paused")
 }

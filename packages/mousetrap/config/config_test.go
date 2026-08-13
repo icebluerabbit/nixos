@@ -35,16 +35,16 @@ func TestParseOverrides(t *testing.T) {
 		"--listen", "127.0.0.1",
 		"--port", "9000",
 		"--mam-seed-path", "/run/secrets/mam",
-		"--accept-kind", "ebook",
+		"--accept-media-type", "Ebook",
 		"--accept-category-allow", "Ebooks - Fantasy",
 		"--accept-category-allow", "Audiobooks - Horror",
 		"--accept-size-min", "1024",
 		"--grab-dry-run=false",
 		"--grab-inflight-window", "10m",
-		"--client-category", "ebook=books",
-		"--client-category", "audiobook=audiobooks",
+		"--client-category", "Ebook=books",
+		"--client-category", "Audiobook=audiobooks",
 		"--wedge-enable",
-		"--wedge-proactive-kind", "audiobook",
+		"--wedge-proactive-media-type", "Audiobook",
 		"--webhook-header", "X-Token=abc",
 	})
 
@@ -54,8 +54,8 @@ func TestParseOverrides(t *testing.T) {
 	if c.MAM.SeedPath != "/run/secrets/mam" {
 		t.Errorf("seed-path = %q", c.MAM.SeedPath)
 	}
-	if len(c.Accept.Kinds) != 1 || c.Accept.Kinds[0] != "ebook" {
-		t.Errorf("kinds = %v", c.Accept.Kinds)
+	if len(c.Accept.MediaTypes) != 1 || c.Accept.MediaTypes[0] != "Ebook" {
+		t.Errorf("media-types = %v", c.Accept.MediaTypes)
 	}
 	if len(c.Accept.CategoriesAllow) != 2 {
 		t.Errorf("category-allow = %v", c.Accept.CategoriesAllow)
@@ -69,14 +69,14 @@ func TestParseOverrides(t *testing.T) {
 	if c.Grab.InFlightWindow != 10*time.Minute {
 		t.Errorf("inflight-window = %v", c.Grab.InFlightWindow)
 	}
-	if c.Client.Categories["ebook"] != "books" || c.Client.Categories["audiobook"] != "audiobooks" {
+	if c.Client.Categories["Ebook"] != "books" || c.Client.Categories["Audiobook"] != "audiobooks" {
 		t.Errorf("client categories = %v", c.Client.Categories)
 	}
 	if !c.Wedge.Enable {
 		t.Error("wedge-enable should be true")
 	}
-	if len(c.Wedge.ProactiveKinds) != 1 || c.Wedge.ProactiveKinds[0] != "audiobook" {
-		t.Errorf("proactive-kinds = %v", c.Wedge.ProactiveKinds)
+	if len(c.Wedge.ProactiveMediaTypes) != 1 || c.Wedge.ProactiveMediaTypes[0] != "Audiobook" {
+		t.Errorf("proactive-media-types = %v", c.Wedge.ProactiveMediaTypes)
 	}
 	if c.Webhook.Headers["X-Token"] != "abc" {
 		t.Errorf("webhook headers = %v", c.Webhook.Headers)

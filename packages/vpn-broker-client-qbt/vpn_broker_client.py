@@ -30,6 +30,7 @@ Config JSON (path in argv[2]):
 
 import json
 import os
+import random
 import subprocess
 import sys
 import time
@@ -139,11 +140,16 @@ def claim():
 
 def dnat(tunnel):
     # Tell the broker our own bridge IP on this tunnel to DNAT inbound to
-    # (trusted VLAN).
+    # (trusted VLAN). The broker also returns its tri-state verdict on the
+    # tunnel (failing|connected|stable) so mam_update can gate on it.
     st, body = broker("POST", "/dnat/" + tunnel, {"ip": POOL[tunnel]["ip"]})
     if st == 200 and isinstance(body, dict):
-        return body.get("port"), body.get("exit_ip", "")
-    return None, None
+        return (
+            body.get("port"),
+            body.get("exit_ip", ""),
+            body.get("state", ""),
+        )
+    return None, None, ""
 
 
 # ── WebUI API (keepalive rebind + pin) ──────────────────────────────────
@@ -204,21 +210,37 @@ def patch_conf(veth, port, exit_ip):
 # Private trackers authorize a seedbox by a single stored IP; on failover our
 # exit IP changes and announces get rejected until MAM is re-pointed. We POST
 # the current IP from the claimed tunnel (curl --interface <veth> so MAM sees
-# the VPN exit, not eth0). Fires on an IP change (re-lock, capped to ~1/hr by
-# floor_seconds since MAM rate-limits CHANGES → sooner just 429s) AND on a
-# refresh interval when the IP is unchanged: MAM rotates mam_id on every
-# request and the session ages out if never exercised, so a periodic "No
-# Change" call keeps it alive (announces need a valid session to re-lock on
-# the next failover). mam_id is a cookie jar (curl -c) so the rotated cookie
-# persists; seeded once from the sops secret.
-def mam_update(veth, exit_ip):
+# the VPN exit, not eth0). Fires on an IP change AND on a refresh interval
+# when the IP is unchanged: MAM rotates mam_id on every request and the
+# session ages out if never exercised, so a periodic "No Change" call keeps it
+# alive (announces need a valid session to re-lock on the next failover).
+# mam_id is a cookie jar (curl -c) so the rotated cookie persists; seeded once
+# from the sops secret.
+#
+# Two guards on the change path, because MAM rate-limits CHANGES (not
+# requests — a "No Change" keepalive costs nothing and does not consume the
+# budget, verified 2026-08-13: a keepalive at 01:17:35 did not block a real
+# change at 01:22:07):
+#
+#   require_stable — spend a change only on a tunnel the broker calls
+#     "stable". A tunnel that is itself failing over must not consume the
+#     budget: on 2026-08-12 a provider outage took 4 of 10 tunnels down, the
+#     change went to wg8 at 09:14:05, wg8 died 60s later, and the next five
+#     exits were locked out for the rest of the hour.
+#
+#   adaptive backoff — MAM's real change interval is unpublished. Rather than
+#     guess it with a fixed floor (the previous 3600s guess had never once
+#     been validated against an actual refusal), ask and let MAM answer: the
+#     wait is 0 until MAM says "too recent", then climbs 60s → 2× → 3600s cap
+#     with jitter, and resets on success. Bounded at ~7 attempts/hour.
+def mam_update(veth, exit_ip, state):
     mam = cfg.get("mam") or {}
     if not mam.get("enable") or not exit_ip:
         return
     jar = _state_path("mam.cookies")
-    change_floor = int(
-        mam.get("floor_seconds", 3600)
-    )  # MAM rate-limits CHANGES to ~1/hr
+    backoff_base = int(mam.get("backoff_base_seconds", 60))
+    backoff_max = int(mam.get("backoff_max_seconds", 3600))
+    require_stable = bool(mam.get("require_stable", True))
     refresh = int(
         mam.get("refresh_seconds", 3600)
     )  # keepalive cadence (sessions age out)
@@ -226,11 +248,17 @@ def mam_update(veth, exit_ip):
     now = time.time()
     changed = st.get("ip") != exit_ip
     if changed:
-        # New exit IP → re-lock, but not more than once per change_floor
-        # (else 429). Record the attempt (not just success) so a persistent
-        # 429/403 backs off to 1/floor, not every tick.
-        if now - st.get("change_ts", 0) < change_floor:
+        if require_stable and state and state != "stable":
+            print(
+                f"qbt-mam: {exit_ip} is {state}, not stable; hold re-lock",
+                flush=True,
+            )
             return
+        wait = st.get("backoff", 0)
+        if wait and now - st.get("change_ts", 0) < wait:
+            return
+        # Record the attempt (not just success) so a persistent 429/403 backs
+        # off on the ladder rather than retrying every tick.
         st["change_ts"] = now
     elif now - st.get("ok_ts", 0) < refresh:
         return  # same IP and session still fresh — nothing to do
@@ -287,10 +315,21 @@ def mam_update(veth, exit_ip):
         st["ok_ts"] = (
             now  # marks the session refreshed; drives the keepalive cadence
         )
+        st["backoff"] = 0  # accepted → reset the ladder
         _save_json("mam.json", st)
         print(f"qbt-mam: seedbox IP {exit_ip} via {veth} ({msg})", flush=True)
     elif "too recent" in msg.lower():
-        print(f"qbt-mam: rate-limited ({msg}); retry after floor", flush=True)
+        # MAM refused the CHANGE. Climb the ladder with jitter so repeated
+        # failovers don't retry in lockstep, and cap it.
+        prev = st.get("backoff", 0)
+        nxt = backoff_base if not prev else min(prev * 2, backoff_max)
+        st["backoff"] = max(1, int(nxt * random.uniform(0.8, 1.2)))
+        _save_json("mam.json", st)
+        print(
+            f"qbt-mam: rate-limited ({msg}); "
+            f"backoff {st['backoff']}s before next change",
+            flush=True,
+        )
     else:
         # ASN mismatch / invalid session / wrong session type → operator
         # must fix the MAM config.
@@ -314,7 +353,7 @@ def do_prestart():
     if not t:
         print("qbt-vpn: no tunnel from broker, fail-closed", flush=True)
         return
-    port, exit_ip = dnat(t)
+    port, exit_ip, _ = dnat(t)
     if not port:
         print("qbt-vpn: dnat failed, fail-closed", flush=True)
         return
@@ -337,13 +376,15 @@ def do_keepalive():
             flush=True,
         )
         return
-    port, exit_ip = dnat(t)  # sets DNAT + re-leases + refreshes the claim TTL
+    # sets DNAT + re-leases + refreshes the claim TTL; state is the broker's
+    # tri-state verdict (failing|connected|stable) on this tunnel
+    port, exit_ip, state = dnat(t)
     if not port:
         print(f"qbt-vpn: dnat failed on {t}; re-pick next tick", flush=True)
         return
     veth = POOL[t]["veth"]
     mam_update(
-        veth, exit_ip
+        veth, exit_ip, state
     )  # re-lock the MAM session if our exit IP changed (independent of WebUI)
     # The broker lease is renewed above (the critical part). The API pin is
     # best-effort: if the WebUI isn't up yet (boot/restart) api_prefs()
@@ -381,7 +422,7 @@ def do_keepalive():
         return
     print(
         f"qbt-vpn: keepalive tunnel={t} veth={veth} "
-        f"port={port} announce={exit_ip}",
+        f"port={port} announce={exit_ip} state={state}",
         flush=True,
     )
 

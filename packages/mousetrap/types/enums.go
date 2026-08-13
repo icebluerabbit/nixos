@@ -10,7 +10,6 @@ type (
 	GrabReason     string
 	GrabResult     string
 	ShopAction     string
-	Kind           string // media kind derived from a release's category
 	Source         string // where a grab originated
 	SpendType      string // what an outgoing spend consumed
 	SpendReason    string // why an outgoing spend happened
@@ -40,12 +39,10 @@ const (
 	BonusMillionaires  BonusType = "millionaires"
 )
 
-// Media kinds.
-const (
-	KindEbook     Kind = "ebook"
-	KindAudiobook Kind = "audiobook"
-	KindOther     Kind = "other"
-)
+// Media type is not enumerated here on purpose: it is MAM's own vocabulary
+// ("Ebook", "Audiobook", "Manga", "Comic Book / Graphic Novel", "Periodical
+// Ebook", …), carried verbatim from the announce and matched by config. MAM adds
+// to it without telling us, so an enum here would only ever be out of date.
 
 // Grab origins.
 const (
@@ -62,11 +59,12 @@ const (
 // Layer-1 reject reasons (Accept uses AcceptOK).
 const (
 	AcceptOK            AcceptReason = "ok"
-	AcceptKind          AcceptReason = "kind"
+	AcceptMediaType     AcceptReason = "media_type"
 	AcceptCategoryAllow AcceptReason = "category_allow"
 	AcceptCategoryDeny  AcceptReason = "category_deny"
 	AcceptFiletypeAllow AcceptReason = "filetype_allow"
 	AcceptFiletypeDeny  AcceptReason = "filetype_deny"
+	AcceptFiction       AcceptReason = "fiction"
 	AcceptLanguage      AcceptReason = "language"
 	AcceptSizeMin       AcceptReason = "size_min"
 	AcceptSizeMax       AcceptReason = "size_max"

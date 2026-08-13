@@ -16,7 +16,7 @@ func gateEngine(t *testing.T) *Engine {
 		types.WedgeConfig{
 			Enable:                true,
 			Reserve:               2,
-			ProactiveKinds:        []string{"audiobook"},
+			ProactiveMediaTypes:   []string{"Audiobook"},
 			ProactiveMinSizeBytes: 400_000_000,
 			RescueEnable:          true,
 			RescueMinSizeBytes:    100_000_000,
@@ -36,7 +36,7 @@ func TestGrabGate(t *testing.T) {
 		UploadedBytes: 10 * gib, DownloadedBytes: 1 * gib,
 		Wedges: 10, ClassName: "User",
 	}
-	ebook := types.Release{Kind: types.KindEbook, Size: 5_000_000}
+	ebook := types.Release{MediaType: "Ebook", Size: 5_000_000}
 
 	cases := []struct {
 		name     string
@@ -95,7 +95,7 @@ func TestGrabGate(t *testing.T) {
 		},
 		{
 			name:  "proactive_wedge",
-			rel:   types.Release{Kind: types.KindAudiobook, Size: 500_000_000},
+			rel:   types.Release{MediaType: "Audiobook", Size: 500_000_000},
 			acct:  base, // buffer healthy, but proactive audiobook wedges anyway
 			wantD: types.Grab, wantR: types.GrabOKWedge, wantPlan: GrabPlan{UseWedge: true},
 		},
@@ -107,7 +107,7 @@ func TestGrabGate(t *testing.T) {
 		},
 		{
 			name:  "wedge_wanted_but_none_left",
-			rel:   types.Release{Kind: types.KindAudiobook, Size: 500_000_000},
+			rel:   types.Release{MediaType: "Audiobook", Size: 500_000_000},
 			acct:  func() types.AccountState { a := base; a.Wedges = 2; return a }(),     // == reserve, not > → unavailable
 			wantD: types.Grab, wantR: types.GrabOK, wantPlan: GrabPlan{CostsRatio: true}, // buffer healthy → ratio grab
 		},

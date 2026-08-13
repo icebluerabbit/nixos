@@ -68,19 +68,19 @@ func decode(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
 }
 
 func TestAnnounceReject(t *testing.T) {
-	a := testApp(t, types.AcceptConfig{Kinds: []string{"audiobook"}}, types.GrabConfig{})
-	w := post(Announce(a), `{"category":"Ebooks - Fantasy","torrentId":"5"}`)
+	a := testApp(t, types.AcceptConfig{MediaTypes: []string{"Audiobook"}}, types.GrabConfig{})
+	w := post(Announce(a), `{"mediaType":"Ebook","torrentId":"5"}`)
 	if w.Code != http.StatusNotAcceptable {
 		t.Fatalf("status = %d, want 406", w.Code)
 	}
-	if r := decode(t, w); r["decision"] != string(types.Reject) || r["reason"] != string(types.AcceptKind) {
+	if r := decode(t, w); r["decision"] != string(types.Reject) || r["reason"] != string(types.AcceptMediaType) {
 		t.Errorf("body = %v", r)
 	}
 }
 
 func TestAnnounceAcceptDryRun(t *testing.T) {
 	a := testApp(t, types.AcceptConfig{}, types.GrabConfig{UnsatMargin: 5, DryRun: true})
-	w := post(Announce(a), `{"category":"Ebooks - Fantasy","torrentId":"5","size":"100"}`)
+	w := post(Announce(a), `{"mediaType":"Ebook","torrentId":"5","size":"100"}`)
 
 	r := decode(t, w)
 	if r["decision"] != string(types.Accept) {
@@ -100,7 +100,7 @@ func TestAnnounceAcceptDryRun(t *testing.T) {
 
 func TestAnnounceGrabAdded(t *testing.T) {
 	a := testApp(t, types.AcceptConfig{}, types.GrabConfig{UnsatMargin: 5, DryRun: false})
-	w := post(Announce(a), `{"category":"Ebooks - Fantasy","torrentId":"7","size":"100"}`)
+	w := post(Announce(a), `{"mediaType":"Ebook","torrentId":"7","size":"100"}`)
 
 	r := decode(t, w)
 	if r["result"] != string(types.ResultAdded) {
@@ -122,7 +122,7 @@ func TestAnnounceDedup(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	w := post(Announce(a), `{"category":"Ebooks - Fantasy","torrentId":"5"}`)
+	w := post(Announce(a), `{"mediaType":"Ebook","torrentId":"5"}`)
 	if r := decode(t, w); r["reason"] != string(types.AcceptDuplicate) {
 		t.Errorf("reason = %v, want duplicate", r["reason"])
 	}
@@ -135,17 +135,27 @@ func TestAnnounceBadBody(t *testing.T) {
 	}
 }
 
-func TestKindOf(t *testing.T) {
-	cases := map[string]types.Kind{
-		"Ebooks - Fantasy":    types.KindEbook,
-		"ebooks - x":          types.KindEbook,
-		"Audiobooks - Horror": types.KindAudiobook,
-		"Musicology - x":      types.KindOther,
-		"":                    types.KindOther,
+func TestSplitList(t *testing.T) {
+	cases := map[string][]string{
+		// MouseBot emits ",  "; MAM's own docs show ", " — both must trim to the same
+		"Erotica/Sexual Content,  Romance": {"Erotica/Sexual Content", "Romance"},
+		"Fantasy, LGBTQIA+, Romance":       {"Fantasy", "LGBTQIA+", "Romance"},
+		"m4b, mp3":                         {"m4b", "mp3"},
+		"epub":                             {"epub"},
+		"":                                 nil,
+		",  ,":                             nil,
 	}
-	for cat, want := range cases {
-		if got := kindOf(cat); got != want {
-			t.Errorf("kindOf(%q) = %q, want %q", cat, got, want)
+	for in, want := range cases {
+		got := splitList(in)
+		if len(got) != len(want) {
+			t.Errorf("splitList(%q) = %q, want %q", in, got, want)
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("splitList(%q) = %q, want %q", in, got, want)
+				break
+			}
 		}
 	}
 }
@@ -165,13 +175,19 @@ func TestTruthy(t *testing.T) {
 
 func TestRelease(t *testing.T) {
 	p := announcePayload{
-		Title: "Fallback", Category: "Audiobooks - Horror", Tags: "m4b",
-		Size: "12345", ReleaseTags: "VIP", Freeleech: "true", TorrentID: "99",
+		Title: "Fallback", MediaType: "Audiobook", Categories: "Horror,  Mystery",
+		Filetypes: "m4b, mp3", Size: "12345", VIP: "true", Freeleech: "true", TorrentID: "99",
 	}
 	rel := p.release()
-	if rel.Name != "Fallback" || rel.Kind != types.KindAudiobook || rel.Size != 12345 ||
+	if rel.Name != "Fallback" || rel.MediaType != "Audiobook" || rel.Size != 12345 ||
 		!rel.VIP || !rel.Freeleech || rel.TID != 99 {
 		t.Errorf("release = %+v", rel)
+	}
+	if len(rel.Categories) != 2 || rel.Categories[1] != "Mystery" {
+		t.Errorf("categories = %q", rel.Categories)
+	}
+	if len(rel.Filetypes) != 2 || rel.Filetypes[1] != "mp3" {
+		t.Errorf("filetypes = %q", rel.Filetypes)
 	}
 }
 
@@ -195,8 +211,8 @@ func webhookApp(t *testing.T, hookURL string) *app.App {
 	a, err := app.New(types.Config{
 		StateDir: t.TempDir(),
 		MAM:      types.MAMConfig{APIBase: mamSrv.URL, SeedPath: seed},
-		Client:   types.ClientConfig{URL: qbtSrv.URL, Categories: map[string]string{"ebook": "books"}},
-		Accept:   types.AcceptConfig{Kinds: []string{"ebook"}, CategoriesAllow: []string{"Ebooks - Fantasy"}, FiletypesAllow: []string{"epub"}, LanguagesAllow: []string{"english"}},
+		Client:   types.ClientConfig{URL: qbtSrv.URL, Categories: map[string]string{"Ebook": "books"}},
+		Accept:   types.AcceptConfig{MediaTypes: []string{"Ebook"}, CategoriesAllow: []string{"Fantasy"}, FiletypesAllow: []string{"epub"}, LanguagesAllow: []string{"english"}},
 		Grab:     types.GrabConfig{UnsatMargin: 2, DryRun: false},
 		Webhook: types.WebhookConfig{
 			URL:      hookURL,
@@ -225,9 +241,9 @@ func TestAnnounceFiresWebhooks(t *testing.T) {
 	a := webhookApp(t, hook.URL)
 
 	// accepted + grabbed → announce, grab, enqueue
-	post(Announce(a), `{"category":"Ebooks - Fantasy","language":["english"],"tags":"epub","size":"100","torrentId":"7001","downloadUrl":"x"}`)
+	post(Announce(a), `{"mediaType":"Ebook","categories":"Fantasy","language":["english"],"filetypes":"epub","size":"100","torrentId":"7001","downloadUrl":"x"}`)
 	// rejected at Layer-1 (category) → announce, reject
-	post(Announce(a), `{"category":"Ebooks - Romance","language":["english"],"tags":"epub","size":"100","torrentId":"7002"}`)
+	post(Announce(a), `{"mediaType":"Ebook","categories":"Romance","language":["english"],"filetypes":"epub","size":"100","torrentId":"7002"}`)
 
 	mu.Lock()
 	seq := strings.Join(got, ",")

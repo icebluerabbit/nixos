@@ -7,6 +7,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/language"
+	"golang.org/x/text/language/display"
 	"time"
 
 	"mousetrap/app"
@@ -192,7 +195,7 @@ func torznabSearch(a *app.App, w http.ResponseWriter, r *http.Request, q url.Val
 	feed := rssFeed{Version: "2.0", XMLNSTorznab: torznabNS}
 	feed.Channel.Title = "mousetrap"
 	for _, t := range res.Data {
-		rel := releaseFromTorrent(t)
+		rel := releaseFromTorrent(t, a.Cfg.MAM.MediaTypeNames)
 		if d, _ := a.Policy.Accept(rel); d != types.Accept {
 			continue
 		}
@@ -303,7 +306,7 @@ func buildItem(a *app.App, rel types.Release, t mam.Torrent) rssItem {
 		Size:      rel.Size,
 		Enclosure: rssEnclosure{URL: link, Length: rel.Size, Type: "application/x-bittorrent"},
 		Attrs: []torznabAttr{
-			{Name: "category", Value: torznabCatForKind(rel.Kind)},
+			{Name: "category", Value: torznabCatFor(rel.MediaType)},
 			{Name: "seeders", Value: strconv.Itoa(t.Seeders)},
 			{Name: "peers", Value: strconv.Itoa(t.Seeders + t.Leechers)},
 			{Name: "size", Value: strconv.FormatInt(rel.Size, 10)},
@@ -319,8 +322,9 @@ func mintDownloadURL(a *app.App, rel types.Release) string {
 	v := url.Values{}
 	v.Set("id", strconv.FormatInt(rel.TID, 10))
 	v.Set("name", rel.Name)
-	v.Set("cat", rel.Category)
-	v.Set("ft", rel.Filetype)
+	v.Set("mt", rel.MediaType)
+	v.Set("cats", strings.Join(rel.Categories, ","))
+	v.Set("ft", strings.Join(rel.Filetypes, ","))
 	v.Set("lang", strings.Join(rel.Languages, ","))
 	v.Set("size", strconv.FormatInt(rel.Size, 10))
 	v.Set("vip", bit(rel.VIP))
@@ -376,57 +380,71 @@ func mainCatsFor(cat string) []int {
 	return out
 }
 
-// torznabCatForKind maps our media kind to the Newznab-standard category id.
-func torznabCatForKind(k types.Kind) string {
-	switch k {
-	case types.KindAudiobook:
+// torznabCatFor maps a MAM media type to the Newznab-standard category id. Newznab's
+// taxonomy is the Torznab protocol's, not MAM's, so this mapping is ours to make;
+// anything unrecognized lands on the generic Books id rather than being dropped.
+func torznabCatFor(mediaType string) string {
+	switch m := strings.ToLower(mediaType); {
+	case strings.Contains(m, "audiobook"):
 		return "3030"
-	case types.KindEbook:
+	case strings.Contains(m, "manga"), strings.Contains(m, "comic"), strings.Contains(m, "graphic novel"):
+		return "7030"
+	case strings.Contains(m, "periodical"), strings.Contains(m, "magazine"):
+		return "7010"
+	case strings.Contains(m, "ebook"):
 		return "7020"
 	default:
 		return "7000"
 	}
 }
 
-// kindFromMainCat derives media kind from a MAM main-category id.
-func kindFromMainCat(mainCat int) types.Kind {
-	switch mainCat {
-	case 13:
-		return types.KindAudiobook
-	case 14:
-		return types.KindEbook
-	default:
-		return types.KindOther
+// releaseFromTorrent maps a MAM search result to the policy's domain release. The
+// search API and the IRC announce describe the same torrent in two vocabularies: the
+// API sends a numeric mediatype id and a "<MainCat> - <Category>" catname, the
+// announce sends the media type by name and the categories as a list. names resolves
+// the id so both arrive as one vocabulary; an id with no configured name stays the
+// raw id and simply matches no policy list.
+func releaseFromTorrent(t mam.Torrent, names map[string]string) types.Release {
+	mediaType, ok := names[strconv.Itoa(t.MediaType)]
+	if !ok {
+		mediaType = strconv.Itoa(t.MediaType)
+	}
+	return types.Release{
+		TID:        t.ID,
+		Name:       t.Title,
+		MediaType:  mediaType,
+		Categories: catsFromCatName(t.CatName),
+		Filetypes:  splitList(t.Filetype),
+		Languages:  langSliceCSV(t.LangCode),
+		Size:       parseFormattedSize(t.Size),
+		VIP:        t.VIP == 1,
+		Freeleech:  t.Free == 1,
 	}
 }
 
-// releaseFromTorrent maps a MAM search result to the policy's domain release.
-func releaseFromTorrent(t mam.Torrent) types.Release {
-	return types.Release{
-		TID:       t.ID,
-		Name:      t.Title,
-		Category:  t.CatName,
-		Kind:      kindFromMainCat(t.MainCat),
-		Filetype:  t.Filetype,
-		Languages: langSliceCSV(t.LangCode),
-		Size:      parseFormattedSize(t.Size),
-		VIP:       t.VIP == 1,
-		Freeleech: t.Free == 1,
+// catsFromCatName takes the category off a search-API catname ("Ebooks - Fantasy" →
+// ["Fantasy"]). The API still carries one category per torrent — MAM's multi-category
+// change was to the IRC announce — so this is always a one-element list, or nil for a
+// catname with no category part ("Music Book").
+func catsFromCatName(s string) []string {
+	if i := strings.Index(s, " - "); i > 0 {
+		return splitList(s[i+3:])
 	}
+	return nil
 }
 
 // releaseFromQuery reconstructs the release from a minted download link's params.
 func releaseFromQuery(q url.Values) types.Release {
 	return types.Release{
-		TID:       parseInt64(q.Get("id")),
-		Name:      q.Get("name"),
-		Category:  q.Get("cat"),
-		Kind:      kindOf(q.Get("cat")),
-		Filetype:  q.Get("ft"),
-		Languages: langSliceCSV(q.Get("lang")),
-		Size:      parseInt64(q.Get("size")),
-		VIP:       truthy(q.Get("vip")),
-		Freeleech: truthy(q.Get("fl")),
+		TID:        parseInt64(q.Get("id")),
+		Name:       q.Get("name"),
+		MediaType:  q.Get("mt"),
+		Categories: splitList(q.Get("cats")),
+		Filetypes:  splitList(q.Get("ft")),
+		Languages:  langSliceCSV(q.Get("lang")),
+		Size:       parseInt64(q.Get("size")),
+		VIP:        truthy(q.Get("vip")),
+		Freeleech:  truthy(q.Get("fl")),
 	}
 }
 
@@ -470,7 +488,46 @@ func atoiDefault(s string, def int) int {
 // langSliceCSV splits a comma-separated language value and normalizes each element
 // (lowercase + trim), dropping empties; "" → nil.
 func langSliceCSV(s string) []string {
-	return normLangs(strings.Split(s, ","))
+	out := normLangs(strings.Split(s, ","))
+	for i, l := range out {
+		if name, ok := languageName(l); ok {
+			out[i] = name
+		}
+	}
+	return out
+}
+
+// languageName resolves one of MAM's search-API language codes to the name its IRC
+// announce carries, so both paths match one vocabulary. Without it every search result
+// was rejected: the announce says "English", the API says "ENG", and the language rule
+// matches by substring — "eng" contains "english" is false.
+//
+// MAM sends ISO 639-2/B (bibliographic) codes, evidenced by FRE over FRA, GER over DEU
+// and DUT over NLD in live results; x/text canonicalizes those to the same tags as the
+// /T spellings, so both work without listing either.
+//
+// Only an exact 3-letter code is resolved. Anything else — a name this function is
+// handed on the minted-link round trip, an empty field — is left alone, which also
+// keeps a 2-letter value from being read as a BCP-47 tag ("no" is Norwegian Bokmål).
+// An unparseable code stays itself: it matches no allowlist and remains legible in the
+// logs rather than being silently renamed to something plausible.
+//
+// Lossy exactly where MAM is: SPA covers both its "Spanish" and "Castilian Spanish"
+// (internal ids 4 and 55), as POR does Portuguese and Brazilian Portuguese, because
+// MAM issues one code per pair. Substring matching catches either from "spanish".
+func languageName(code string) (string, bool) {
+	if len(code) != 3 {
+		return "", false
+	}
+	tag, err := language.Parse(code)
+	if err != nil {
+		return "", false
+	}
+	name := display.English.Languages().Name(tag)
+	if name == "" {
+		return "", false
+	}
+	return strings.ToLower(name), true
 }
 
 // parseFormattedSize converts a MAM display size like "6.0 MiB" to bytes. Duplicated

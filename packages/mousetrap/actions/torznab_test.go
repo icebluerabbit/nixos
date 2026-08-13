@@ -23,11 +23,16 @@ const healthyUser = `{"classname":"User","ratio":"10","uploaded":"2.00 TiB","dow
 // ceilingUser sits at the unsat ceiling so the grab-gate holds.
 const ceilingUser = `{"classname":"User","ratio":"10","uploaded":"2.00 TiB","downloaded":"1.00 TiB","wedges":5,"unsat":{"count":20,"limit":20}}`
 
-// twoResults is a search page with one ebook (main_cat 14) and one audiobook (13).
+// twoResults is a search page with one ebook (mediatype 2) and one audiobook (1).
 const twoResults = `{"total":2,"total_found":2,"data":[
-	{"id":42,"title":"An Ebook","catname":"Ebooks - Fantasy","main_cat":14,"filetype":"epub","lang_code":"English","size":"6.0 MiB","seeders":10,"leechers":2,"numfiles":1,"times_completed":5,"free":0,"vip":0},
-	{"id":43,"title":"An Audiobook","catname":"Audiobooks - Horror","main_cat":13,"filetype":"m4b","lang_code":"English","size":"200.0 MiB","seeders":8,"leechers":1,"numfiles":3,"times_completed":9,"free":1,"vip":0}
+	{"id":42,"title":"An Ebook","catname":"Ebooks - Fantasy","main_cat":14,"mediatype":2,"filetype":"epub","lang_code":"English","size":"6.0 MiB","seeders":10,"leechers":2,"numfiles":1,"times_completed":5,"free":0,"vip":0},
+	{"id":43,"title":"An Audiobook","catname":"Audiobooks - Horror","main_cat":13,"mediatype":1,"filetype":"m4b","lang_code":"English","size":"200.0 MiB","seeders":8,"leechers":1,"numfiles":3,"times_completed":9,"free":1,"vip":0}
 ]}`
+
+// searchMediaTypes is the id→name table the search path needs to speak the same
+// vocabulary as the announce. Deliberately partial: id 9 is unmapped, as MAM's
+// unnamed ids are in production.
+var searchMediaTypes = map[string]string{"1": "Audiobook", "2": "Ebook"}
 
 // torznabApp builds an app whose MAM mock routes jsonLoad → userJSON, search →
 // searchJSON, and download → fixed .torrent bytes.
@@ -52,7 +57,7 @@ func torznabApp(t *testing.T, accept types.AcceptConfig, grab types.GrabConfig, 
 	}
 	a, err := app.New(types.Config{
 		StateDir: t.TempDir(),
-		MAM:      types.MAMConfig{APIBase: srv.URL, SeedPath: seed},
+		MAM:      types.MAMConfig{APIBase: srv.URL, SeedPath: seed, MediaTypeNames: searchMediaTypes},
 		Accept:   accept,
 		Grab:     grab,
 		Torznab:  tz,
@@ -117,14 +122,14 @@ func TestTorznabSearchFeed(t *testing.T) {
 
 func TestTorznabSearchLayer1Filter(t *testing.T) {
 	// only ebooks allowed → the audiobook result is filtered out of the feed.
-	a := torznabApp(t, types.AcceptConfig{Kinds: []string{"ebook"}}, types.GrabConfig{},
+	a := torznabApp(t, types.AcceptConfig{MediaTypes: []string{"Ebook"}}, types.GrabConfig{},
 		types.TorznabConfig{BaseURL: "http://mt"}, healthyUser, twoResults)
 	body := get(Torznab(a), "t=search").Body.String()
 	if !strings.Contains(body, `value="7020"`) {
 		t.Error("ebook should be present")
 	}
 	if strings.Contains(body, `value="3030"`) {
-		t.Error("audiobook should be filtered by Layer-1 kind")
+		t.Error("audiobook should be filtered by Layer-1 media type")
 	}
 }
 
@@ -233,6 +238,42 @@ func TestMainCatsFor(t *testing.T) {
 		for i := range want {
 			if got[i] != want[i] {
 				t.Errorf("mainCatsFor(%q) = %v, want %v", in, got, want)
+				break
+			}
+		}
+	}
+}
+
+// The search API sends ISO 639-2/B codes where the announce sends names; both must
+// end up as the same value or the substring language rule rejects every search result.
+func TestLangSliceCSV(t *testing.T) {
+	cases := map[string][]string{
+		// bibliographic spellings MAM actually sends (FRE not FRA, GER not DEU)
+		"ENG":     {"english"},
+		"FRE":     {"french"},
+		"GER":     {"german"},
+		"DUT":     {"dutch"},
+		"SPA":     {"spanish"},
+		"ENG,POL": {"english", "polish"},
+		// names arrive already resolved on the minted-link round trip — leave them be
+		"english":              {"english"},
+		"castilian spanish":    {"castilian spanish"},
+		"brazilian portuguese": {"brazilian portuguese"},
+		// a 2-letter value must not be read as a BCP-47 tag ("no" = Norwegian Bokmål)
+		"no": {"no"},
+		// unknown code stays itself: matches no allowlist, still legible in the logs
+		"zzz": {"zzz"},
+		"":    nil,
+	}
+	for in, want := range cases {
+		got := langSliceCSV(in)
+		if len(got) != len(want) {
+			t.Errorf("langSliceCSV(%q) = %q, want %q", in, got, want)
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("langSliceCSV(%q) = %q, want %q", in, got, want)
 				break
 			}
 		}

@@ -33,8 +33,8 @@ func TestAddOk(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(types.ClientConfig{URL: srv.URL, Categories: map[string]string{"ebook": "books"}})
-	if err := c.Add(context.Background(), []byte("torrentdata"), "My Book", types.KindEbook); err != nil {
+	c := New(types.ClientConfig{URL: srv.URL, Categories: map[string]string{"Ebook": "books"}})
+	if err := c.Add(context.Background(), []byte("torrentdata"), "My Book", "Ebook"); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	if gotCategory != "books" {
@@ -58,7 +58,7 @@ func TestAddRejected(t *testing.T) {
 	defer srv.Close()
 
 	c := New(types.ClientConfig{URL: srv.URL})
-	err := c.Add(context.Background(), []byte("x"), "n", types.KindEbook)
+	err := c.Add(context.Background(), []byte("x"), "n", "Ebook")
 	if !errors.Is(err, ErrRejected) {
 		t.Errorf("err = %v, want ErrRejected", err)
 	}
@@ -72,7 +72,7 @@ func TestAddHTTPError(t *testing.T) {
 	defer srv.Close()
 
 	c := New(types.ClientConfig{URL: srv.URL})
-	err := c.Add(context.Background(), []byte("x"), "n", types.KindEbook)
+	err := c.Add(context.Background(), []byte("x"), "n", "Ebook")
 	if err == nil || errors.Is(err, ErrRejected) || !strings.Contains(err.Error(), "403") {
 		t.Errorf("err = %v, want 403 transport error", err)
 	}

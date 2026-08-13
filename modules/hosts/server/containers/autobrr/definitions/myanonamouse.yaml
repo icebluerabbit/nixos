@@ -1,0 +1,154 @@
+---
+# FORK of autobrr's builtin myanonamouse definition, carrying autobrr PR #2593
+# (milestone v1.84.0). MAM changed the #announce format on 2026-08-11 to carry
+# multiple categories per torrent; the builtin's `New Torrent: … Category: ( … )`
+# regex stopped matching at 19:12:55 that day and every announce has been dropped
+# since. Custom definitions load after builtins and overwrite by identifier
+# (indexer/service.go: s.definitions[definition.Identifier] = *definition), so
+# this shadows the builtin with no other wiring.
+#
+# ONE DELIBERATE DIVERGENCE from the PR: its `fictionType` capture group is named
+# `origin` here. autobrr's Release.MapVars only understands a fixed vocabulary of
+# group names, and `fictionType` is not in it, so upstream's group reaches no
+# Release field and dies at the indexer boundary. `origin` does reach one
+# (release.go: r.Origin = origin), which puts Fiction/Non-Fiction in {{ .Origin }}
+# for the webhook. Nothing on the MAM path consumes Origin — the filter sets no
+# Origins/ExceptOrigins rule, the only action is the mousetrap webhook, and the
+# releaseTags-derived Origin merge (release.go:858) is `if r.Origin == ""`. The
+# cost is that autobrr's releases.origin column holds Fiction/Non-Fiction where it
+# nominally means P2P/SCENE/INTERNAL.
+#
+# DELETE THIS FILE once the container runs autobrr >= v1.84.0 — but the deletion is
+# NOT a no-op because of the rename above: it silently drops fiction filtering, so
+# retire accept.fictionTypes in the same change or push the rename upstream first.
+version: 2
+name: MyAnonamouse
+identifier: myanonamouse
+description: MyAnonaMouse (MAM) is a large ebook and audiobook tracker.
+language: en-us
+urls:
+  - https://www.myanonamouse.net/
+privacy: private
+protocol: torrent
+supports:
+  - irc
+  - rss
+settings:
+  - name: cookie
+    type: secret
+    required: true
+    label: Cookie (mam_id)
+    help: "Under your username, go to preferences then security and generate a session using the IP address Autobrr runs on. Changes monthly. Format mam_id=$ID;"
+
+irc:
+  network: MyAnonamouse
+  server: irc.myanonamouse.net
+  port: 6697
+  tls: true
+  settings:
+    - name: nick
+      type: text
+      required: true
+      label: Nick
+      help: Bot nick. Eg. user_bot
+
+    - name: auth.account
+      type: text
+      required: true
+      label: NickServ Account
+      help: NickServ account. Make sure to group your user and bot. Use main nick here.
+
+    - name: auth.password
+      type: secret
+      required: true
+      label: NickServ Password
+      help: NickServ password
+
+  channels:
+    - name: "#announce"
+      announcers:
+        - MouseBot
+      parse:
+        type: single
+        lines:
+          - pattern: '(?P<releaseName>.+?) By: (?P<author>.+?) \[(?P<language>[^\]]+)\] \[(?P<category>[^\]]+)\] \[(?P<origin>[^\]]+)\] \[(?P<releaseTags>[^\]]+)\] \[(?P<torrentSize>[^\]]+)\] - (?P<tags>.+) - (?P<baseUrl>https?\:\/\/[^\/]+\/)t\/(?P<torrentId>\d+)\s*(?P<freeleech>VIP|Normal)?'
+            tests:
+              # verbatim lines captured from MouseBot after the format change
+              - line: "Frost Hunger By: Indigo Frey [English] [Ebook] [Fiction] [epub] [1.07 MiB] - Fantasy, LGBTQIA+, Erotica/Sexual Content, Romance - https://www.myanonamouse.net/t/1262654 VIP"
+                expect:
+                  releaseName: Frost Hunger
+                  author: Indigo Frey
+                  language: English
+                  category: Ebook
+                  origin: Fiction
+                  releaseTags: epub
+                  torrentSize: 1.07 MiB
+                  tags: Fantasy, LGBTQIA+, Erotica/Sexual Content, Romance
+                  baseUrl: https://www.myanonamouse.net/
+                  torrentId: "1262654"
+                  freeleech: VIP
+
+              # multi-word media type + a title containing " - "
+              - line: "The English Home - September 2026 Issue 261 By: The Chelsea Magazine Company [English] [Periodical Ebook] [Non-Fiction] [pdf] [93.50 MiB] - Home/Garden - https://www.myanonamouse.net/t/1262713 VIP"
+                expect:
+                  releaseName: The English Home - September 2026 Issue 261
+                  author: The Chelsea Magazine Company
+                  language: English
+                  category: Periodical Ebook
+                  origin: Non-Fiction
+                  releaseTags: pdf
+                  torrentSize: 93.50 MiB
+                  tags: Home/Garden
+                  baseUrl: https://www.myanonamouse.net/
+                  torrentId: "1262713"
+                  freeleech: VIP
+
+              # MouseBot emits ",  " (two spaces) between categories, not ", "
+              - line: "Bound By: Kathy Lockheart [English] [Ebook] [Fiction] [epub] [1.82 MiB] - Erotica/Sexual Content,  Romance - https://www.myanonamouse.net/t/1262711 Normal"
+                expect:
+                  releaseName: Bound
+                  author: Kathy Lockheart
+                  language: English
+                  category: Ebook
+                  origin: Fiction
+                  releaseTags: epub
+                  torrentSize: 1.82 MiB
+                  tags: "Erotica/Sexual Content,  Romance"
+                  baseUrl: https://www.myanonamouse.net/
+                  torrentId: "1262711"
+                  freeleech: Normal
+
+              # multi-author with MAM's "and N more" elision
+              - line: "Villains Unleashed By: Manos Kourizidis, George Antoniu, Gianis Makris, Lina Anagnostou, and 3 more [English] [Ebook] [Fiction] [pdf] [32.06 MiB] - Fantasy,  RPG - https://www.myanonamouse.net/t/1262681 VIP"
+                expect:
+                  releaseName: Villains Unleashed
+                  author: Manos Kourizidis, George Antoniu, Gianis Makris, Lina Anagnostou, and 3 more
+                  language: English
+                  category: Ebook
+                  origin: Fiction
+                  releaseTags: pdf
+                  torrentSize: 32.06 MiB
+                  tags: "Fantasy,  RPG"
+                  baseUrl: https://www.myanonamouse.net/
+                  torrentId: "1262681"
+                  freeleech: VIP
+
+              # audiobook, multiple filetypes
+              - line: "Some Book By: A Author [English] [Audiobook] [Fiction] [m4b, mp3] [1.00 GiB] - Science Fiction - https://www.myanonamouse.net/t/000000"
+                expect:
+                  releaseName: Some Book
+                  author: A Author
+                  language: English
+                  category: Audiobook
+                  origin: Fiction
+                  releaseTags: m4b, mp3
+                  torrentSize: 1.00 GiB
+                  tags: Science Fiction
+                  baseUrl: https://www.myanonamouse.net/
+                  torrentId: "000000"
+                  freeleech: ""
+
+        match:
+          infourl: "/t/{{ .torrentId }}"
+          downloadurl: "/tor/download.php?tid={{ .torrentId }}"
+          releasename: "{{ .releaseName }} by {{ .author }} [{{ .language }} / {{ .releaseTags }}]"

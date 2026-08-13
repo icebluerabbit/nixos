@@ -35,6 +35,12 @@ func (c Config) Addr() string { return c.Listen + ":" + c.Port }
 type MAMConfig struct {
 	APIBase  string
 	SeedPath string // path to the mam_id seed secret (the path, never the value)
+	// MediaTypeNames maps MAM's numeric search-API mediatype id to the string its
+	// IRC announce uses, so both sources key policy on one vocabulary. Config, not
+	// code: MAM ships ids we have no name for until one is announced, and an
+	// unmapped id falls through as its own raw value — it matches no allowlist and
+	// shows up untranslated in the metrics rather than being silently mislabeled.
+	MediaTypeNames map[string]string
 }
 
 // ClientConfig is the download client (qBittorrent today). The domain is kept
@@ -42,7 +48,7 @@ type MAMConfig struct {
 // to grab policy.
 type ClientConfig struct {
 	URL        string
-	Categories map[string]string // kind -> client category
+	Categories map[string]string // MAM media type -> client category
 	AddPaused  bool
 }
 
@@ -71,11 +77,12 @@ type TorznabConfig struct {
 // AcceptConfig is the Layer-1 acceptance policy — release-field filters only, no
 // account state. Empty list / 0 / "" means the rule is off.
 type AcceptConfig struct {
-	Kinds            []string // allowed media kinds; empty = any
-	CategoriesAllow  []string // exact category allowlist; empty = any
-	CategoriesDeny   []string // exact category denylist; takes precedence
-	FiletypesAllow   []string // filetype allowlist; empty = any
-	FiletypesDeny    []string // filetype denylist; takes precedence
+	MediaTypes       []string // allowed MAM media types; empty = any
+	CategoriesAllow  []string // category allowlist, any-of; empty = any
+	CategoriesDeny   []string // category denylist, any-of; takes precedence
+	FiletypesAllow   []string // filetype allowlist, any-of; empty = any
+	FiletypesDeny    []string // filetype denylist, any-of; takes precedence
+	FictionTypes     []string // allowed fiction flags ("Fiction"/"Non-Fiction"); empty = any
 	LanguagesAllow   []string // language substrings, case-insensitive; empty = any
 	SizeMinBytes     int64    // reject below; 0 = no floor
 	SizeMaxBytes     int64    // reject above; 0 = no ceiling
@@ -101,7 +108,7 @@ type GrabConfig struct {
 type WedgeConfig struct {
 	Enable                bool
 	Reserve               int      // keep at least this many wedges unspent
-	ProactiveKinds        []string // always wedge these kinds above the proactive size
+	ProactiveMediaTypes   []string // always wedge these media types above the proactive size
 	ProactiveMinSizeBytes int64    // proactive wedge size threshold
 	RescueEnable          bool     // wedge a grab that would otherwise be a buffer hold
 	RescueMinSizeBytes    int64    // rescue wedge size threshold

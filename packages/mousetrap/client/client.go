@@ -26,7 +26,7 @@ var ErrRejected = errors.New("client: torrent rejected")
 // Client adds torrents to qBittorrent.
 type Client struct {
 	url        string
-	categories map[string]string // kind → category
+	categories map[string]string // MAM media type → category
 	addPaused  bool
 	http       *http.Client
 }
@@ -41,9 +41,11 @@ func New(cfg types.ClientConfig) *Client {
 	}
 }
 
-// Add uploads a .torrent to qBittorrent under the category mapped from kind, with
-// auto torrent management on. Returns ErrRejected if qBittorrent replies "Fails.".
-func (c *Client) Add(ctx context.Context, torrent []byte, name string, kind types.Kind) error {
+// Add uploads a .torrent to qBittorrent under the category mapped from MAM's media
+// type, with auto torrent management on. An unmapped media type yields the empty
+// category, which qBittorrent treats as uncategorized. Returns ErrRejected if
+// qBittorrent replies "Fails.".
+func (c *Client) Add(ctx context.Context, torrent []byte, name, mediaType string) error {
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	fw, err := mw.CreateFormFile("torrents", name+".torrent")
@@ -53,7 +55,7 @@ func (c *Client) Add(ctx context.Context, torrent []byte, name string, kind type
 	if _, err := fw.Write(torrent); err != nil {
 		return err
 	}
-	_ = mw.WriteField("category", c.categories[string(kind)])
+	_ = mw.WriteField("category", c.categories[mediaType])
 	_ = mw.WriteField("autoTMM", "true")
 	_ = mw.WriteField("paused", strconv.FormatBool(c.addPaused))
 	if err := mw.Close(); err != nil {

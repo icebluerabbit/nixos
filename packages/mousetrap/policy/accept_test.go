@@ -18,10 +18,11 @@ func mustEngine(t *testing.T, a types.AcceptConfig) *Engine {
 // base config exercises most rules; each case mutates a good release to trip one.
 func TestAcceptRules(t *testing.T) {
 	cfg := types.AcceptConfig{
-		Kinds:            []string{"ebook", "audiobook"},
-		CategoriesAllow:  []string{"Ebooks - Fantasy"},
-		CategoriesDeny:   []string{"Ebooks - Romance"},
+		MediaTypes:       []string{"Ebook", "Audiobook"},
+		CategoriesAllow:  []string{"Fantasy"},
+		CategoriesDeny:   []string{"Romance"},
 		FiletypesAllow:   []string{"epub", "m4b"},
+		FictionTypes:     []string{"Fiction"},
 		LanguagesAllow:   []string{"english"},
 		SizeMinBytes:     100,
 		SizeMaxBytes:     1000,
@@ -30,12 +31,13 @@ func TestAcceptRules(t *testing.T) {
 	e := mustEngine(t, cfg)
 
 	good := types.Release{
-		Kind:      types.KindEbook,
-		Category:  "Ebooks - Fantasy",
-		Filetype:  "epub",
-		Languages: []string{"English"},
-		Size:      500,
-		Name:      "A Great Book",
+		MediaType:  "Ebook",
+		Categories: []string{"Fantasy"},
+		Filetypes:  []string{"epub"},
+		Fiction:    "Fiction",
+		Languages:  []string{"English"},
+		Size:       500,
+		Name:       "A Great Book",
 	}
 
 	cases := []struct {
@@ -45,10 +47,20 @@ func TestAcceptRules(t *testing.T) {
 		wantR  types.AcceptReason
 	}{
 		{"accept", nil, types.Accept, types.AcceptOK},
-		{"kind", func(r *types.Release) { r.Kind = types.KindOther }, types.Reject, types.AcceptKind},
-		{"category_deny", func(r *types.Release) { r.Category = "Ebooks - Romance" }, types.Reject, types.AcceptCategoryDeny},
-		{"category_allow", func(r *types.Release) { r.Category = "Ebooks - Horror" }, types.Reject, types.AcceptCategoryAllow},
-		{"filetype_allow", func(r *types.Release) { r.Filetype = "pdf" }, types.Reject, types.AcceptFiletypeAllow},
+		{"media_type", func(r *types.Release) { r.MediaType = "Musicology" }, types.Reject, types.AcceptMediaType},
+		{"category_deny", func(r *types.Release) { r.Categories = []string{"Romance"} }, types.Reject, types.AcceptCategoryDeny},
+		// a release carrying BOTH an allowed and a denied category is a deny: deny is any-of too
+		{"category_deny_mixed", func(r *types.Release) { r.Categories = []string{"Fantasy", "Romance"} }, types.Reject, types.AcceptCategoryDeny},
+		{"category_allow", func(r *types.Release) { r.Categories = []string{"Horror"} }, types.Reject, types.AcceptCategoryAllow},
+		{"category_allow_any", func(r *types.Release) { r.Categories = []string{"Horror", "Fantasy"} }, types.Accept, types.AcceptOK},
+		{"category_empty", func(r *types.Release) { r.Categories = nil }, types.Reject, types.AcceptCategoryAllow},
+		{"filetype_allow", func(r *types.Release) { r.Filetypes = []string{"pdf"} }, types.Reject, types.AcceptFiletypeAllow},
+		// the multi-format case that exact matching used to reject: "azw3, epub"
+		{"filetype_allow_any", func(r *types.Release) { r.Filetypes = []string{"azw3", "epub"} }, types.Accept, types.AcceptOK},
+		{"media_type_fold", func(r *types.Release) { r.MediaType = "EBOOK" }, types.Accept, types.AcceptOK},
+		{"fiction", func(r *types.Release) { r.Fiction = "Non-Fiction" }, types.Reject, types.AcceptFiction},
+		// search results carry no flag; rejecting them would break the torznab path
+		{"fiction_empty", func(r *types.Release) { r.Fiction = "" }, types.Accept, types.AcceptOK},
 		{"language", func(r *types.Release) { r.Languages = []string{"German"} }, types.Reject, types.AcceptLanguage},
 		{"language_empty", func(r *types.Release) { r.Languages = nil }, types.Reject, types.AcceptLanguage},
 		{"size_min", func(r *types.Release) { r.Size = 50 }, types.Reject, types.AcceptSizeMin},
@@ -72,10 +84,10 @@ func TestAcceptRules(t *testing.T) {
 // deny is checked before allow: a category in both is rejected as a deny.
 func TestAcceptDenyBeatsAllow(t *testing.T) {
 	e := mustEngine(t, types.AcceptConfig{
-		CategoriesAllow: []string{"Ebooks - Fantasy"},
-		CategoriesDeny:  []string{"Ebooks - Fantasy"},
+		CategoriesAllow: []string{"Fantasy"},
+		CategoriesDeny:  []string{"Fantasy"},
 	})
-	_, r := e.Accept(types.Release{Category: "Ebooks - Fantasy"})
+	_, r := e.Accept(types.Release{Categories: []string{"Fantasy"}})
 	if r != types.AcceptCategoryDeny {
 		t.Errorf("reason = %s, want category_deny", r)
 	}
@@ -83,7 +95,7 @@ func TestAcceptDenyBeatsAllow(t *testing.T) {
 
 func TestAcceptFiletypeDenyCaseInsensitive(t *testing.T) {
 	e := mustEngine(t, types.AcceptConfig{FiletypesDeny: []string{"pdf"}})
-	if _, r := e.Accept(types.Release{Filetype: "PDF"}); r != types.AcceptFiletypeDeny {
+	if _, r := e.Accept(types.Release{Filetypes: []string{"PDF"}}); r != types.AcceptFiletypeDeny {
 		t.Errorf("reason = %s, want filetype_deny", r)
 	}
 }

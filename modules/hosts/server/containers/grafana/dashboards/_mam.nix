@@ -483,7 +483,10 @@ in
     # ══ ANNOUNCE MIX — the Layer-1 tuning surface (y=16) ═════════════════════
     (table {
       id = 40;
-      title = "Announces by category";
+      # Categories and filetypes are multi-valued per release since MAM's 2026-08-11
+      # announce change, so these two panels sum ABOVE the announce total — they count
+      # (announce, value) pairs, not announces. The by-type panel is one per announce.
+      title = "Announces by category (multi-valued)";
       # increase[$__range] reads the whole window from Prometheus' TSDB and stitches
       # across process restarts (in-memory counters reset to 0 on restart); round → ints.
       expr = "round(sum by (category) (increase(mousetrap_announces_by_category_total{${h}}[$__range])))";
@@ -494,7 +497,7 @@ in
     })
     (bar {
       id = 41;
-      title = "By filetype";
+      title = "By filetype (multi-valued)";
       expr = "sort_desc(round(sum by (filetype) (increase(mousetrap_announces_by_filetype_total{${h}}[$__range]))))";
       legendFormat = "{{filetype}}";
       x = 12;
@@ -516,7 +519,10 @@ in
     # ══ Type / VIP / freeleech split + bytes (y=26) ══════════════════════════
     (pie {
       id = 50;
-      title = "By type";
+      # The `type` label is MAM's media type verbatim ("Ebook", "Audiobook", "Manga",
+      # "Periodical Ebook", …) since 2026-08-11 — it was ebook/audiobook/other before,
+      # so series break across that date rather than continuing.
+      title = "By media type";
       expr = "round(sum by (type) (increase(mousetrap_announces_by_type_total{${h}}[$__range])))";
       label = "type";
       x = 0;
@@ -547,7 +553,7 @@ in
     (bar {
       id = 53;
       title = "Announced bytes by type";
-      expr = "sum by (type) (increase(mousetrap_announce_bytes_total{${h}}[$__range]))";
+      expr = "sort_desc(sum by (type) (increase(mousetrap_announce_bytes_total{${h}}[$__range])))";
       legendFormat = "{{type}}";
       x = 18;
       y = 26;
@@ -560,7 +566,7 @@ in
     (bar {
       id = 60;
       title = "Avg announce size by type";
-      expr = "sum by (type) (increase(mousetrap_announce_size_bytes_sum{${h}}[$__range])) / sum by (type) (increase(mousetrap_announce_size_bytes_count{${h}}[$__range]))";
+      expr = "sort_desc(sum by (type) (increase(mousetrap_announce_size_bytes_sum{${h}}[$__range])) / sum by (type) (increase(mousetrap_announce_size_bytes_count{${h}}[$__range])))";
       legendFormat = "{{type}}";
       x = 0;
       y = 34;
@@ -783,10 +789,12 @@ in
       id = 120;
       title = "Recent announces";
       # slog "announce" line: decision/reason + grab_decision/grab_reason/grab_result,
-      # plus category + name. mam_id never appears in these attrs.
+      # plus media type + categories + name. mam_id never appears in these attrs.
+      # `categories` is logged pre-joined ("Crime, Paranormal") because Loki's json
+      # parser flattens an array into categories_0/categories_1, unusable here.
       # derive a `level` label so Grafana colors the gutter: grabbed=green, held=yellow,
       # fetch/add failure=red, plain layer-1 reject=grey.
-      expr = ''${applog} | msg="announce" | label_format level=`{{if or (eq .grab_result "fetch_failed") (eq .grab_result "add_failed") (eq .grab_result "add_rejected")}}error{{else if or (eq .grab_result "added") (eq .grab_result "added_wedge")}}info{{else if eq .grab_decision "hold"}}warn{{else}}debug{{end}}` | line_format "{{.decision}}/{{.reason}}  {{.grab_decision}}/{{.grab_reason}}  {{.grab_result}}  [{{.category}}]  {{.name}}"'';
+      expr = ''${applog} | msg="announce" | label_format level=`{{if or (eq .grab_result "fetch_failed") (eq .grab_result "add_failed") (eq .grab_result "add_rejected")}}error{{else if or (eq .grab_result "added") (eq .grab_result "added_wedge")}}info{{else if eq .grab_decision "hold"}}warn{{else}}debug{{end}}` | line_format "{{.decision}}/{{.reason}}  {{.grab_decision}}/{{.grab_reason}}  {{.grab_result}}  [{{.media_type}}/{{.fiction}}: {{.categories}}]  {{.name}}"'';
       x = 0;
       y = 82;
       w = 24;

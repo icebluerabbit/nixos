@@ -40,10 +40,13 @@ func TestOpenMigrates(t *testing.T) {
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&applied); err != nil {
 		t.Fatalf("schema_migrations: %v", err)
 	}
-	if applied != 3 {
-		t.Errorf("migrations applied = %d, want 3", applied)
+	if applied != 6 {
+		t.Errorf("migrations applied = %d, want 6", applied)
 	}
-	for _, tbl := range []string{"sessions", "announces", "spends", "grabs", "bonuses"} {
+	for _, tbl := range []string{
+		"sessions", "announces", "spends", "grabs", "bonuses",
+		"announce_categories", "announce_filetypes", "announce_languages",
+	} {
 		var name string
 		if err := s.db.QueryRow(
 			`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, tbl,
@@ -69,8 +72,8 @@ func TestOpenIdempotent(t *testing.T) {
 	if err := s2.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&applied); err != nil {
 		t.Fatalf("schema_migrations: %v", err)
 	}
-	if applied != 3 {
-		t.Errorf("re-open applied = %d, want 3 (migrations must not re-run)", applied)
+	if applied != 6 {
+		t.Errorf("re-open applied = %d, want 6 (migrations must not re-run)", applied)
 	}
 }
 
@@ -97,10 +100,40 @@ func TestAnnounceRoundTrip(t *testing.T) {
 	s := openTest(t)
 	ctx := context.Background()
 	id, err := s.InsertAnnounce(ctx, Announce{
-		TID: 5, Category: "Ebooks - Fantasy", AcceptDecision: "accept", AcceptReason: "ok",
+		TID: 5, MediaType: "Ebook",
+		Categories:     []string{"Fantasy", "Romance"},
+		Filetypes:      []string{"azw3", "epub"},
+		Languages:      []string{"english"},
+		Fiction:        "Fiction",
+		AcceptDecision: "accept", AcceptReason: "ok",
 	})
 	if err != nil || id == 0 {
 		t.Fatalf("InsertAnnounce = %d, %v", id, err)
+	}
+	// every multi-valued field fans out to its own child table
+	for _, c := range []struct {
+		table string
+		col   string
+		want  int
+	}{
+		{"announce_categories", "category", 2},
+		{"announce_filetypes", "filetype", 2},
+		{"announce_languages", "language", 1},
+	} {
+		var n int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM `+c.table+` WHERE announce_id=?`, id).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != c.want {
+			t.Errorf("%s rows = %d, want %d", c.table, n, c.want)
+		}
+	}
+	var fiction string
+	if err := s.db.QueryRow(`SELECT fiction FROM announces WHERE id=?`, id).Scan(&fiction); err != nil {
+		t.Fatal(err)
+	}
+	if fiction != "Fiction" {
+		t.Errorf("fiction = %q, want Fiction", fiction)
 	}
 	if err := s.UpdateAnnounceGrab(ctx, id, "grab", "ok"); err != nil {
 		t.Fatal(err)

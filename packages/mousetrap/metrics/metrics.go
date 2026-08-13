@@ -96,10 +96,11 @@ var (
 // ledger-derived counters
 var (
 	descAnnTotal   = prometheus.NewDesc("mousetrap_announces_total", "MAM announces received", nil, nil)
-	descAnnType    = prometheus.NewDesc("mousetrap_announces_by_type_total", "by media type", []string{"type"}, nil)
-	descAnnCat     = prometheus.NewDesc("mousetrap_announces_by_category_total", "by category", []string{"category"}, nil)
+	descAnnType    = prometheus.NewDesc("mousetrap_announces_by_type_total", "by MAM media type", []string{"type"}, nil)
+	descAnnCat     = prometheus.NewDesc("mousetrap_announces_by_category_total", "by category (multi-valued; sums above the announce total)", []string{"category"}, nil)
 	descAnnLang    = prometheus.NewDesc("mousetrap_announces_by_language_total", "by language", []string{"language"}, nil)
-	descAnnFT      = prometheus.NewDesc("mousetrap_announces_by_filetype_total", "by filetype", []string{"filetype"}, nil)
+	descAnnFT      = prometheus.NewDesc("mousetrap_announces_by_filetype_total", "by filetype (multi-valued; sums above the announce total)", []string{"filetype"}, nil)
+	descAnnFic     = prometheus.NewDesc("mousetrap_announces_by_fiction_total", "by MAM fiction flag; NULL on pre-2026-08-12 rows and search results", []string{"fiction"}, nil)
 	descAnnVIP     = prometheus.NewDesc("mousetrap_announces_vip_total", "by VIP flag", []string{"vip"}, nil)
 	descAnnFL      = prometheus.NewDesc("mousetrap_announces_freeleech_total", "by freeleech flag", []string{"freeleech"}, nil)
 	descAnnBytes   = prometheus.NewDesc("mousetrap_announce_bytes_total", "announced bytes by type", []string{"type"}, nil)
@@ -190,23 +191,25 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	if n, err := c.store.AnnouncesTotal(ctx); err == nil {
 		counter(descAnnTotal, float64(n))
 	}
-	r, err := c.store.AnnouncesBy(ctx, "kind")
+	r, err := c.store.AnnouncesBy(ctx, "media_type")
 	emit1(descAnnType, r, err, nil)
-	r, err = c.store.AnnouncesBy(ctx, "category")
+	r, err = c.store.AnnounceCategories(ctx)
 	emit1(descAnnCat, r, err, nil)
 	r, err = c.store.AnnounceLanguages(ctx)
 	emit1(descAnnLang, r, err, nil)
-	r, err = c.store.AnnouncesBy(ctx, "filetype")
+	r, err = c.store.AnnounceFiletypes(ctx)
 	emit1(descAnnFT, r, err, nil)
+	r, err = c.store.AnnouncesBy(ctx, "fiction")
+	emit1(descAnnFic, r, err, nil)
 	r, err = c.store.AnnouncesBy(ctx, "vip")
 	emit1(descAnnVIP, r, err, boolLabel)
 	r, err = c.store.AnnouncesBy(ctx, "freeleech")
 	emit1(descAnnFL, r, err, boolLabel)
-	r, err = c.store.AnnounceBytesByKind(ctx)
+	r, err = c.store.AnnounceBytesByMediaType(ctx)
 	emit1(descAnnBytes, r, err, nil)
 	if hs, err := c.store.AnnounceSizeHistogram(ctx, sizeBuckets); err == nil {
 		for _, h := range hs {
-			ch <- prometheus.MustNewConstHistogram(descAnnSize, h.Count, h.Sum, h.Buckets, h.Kind)
+			ch <- prometheus.MustNewConstHistogram(descAnnSize, h.Count, h.Sum, h.Buckets, h.MediaType)
 		}
 	}
 	r2, err := c.store.AnnouncesByAccept(ctx)

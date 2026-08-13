@@ -23,16 +23,20 @@ import (
 // autobrr webhook.
 const grabTimeout = 15 * time.Second
 
-// announcePayload is the autobrr webhook body (the MAM filter's webhook_data).
+// announcePayload is the autobrr webhook body (the MAM filter's webhook_data). The
+// field names here say what the data is; the autobrr macros they are fed from do not
+// (see the mapping table in the filter's _mam.nix).
 type announcePayload struct {
 	Name         string   `json:"name"`
 	Title        string   `json:"title"`
-	Category     string   `json:"category"`
-	Tags         string   `json:"tags"`         // MAM filetype
+	MediaType    string   `json:"mediaType"`    // "Ebook" | "Audiobook" | "Periodical Ebook"
+	Categories   string   `json:"categories"`   // comma-separated; multi-valued
+	Filetypes    string   `json:"filetypes"`    // comma-separated; multi-valued
+	Fiction      string   `json:"fiction"`      // "Fiction" | "Non-Fiction"
 	Language     []string `json:"language"`     // autobrr .Language (rls; empty on m4b)
 	LanguageName string   `json:"languageName"` // parsed from the name suffix (reliable)
 	Size         string   `json:"size"`         // bytes as string
-	ReleaseTags  string   `json:"releaseTags"`  // "VIP" or ""
+	VIP          string   `json:"vip"`
 	Freeleech    string   `json:"freeleech"`
 	TorrentID    string   `json:"torrentId"`
 	DownloadURL  string   `json:"downloadUrl"`
@@ -101,7 +105,11 @@ func Announce(a *app.App) http.HandlerFunc {
 		}
 
 		slog.Info("announce",
-			"tid", rel.TID, "name", rel.Name, "category", rel.Category,
+			"tid", rel.TID, "name", rel.Name,
+			// joined for the log line only — Loki's json parser flattens an array to
+			// categories_0/categories_1, which no line_format can render.
+			"media_type", rel.MediaType, "categories", strings.Join(rel.Categories, ", "),
+			"fiction", rel.Fiction,
 			"decision", decision, "reason", reason,
 			"grab_decision", grabDecision, "grab_reason", grabReason, "grab_result", result)
 
@@ -113,23 +121,27 @@ func Announce(a *app.App) http.HandlerFunc {
 
 		// Notify after responding so autobrr never waits on the webhook POST.
 		notify(a, types.WebhookAnnounce, map[string]any{
-			"tid": rel.TID, "name": rel.Name, "category": rel.Category, "kind": string(rel.Kind),
-			"filetype": rel.Filetype, "languages": rel.Languages, "size": rel.Size,
+			"tid": rel.TID, "name": rel.Name, "media_type": rel.MediaType,
+			"categories": rel.Categories, "fiction": rel.Fiction,
+			"filetypes": rel.Filetypes, "languages": rel.Languages, "size": rel.Size,
 			"vip": rel.VIP, "freeleech": rel.Freeleech,
 		})
 		switch {
 		case decision == types.Reject:
 			notify(a, types.WebhookReject, map[string]any{
-				"tid": rel.TID, "name": rel.Name, "category": rel.Category, "reason": string(reason),
+				"tid": rel.TID, "name": rel.Name, "media_type": rel.MediaType,
+				"categories": rel.Categories, "fiction": rel.Fiction,
+				"reason": string(reason),
 			})
 		case grabDecision == types.Grab:
 			notify(a, types.WebhookGrab, map[string]any{
-				"tid": rel.TID, "name": rel.Name, "category": rel.Category, "kind": string(rel.Kind),
-				"size": rel.Size, "result": string(result),
+				"tid": rel.TID, "name": rel.Name, "media_type": rel.MediaType,
+				"categories": rel.Categories,
+				"size":       rel.Size, "result": string(result),
 			})
 			if result == types.ResultAdded || result == types.ResultAddedWedge {
 				notify(a, types.WebhookEnqueue, map[string]any{
-					"tid": rel.TID, "name": rel.Name, "kind": string(rel.Kind), "result": string(result),
+					"tid": rel.TID, "name": rel.Name, "media_type": rel.MediaType, "result": string(result),
 				})
 			}
 			if result == types.ResultAddedWedge {
@@ -140,7 +152,8 @@ func Announce(a *app.App) http.HandlerFunc {
 			}
 		default: // accepted but held or skipped (unsat/buffer/vip)
 			notify(a, types.WebhookHold, map[string]any{
-				"tid": rel.TID, "name": rel.Name, "category": rel.Category,
+				"tid": rel.TID, "name": rel.Name, "media_type": rel.MediaType,
+				"categories":    rel.Categories,
 				"grab_decision": string(grabDecision), "reason": string(grabReason),
 			})
 		}
@@ -189,7 +202,7 @@ func execGrab(ctx context.Context, a *app.App, rel types.Release, annID int64, p
 	if plan.UseWedge {
 		result = types.ResultAddedWedge
 	}
-	if err := a.Client.Add(ctx, data, rel.Name, rel.Kind); err != nil {
+	if err := a.Client.Add(ctx, data, rel.Name, rel.MediaType); err != nil {
 		result = types.ResultAddFailed
 		if errors.Is(err, client.ErrRejected) {
 			result = types.ResultAddRejected
@@ -240,9 +253,10 @@ func announceRow(rel types.Release, d types.AcceptDecision, reason types.AcceptR
 	return store.Announce{
 		TID:            rel.TID,
 		Name:           rel.Name,
-		Category:       rel.Category,
-		Kind:           string(rel.Kind),
-		Filetype:       rel.Filetype,
+		MediaType:      rel.MediaType,
+		Categories:     rel.Categories,
+		Filetypes:      rel.Filetypes,
+		Fiction:        rel.Fiction,
 		Languages:      rel.Languages,
 		Size:           rel.Size,
 		VIP:            rel.VIP,
@@ -262,15 +276,36 @@ func (p announcePayload) release() types.Release {
 	return types.Release{
 		TID:         parseInt64(p.TorrentID),
 		Name:        name,
-		Category:    p.Category,
-		Kind:        kindOf(p.Category),
-		Filetype:    p.Tags,
+		MediaType:   p.MediaType,
+		Categories:  splitList(p.Categories),
+		Filetypes:   splitList(p.Filetypes),
+		Fiction:     p.Fiction,
 		Languages:   reduceLangs(p.Language, p.LanguageName),
 		Size:        size,
-		VIP:         strings.Contains(strings.ToLower(p.ReleaseTags), "vip"),
+		VIP:         truthy(p.VIP),
 		Freeleech:   truthy(p.Freeleech),
 		DownloadURL: p.DownloadURL,
 	}
+}
+
+// splitList splits one of MAM's multi-valued fields (categories, filetypes) into the
+// list it represents. They arrive as one comma-separated string, not a JSON array,
+// because autobrr's template macro re-joins them (domain/macros.go: Tags is a string
+// built with strings.Join, and the []string Categories macro field is only ever
+// populated by the RSS path). Languages need none of this — that macro field stays
+// []string and arrives as a real array. This is the one boundary where the string
+// becomes a list; everything downstream of it is []string.
+func splitList(s string) []string {
+	out := make([]string, 0, 4)
+	for _, p := range strings.Split(s, ",") {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func parseInt64(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
@@ -307,15 +342,4 @@ func truthy(s string) bool {
 		return true
 	}
 	return false
-}
-
-func kindOf(category string) types.Kind {
-	switch c := strings.ToLower(category); {
-	case strings.HasPrefix(c, "ebook"):
-		return types.KindEbook
-	case strings.HasPrefix(c, "audiobook"):
-		return types.KindAudiobook
-	default:
-		return types.KindOther
-	}
 }

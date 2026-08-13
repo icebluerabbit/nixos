@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/spf13/pflag v1.0.10
+	golang.org/x/text v0.40.0
 	modernc.org/sqlite v1.56.0
 )
 

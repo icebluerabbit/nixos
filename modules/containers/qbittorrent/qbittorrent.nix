@@ -333,10 +333,20 @@ _: {
                     default = "/run/secrets/mam-vpn-id";
                     description = "In-container path to the mam_id seed cookie (sops, bind-mounted)";
                   };
-                  floorSeconds = lib.mkOption {
+                  requireStable = lib.mkOption {
+                    type = lib.types.bool;
+                    default = true;
+                    description = "Spend a MAM IP change only on a tunnel the broker reports `stable` (see vpn-gw stableAfterSeconds). MAM allows roughly one change an hour, so a tunnel that is itself failing over must not consume the budget";
+                  };
+                  backoffBaseSeconds = lib.mkOption {
+                    type = lib.types.int;
+                    default = 60;
+                    description = "First backoff after MAM answers `too recent`. There is no wait until MAM actually refuses — its real change interval is unpublished, so it is discovered rather than guessed";
+                  };
+                  backoffMaxSeconds = lib.mkOption {
                     type = lib.types.int;
                     default = 3600;
-                    description = "Min seconds between change attempts (MAM rate-limits changes to 1/hr)";
+                    description = "Ceiling on the change backoff ladder (doubles per refusal, jittered, resets on success). With the defaults this bounds retries at roughly 7 per hour";
                   };
                   refreshSeconds = lib.mkOption {
                     type = lib.types.int;
@@ -538,8 +548,10 @@ _: {
                       mam = {
                         inherit (cfg.mam) enable endpoint;
                         seed_path = cfg.mam.seedSecretPath;
-                        floor_seconds = cfg.mam.floorSeconds;
                         refresh_seconds = cfg.mam.refreshSeconds;
+                        require_stable = cfg.mam.requireStable;
+                        backoff_base_seconds = cfg.mam.backoffBaseSeconds;
+                        backoff_max_seconds = cfg.mam.backoffMaxSeconds;
                       };
                     }
                   );

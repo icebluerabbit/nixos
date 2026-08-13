@@ -39,7 +39,8 @@ func TestCollectorExports(t *testing.T) {
 	ctx := context.Background()
 	// seed ledgers so the derived counters have something to summarize.
 	id, _ := db.InsertAnnounce(ctx, store.Announce{
-		TID: 1, Kind: "ebook", Category: "Ebooks - Fantasy", AcceptDecision: "accept", AcceptReason: "ok",
+		TID: 1, MediaType: "Ebook", Categories: []string{"Fantasy"}, Filetypes: []string{"epub"},
+		AcceptDecision: "accept", AcceptReason: "ok",
 	})
 	_ = db.UpdateAnnounceGrab(ctx, id, "grab", "ok")
 	_, _ = db.InsertGrab(ctx, store.Grab{Source: types.SourceAnnounce, TID: 1, Size: 500, CostsRatio: true, Result: "added"})
@@ -56,12 +57,14 @@ func TestCollectorExports(t *testing.T) {
 		"mam_hnr_count 3",
 		`mam_class_info{classname="User"} 1`,
 		"mousetrap_announces_total 1",
-		`mousetrap_announces_by_type_total{type="ebook"} 1`,
+		`mousetrap_announces_by_type_total{type="Ebook"} 1`,
+		`mousetrap_announces_by_category_total{category="Fantasy"} 1`,
+		`mousetrap_announces_by_filetype_total{filetype="epub"} 1`,
 		`mousetrap_would_accept_total{decision="accept",reason="ok"} 1`,
 		`mousetrap_would_grab_total{decision="grab",reason="ok"} 1`,
 		`mousetrap_grab_action_total{result="added"} 1`,
 		"mousetrap_grab_bytes_total 500",
-		`mousetrap_announce_size_bytes_count{type="ebook"} 1`,
+		`mousetrap_announce_size_bytes_count{type="Ebook"} 1`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("metrics output missing %q", want)

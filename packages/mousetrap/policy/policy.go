@@ -55,20 +55,27 @@ type GrabPlan struct {
 func (e *Engine) Accept(rel types.Release) (types.AcceptDecision, types.AcceptReason) {
 	a := e.accept
 
-	if len(a.Kinds) > 0 && !containsFold(a.Kinds, string(rel.Kind)) {
-		return types.Reject, types.AcceptKind
+	if len(a.MediaTypes) > 0 && !containsFold(a.MediaTypes, rel.MediaType) {
+		return types.Reject, types.AcceptMediaType
 	}
-	if contains(a.CategoriesDeny, rel.Category) {
+	if anyFold(a.CategoriesDeny, rel.Categories) {
 		return types.Reject, types.AcceptCategoryDeny
 	}
-	if len(a.CategoriesAllow) > 0 && !contains(a.CategoriesAllow, rel.Category) {
+	if len(a.CategoriesAllow) > 0 && !anyFold(a.CategoriesAllow, rel.Categories) {
 		return types.Reject, types.AcceptCategoryAllow
 	}
-	if containsFold(a.FiletypesDeny, rel.Filetype) {
+	if anyFold(a.FiletypesDeny, rel.Filetypes) {
 		return types.Reject, types.AcceptFiletypeDeny
 	}
-	if len(a.FiletypesAllow) > 0 && !containsFold(a.FiletypesAllow, rel.Filetype) {
+	if len(a.FiletypesAllow) > 0 && !anyFold(a.FiletypesAllow, rel.Filetypes) {
 		return types.Reject, types.AcceptFiletypeAllow
+	}
+	// MAM category names span both sides of the fiction line (Crime, Historical and
+	// Paranormal each appear as fiction AND non-fiction), so this rule is the only
+	// thing that separates them. Releases with no flag pass — search results carry
+	// none, and rejecting them would silently break the torznab path.
+	if len(a.FictionTypes) > 0 && rel.Fiction != "" && !containsFold(a.FictionTypes, rel.Fiction) {
+		return types.Reject, types.AcceptFiction
 	}
 	if len(a.LanguagesAllow) > 0 && !languageAllowed(rel, a.LanguagesAllow) {
 		return types.Reject, types.AcceptLanguage
@@ -134,7 +141,7 @@ func (e *Engine) Grab(rel types.Release, acct types.AccountState, inflight types
 	// that would otherwise be a buffer hold), gated on the wedge reserve.
 	w := e.wedge
 	wantWedge := w.Enable &&
-		((containsFold(w.ProactiveKinds, string(rel.Kind)) && rel.Size >= w.ProactiveMinSizeBytes) ||
+		((containsFold(w.ProactiveMediaTypes, rel.MediaType) && rel.Size >= w.ProactiveMinSizeBytes) ||
 			(bufferHold && w.RescueEnable && rel.Size >= w.RescueMinSizeBytes))
 	if wantWedge && acct.Wedges-inflight.Wedges > w.Reserve {
 		return types.Grab, types.GrabOKWedge, GrabPlan{UseWedge: true}
@@ -177,6 +184,19 @@ func (e *Engine) Shop(acct types.AccountState) (types.ShopAction, ShopPlan) {
 func contains(list []string, s string) bool {
 	for _, v := range list {
 		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// anyFold reports whether any of vals case-insensitively equals any element of list.
+// This is how every multi-valued MAM field (categories, filetypes) is matched: a
+// release satisfies an allowlist by carrying ANY listed value, and trips a denylist
+// the same way, so deny still wins when a release carries both.
+func anyFold(list, vals []string) bool {
+	for _, v := range vals {
+		if containsFold(list, v) {
 			return true
 		}
 	}

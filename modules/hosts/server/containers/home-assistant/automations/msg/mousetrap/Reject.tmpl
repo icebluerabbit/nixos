@@ -1,6 +1,7 @@
 {% set p = trigger.payload_json.payload %}🚫 <b>MaM · reject</b>
 <b>{{ p.name }}</b>
 <ul>
-<li><b>Category:</b> {{ p.category | default('—') }}</li>
+<li><b>Media type:</b> {{ p.media_type | default('—') }}{% if p.fiction %} · {{ p.fiction }}{% endif %}</li>
+<li><b>Categories:</b> {{ (p.categories or []) | join(', ') | default('—', true) }}</li>
 <li><b>Reason:</b> <code>{{ p.reason | default('—') }}</code></li>
 </ul>

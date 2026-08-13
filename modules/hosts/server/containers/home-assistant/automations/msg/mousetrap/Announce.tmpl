@@ -1,8 +1,9 @@
 {% set p = trigger.payload_json.payload %}📢 <b>MaM · announce</b>
 <b>{{ p.name }}</b>
 <ul>
-<li><b>Category:</b> {{ p.category | default('—') }} ({{ p.kind | default('—') }})</li>
-<li><b>Filetype:</b> {{ p.filetype | default('—') }}{% if p.languages %} · {{ p.languages | join(', ') }}{% endif %}</li>
+<li><b>Media type:</b> {{ p.media_type | default('—') }}{% if p.fiction %} · {{ p.fiction }}{% endif %}</li>
+<li><b>Categories:</b> {{ (p.categories or []) | join(', ') | default('—', true) }}</li>
+<li><b>Filetypes:</b> {{ (p.filetypes or []) | join(', ') | default('—', true) }}{% if p.languages %} · {{ p.languages | join(', ') }}{% endif %}</li>
 <li><b>Size:</b> {% if p.size %}{{ (p.size / 1073741824) | round(2) }} GiB{% else %}—{% endif %}</li>
 <li><b>Flags:</b> {% if p.vip %}⭐ VIP{% endif %}{% if p.freeleech %} 🎟️ FL{% endif %}{% if not p.vip and not p.freeleech %}—{% endif %}</li>
 </ul>

@@ -1,6 +1,7 @@
 {% set p = trigger.payload_json.payload %}⏳ <b>MaM · held (not grabbed)</b>
 <b>{{ p.name }}</b>
 <ul>
-<li><b>Category:</b> {{ p.category | default('—') }}</li>
+<li><b>Media type:</b> {{ p.media_type | default('—') }}</li>
+<li><b>Categories:</b> {{ (p.categories or []) | join(', ') | default('—', true) }}</li>
 <li><b>Decision:</b> {{ p.grab_decision | default('—') }} · <code>{{ p.reason | default('—') }}</code></li>
 </ul>

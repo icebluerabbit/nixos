@@ -7,9 +7,10 @@ import "strings"
 type Release struct {
 	TID         int64
 	Name        string
-	Category    string   // exact MAM category, e.g. "Ebooks - Fantasy"
-	Kind        Kind     // derived from Category
-	Filetype    string   // e.g. epub, m4b, mp3
+	MediaType   string   // MAM's own media type verbatim, e.g. "Ebook", "Audiobook", "Manga"
+	Categories  []string // MAM categories; multi-valued since the 2026-08-11 announce change
+	Filetypes   []string // e.g. [epub], [m4b mp3]
+	Fiction     string   // MAM's fiction flag verbatim: "Fiction" | "Non-Fiction" | ""
 	Languages   []string // reduced language set (autobrr list, or name-parsed fallback)
 	Size        int64    // bytes
 	VIP         bool     // raw release VIP flag

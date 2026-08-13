@@ -73,11 +73,25 @@ func (s *Store) AnnouncesByGrab(ctx context.Context) ([]Count2, error) {
 // AnnouncesBy groups announces by a whitelisted column.
 func (s *Store) AnnouncesBy(ctx context.Context, col string) ([]Count1, error) {
 	switch col {
-	case "category", "kind", "filetype", "vip", "freeleech":
+	case "media_type", "fiction", "vip", "freeleech":
 	default:
 		return nil, fmt.Errorf("store: bad group column %q", col)
 	}
-	return s.scan1(ctx, `SELECT `+col+`, COUNT(*) FROM announces GROUP BY `+col)
+	// NULL is excluded, not grouped: scan1 reads the key into a string, so one NULL
+	// row would fail the whole query. `fiction` is NULL on every pre-0006 announce.
+	return s.scan1(ctx, `SELECT `+col+`, COUNT(*) FROM announces WHERE `+col+` IS NOT NULL GROUP BY `+col)
+}
+
+// AnnounceCategories counts announces by category from the normalized child table. A
+// release carries several, so these counts sum above the announce total.
+func (s *Store) AnnounceCategories(ctx context.Context) ([]Count1, error) {
+	return s.scan1(ctx, `SELECT category, COUNT(*) FROM announce_categories GROUP BY category`)
+}
+
+// AnnounceFiletypes counts announces by filetype from the normalized child table. A
+// release can announce several formats, so these counts sum above the announce total.
+func (s *Store) AnnounceFiletypes(ctx context.Context) ([]Count1, error) {
+	return s.scan1(ctx, `SELECT filetype, COUNT(*) FROM announce_filetypes GROUP BY filetype`)
 }
 
 // AnnounceLanguages counts announces by language from the normalized child table.
@@ -85,29 +99,29 @@ func (s *Store) AnnounceLanguages(ctx context.Context) ([]Count1, error) {
 	return s.scan1(ctx, `SELECT language, COUNT(*) FROM announce_languages GROUP BY language`)
 }
 
-// AnnounceBytesByKind sums announced size in bytes per kind.
-func (s *Store) AnnounceBytesByKind(ctx context.Context) ([]Count1, error) {
-	return s.scan1(ctx, `SELECT kind, COALESCE(SUM(size), 0) FROM announces GROUP BY kind`)
+// AnnounceBytesByMediaType sums announced size in bytes per MAM media type.
+func (s *Store) AnnounceBytesByMediaType(ctx context.Context) ([]Count1, error) {
+	return s.scan1(ctx, `SELECT media_type, COALESCE(SUM(size), 0) FROM announces GROUP BY media_type`)
 }
 
-// SizeHist is a per-kind size histogram: total count, total bytes, and cumulative
-// counts per bucket upper bound (le → count with size <= le).
+// SizeHist is a per-media-type size histogram: total count, total bytes, and
+// cumulative counts per bucket upper bound (le → count with size <= le).
 type SizeHist struct {
-	Kind    string
-	Count   uint64
-	Sum     float64
-	Buckets map[float64]uint64
+	MediaType string
+	Count     uint64
+	Sum       float64
+	Buckets   map[float64]uint64
 }
 
-// AnnounceSizeHistogram computes the announce-size histogram per kind for the given
-// bucket bounds (a Prometheus ConstHistogram source).
+// AnnounceSizeHistogram computes the announce-size histogram per media type for the
+// given bucket bounds (a Prometheus ConstHistogram source).
 func (s *Store) AnnounceSizeHistogram(ctx context.Context, buckets []float64) ([]SizeHist, error) {
 	var sb strings.Builder
-	sb.WriteString("SELECT kind, COUNT(*), COALESCE(SUM(size), 0)")
+	sb.WriteString("SELECT media_type, COUNT(*), COALESCE(SUM(size), 0)")
 	for _, b := range buckets {
 		fmt.Fprintf(&sb, ", SUM(CASE WHEN size <= %d THEN 1 ELSE 0 END)", int64(b))
 	}
-	sb.WriteString(" FROM announces GROUP BY kind")
+	sb.WriteString(" FROM announces GROUP BY media_type")
 
 	rows, err := s.db.QueryContext(ctx, sb.String())
 	if err != nil {
@@ -119,7 +133,7 @@ func (s *Store) AnnounceSizeHistogram(ctx context.Context, buckets []float64) ([
 	for rows.Next() {
 		h := SizeHist{Buckets: make(map[float64]uint64, len(buckets))}
 		bv := make([]uint64, len(buckets))
-		dest := []any{&h.Kind, &h.Count, &h.Sum}
+		dest := []any{&h.MediaType, &h.Count, &h.Sum}
 		for i := range bv {
 			dest = append(dest, &bv[i])
 		}
