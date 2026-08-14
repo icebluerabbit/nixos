@@ -66,18 +66,54 @@ func TestLastIPOctet_Invalid(t *testing.T) {
 
 // --- nextFreeOctet (logic extracted for testing) ---
 
-func TestNextFreeOctet_SkipsReservedAndUsed(t *testing.T) {
-	// .1=gateway, .2=server, .8=loki, .9=grafana; expect .3
+func TestNextFreeOctet_TakesMaxPlusOne(t *testing.T) {
+	// .1=gateway, .2=server, .8=loki, .9=grafana; the gap at .3-.7 is not reused
 	used := map[int]string{1: "gateway", 2: "server", 8: "loki", 9: "grafana"}
-	got := nextFreeOctet(used)
-	if got != 3 {
+	got := nextFreeOctet(used, 100)
+	if got != 10 {
+		t.Errorf("nextFreeOctet = %d, want 10", got)
+	}
+}
+
+func TestNextFreeOctet_DoesNotReuseReservedGap(t *testing.T) {
+	// media keeps .12 deliberately unassigned; allocating must land past .22,
+	// never back-fill the reservation.
+	used := map[int]string{1: "gateway", 2: "server", 11: "unpackerr", 22: "seasonpackarr"}
+	got := nextFreeOctet(used, 100)
+	if got != 23 {
+		t.Errorf("nextFreeOctet = %d, want 23", got)
+	}
+}
+
+func TestNextFreeOctet_Exhausted(t *testing.T) {
+	// .99 is the last address below a pool starting at .100
+	used := map[int]string{99: "last"}
+	if got := nextFreeOctet(used, 100); got != -1 {
+		t.Errorf("nextFreeOctet = %d, want -1", got)
+	}
+}
+
+// storage's UNAS sits at .222, above the DHCP pool. It is a reservation, not a
+// static allocation, so it must not set the high-water mark — otherwise the
+// whole static range beneath it is stranded.
+func TestNextFreeOctet_IgnoresAddressesAtOrAbovePool(t *testing.T) {
+	used := map[int]string{1: "gateway", 2: "server", 222: "unas-pro"}
+	if got := nextFreeOctet(used, 100); got != 3 {
 		t.Errorf("nextFreeOctet = %d, want 3", got)
+	}
+}
+
+func TestNextFreeOctet_IgnoresInPoolReservation(t *testing.T) {
+	// a fixed-IP DHCP reservation at .188 does not advance static allocation
+	used := map[int]string{1: "gateway", 2: "server", 8: "loki", 188: "google-home"}
+	if got := nextFreeOctet(used, 100); got != 9 {
+		t.Errorf("nextFreeOctet = %d, want 9", got)
 	}
 }
 
 func TestNextFreeOctet_DenseAllocation(t *testing.T) {
 	used := map[int]string{1: "gw", 2: "srv", 3: "a", 4: "b", 5: "c"}
-	got := nextFreeOctet(used)
+	got := nextFreeOctet(used, 100)
 	if got != 6 {
 		t.Errorf("nextFreeOctet = %d, want 6", got)
 	}
@@ -86,7 +122,7 @@ func TestNextFreeOctet_DenseAllocation(t *testing.T) {
 func TestNextFreeOctet_EmptyVlan(t *testing.T) {
 	// only .1 and .2 as a convention floor; otherwise empty
 	used := map[int]string{1: "gateway"}
-	got := nextFreeOctet(used)
+	got := nextFreeOctet(used, 100)
 	if got != 3 {
 		t.Errorf("nextFreeOctet = %d, want 3", got)
 	}
@@ -94,12 +130,12 @@ func TestNextFreeOctet_EmptyVlan(t *testing.T) {
 
 // --- nextContainerMACIndex (logic extracted for testing) ---
 
-func TestNextContainerMACIndex_Basic(t *testing.T) {
-	// indices 8 and 9 used; expect 1 (lowest unused ≥ 1)
+func TestNextContainerMACIndex_TakesMaxPlusOne(t *testing.T) {
+	// indices 8 and 9 used; the gap at 1-7 is not reused
 	used := map[int]string{8: "container-loki", 9: "container-grafana"}
 	got := nextContainerMACIndex(used, 140, nil)
-	if got != 1 {
-		t.Errorf("nextContainerMACIndex = %d, want 1", got)
+	if got != 10 {
+		t.Errorf("nextContainerMACIndex = %d, want 10", got)
 	}
 }
 

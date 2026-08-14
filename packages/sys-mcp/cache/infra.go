@@ -18,6 +18,8 @@ type Vlan struct {
 	SubnetPrefix    int               `json:"subnetPrefix"`
 	Domain          string            `json:"domain"`
 	StaticAddresses map[string]string `json:"staticAddresses"`
+	DhcpStart       string            `json:"dhcpStart"`
+	DhcpStop        string            `json:"dhcpStop"`
 }
 
 type Client struct {

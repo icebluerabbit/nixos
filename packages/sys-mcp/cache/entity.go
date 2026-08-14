@@ -331,6 +331,34 @@ func HostSSH(hostName string, infra *InfraData) string {
 	return ""
 }
 
+// ClientKeyForContainer maps a container name to its infra client key.
+//
+// The usual key is "container-<name>", but that is a convention rather than a
+// guarantee — `dnsmasq` registers as `container-dns` and `postgresql` as
+// `container-postgres`. When the name does not match, fall back to the
+// container's own address: its `localAddress` is assigned from the client's
+// `ip`, so the two are the same host address and the match is exact.
+func ClientKeyForContainer(containerName string, hosts HostsData, infra *InfraData) string {
+	if infra == nil {
+		return ""
+	}
+	conventional := "container-" + containerName
+	if _, ok := infra.Clients[conventional]; ok {
+		return conventional
+	}
+	byIP := ipToClientKey(infra)
+	for _, eval := range hosts {
+		conf, ok := eval.Containers[containerName]
+		if !ok {
+			continue
+		}
+		if key, ok := byIP[stripCIDR(conf.LocalAddress)]; ok {
+			return key
+		}
+	}
+	return ""
+}
+
 func ipToClientKey(infra *InfraData) map[string]string {
 	m := make(map[string]string, len(infra.Clients))
 	for key, c := range infra.Clients {

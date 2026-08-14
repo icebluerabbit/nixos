@@ -29,6 +29,26 @@ func RegisterPathTools(s *server.MCPServer, ac *app.AppContext) {
 			relPath := toRelPath(rawPath, ac.Cfg.FlakePath)
 			absPath := filepath.Join(ac.Cfg.FlakePath, relPath)
 
+			// An aspect may be a directory rather than a single .nix — resolving
+			// a container now legitimately yields one — so classify it and list
+			// what it contains instead of trying to read it.
+			if info, err := os.Stat(absPath); err == nil && info.IsDir() {
+				entries, err := os.ReadDir(absPath)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("cannot list %s: %v", relPath, err)), nil
+				}
+				files := make([]string, 0, len(entries))
+				for _, e := range entries {
+					if !e.IsDir() && strings.HasSuffix(e.Name(), ".nix") {
+						files = append(files, filepath.Join(relPath, e.Name()))
+					}
+				}
+				meta := classifyPath(relPath, ac)
+				metaJSON, _ := json.Marshal(meta)
+				out := fmt.Sprintf("%s\n\n--- directory: %s ---\n%s", metaJSON, relPath, strings.Join(files, "\n"))
+				return mcp.NewToolResultText(out), nil
+			}
+
 			content, err := os.ReadFile(absPath)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("cannot read %s: %v", relPath, err)), nil
@@ -172,7 +192,7 @@ func enrichContainer(meta *pathMeta, name, relPath string, ac *app.AppContext) {
 	addIfExists(meta, relPath, "modules/infra/clients/"+clientKey+".nix",
 		"infra client (MAC/IP/ports)", ac.Cfg.FlakePath)
 	if hostName != "" {
-		addIfExists(meta, relPath, "modules/hosts/"+hostName+"/containers/"+name+".nix",
+		addIfExistsFileOrDir(meta, relPath, "modules/hosts/"+hostName+"/containers/"+name,
 			"host container config", ac.Cfg.FlakePath)
 	}
 	if ac.SI != nil {
@@ -204,10 +224,10 @@ func enrichClient(meta *pathMeta, key, relPath string, ac *app.AppContext) {
 	}
 	if strings.HasPrefix(key, "container-") {
 		cName := strings.TrimPrefix(key, "container-")
-		addIfExists(meta, relPath, "modules/containers/"+cName+".nix",
+		addIfExistsFileOrDir(meta, relPath, "modules/containers/"+cName,
 			"container aspect", ac.Cfg.FlakePath)
 		if h := containerHost(cName, ac); h != "" {
-			addIfExists(meta, relPath, "modules/hosts/"+h+"/containers/"+cName+".nix",
+			addIfExistsFileOrDir(meta, relPath, "modules/hosts/"+h+"/containers/"+cName,
 				"host container config", ac.Cfg.FlakePath)
 		}
 	}
@@ -246,7 +266,7 @@ func enrichHostContainerConfig(meta *pathMeta, name, host, relPath string, ac *a
 			meta.Entity = ent
 		}
 	}
-	addIfExists(meta, relPath, "modules/containers/"+name+".nix",
+	addIfExistsFileOrDir(meta, relPath, "modules/containers/"+name,
 		"container aspect", ac.Cfg.FlakePath)
 	addIfExists(meta, relPath, "modules/infra/clients/"+clientKey+".nix",
 		"infra client (MAC/IP/ports)", ac.Cfg.FlakePath)
@@ -305,4 +325,14 @@ func addIfExists(meta *pathMeta, exclude, relPath, role, flakePath string) {
 	if cache.RelIfExists(flakePath, relPath) != "" {
 		meta.Related = append(meta.Related, relatedFile{Path: relPath, Role: role})
 	}
+}
+
+// addIfExistsFileOrDir is addIfExists for aspects that may be either a
+// `<name>.nix` or a `<name>/` directory. `base` carries no extension.
+func addIfExistsFileOrDir(meta *pathMeta, exclude, base, role, flakePath string) {
+	p := cache.RelIfExistsFileOrDir(flakePath, base)
+	if p == "" || p == exclude {
+		return
+	}
+	meta.Related = append(meta.Related, relatedFile{Path: p, Role: role})
 }

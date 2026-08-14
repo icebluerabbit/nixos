@@ -1,71 +1,15 @@
 # modules/infra/clients/container-sonarr.nix
-{ den, ... }:
-let
+{ den, lib, ... }:
+(import ../_mk-client.nix { inherit den lib; }) {
+  id = "container-sonarr";
+  resourceName = "container_sonarr";
   name = "Sonarr Container";
   mac = "62:f5:a4:5b:20:7c";
-in
-{
-  den.aspects.infra._.clients._.container-sonarr = {
-    aspect-name = "infra.clients.container-sonarr";
-    includes = [
-      den.aspects.infra._.providers._.unifi
-      den.aspects.infra._.options
-    ];
-
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.media.staticAddresses.sonarr;
-      in
-      {
-        infra.clients.container-sonarr = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 8989;
-            exporter = 9707;
-          };
-          proxy.port = "default";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.media.staticAddresses.sonarr;
-      in
-      {
-        infra.clients.container-sonarr = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 8989;
-            exporter = 9707;
-          };
-          proxy.port = "default";
-        };
-
-        resource.unifi_client.container_sonarr = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_sonarr";
-            id = mac;
-          }
-        ];
-      };
+  vlan = "media";
+  addressKey = "sonarr";
+  ports = {
+    default = 8989;
+    exporter = 9707;
   };
+  proxy.port = "default";
 }

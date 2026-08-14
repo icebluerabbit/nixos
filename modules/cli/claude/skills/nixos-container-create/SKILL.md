@@ -22,9 +22,11 @@ Override everything (also in CLAUDE.md):
 ## Step 0 — Allocations (tools, not guesses)
 
 ```
-next_free_ip <vlan>     → lowest unused host IP ≥ .3
-next_free_mac <vlan>    → deterministic container MAC + expected bridge MAC
+next_free_ip <vlan>     → highest static + 1, within .3-.99
+next_free_mac <vlan>    → highest index + 1 → container MAC + expected bridge MAC
 ```
+
+Both allocate from the high-water mark. **Never fill a gap** — gaps are reservations (media's `.12`) or recently-freed addresses still live in a lease or ARP table. Take what the tool returns.
 
 Pick a **unique** static UID/GID — search first: `grep -rn "defaultUid\|defaultGid" modules/containers/`. (MAC scheme → `homelab-networking`; UID/port/no-magic rules → `nixos-container-conventions`.)
 
@@ -38,42 +40,25 @@ Only place an IP literal appears.
 
 ## Step 2 — Infra client — `modules/infra/clients/container-<name>.nix`
 
-Both `nixos` and `terranix` sections, kept identical. Register MAC/IP/named ports (+ `proxy.port` if web-facing → `nixos-web-expose`).
+Call `_mk-client.nix`. It emits both engine sections, the `unifi_client` resource and the import block — never hand-write those.
 
 ```nix
-{ den, ... }:
-let name = "Radarr Container"; mac = "62:f5:a4:5b:20:79"; in   # mac from next_free_mac
-{
-  den.aspects.infra._.clients._.container-radarr = {
-    includes = [ den.aspects.infra._.providers._.unifi den.aspects.infra._.options ];
-    nixos = { config, ... }: {
-      infra.clients.container-radarr = {
-        inherit name mac;
-        ip = config.infra.vlans.media.staticAddresses.radarr;
-        ports = { default = 7878; };
-        proxy.port = "default";        # web-facing only — auto Caddy vhost
-      };
-    };
-    terranix = { config, ... }: {
-      infra.clients.container-radarr = {
-        inherit name mac;
-        ip = config.infra.vlans.media.staticAddresses.radarr;
-        ports = { default = 7878; };
-        proxy.port = "default";
-      };
-      resource.unifi_client.container_radarr = {
-        inherit mac name;
-        fixed_ip = config.infra.vlans.media.staticAddresses.radarr;
-        allow_existing = true; blocked = false; site = "default";
-        skip_forget_on_destroy = false;
-      };
-      # import = [ { to = "unifi_client.container_radarr"; id = mac; } ];  # uncomment AFTER user's first apply
-    };
-  };
+{ den, lib, ... }:
+(import ../_mk-client.nix { inherit den lib; }) {
+  id = "container-radarr";
+  resourceName = "container_radarr";   # Terraform address — state key, never rename
+  name = "Radarr Container";
+  mac = "62:f5:a4:5b:20:79";           # from next_free_mac
+  vlan = "media";
+  addressKey = "radarr";               # key in that VLAN's staticAddresses
+  ports.default = 7878;                # named ports = single source of truth
+  proxy.port = "default";              # web-facing only — auto Caddy vhost
 }
 ```
 
-Named ports = single source of truth; `import` stays commented until applied (→ `nixos-infra-provision`).
+Every argument is explicit — nothing derived from `id`. `vlan`+`addressKey` resolve the IP; `ip` is the alternative for a client with no static allocation (never both — asserted). `resourceName` keys Terraform state: changing one plans a destroy. Import is always emitted. Omit `ports`/`proxy` if nothing is exposed.
+
+Sibling constructors in `modules/infra/`: `_mk-network`, `_mk-port-profile`, `_mk-device`, `_mk-wlan`, `_mk-wan`, `_mk-vpn`, `_mk-dyndns`, `_mk-usergroup`, `_mk-setting`, `_mk-dns-record`, `_mk-zone`, `_mk-gitea-repo`, `_mk-provider`.
 
 ## Step 3 — Container aspect — `modules/containers/<name>.nix`
 

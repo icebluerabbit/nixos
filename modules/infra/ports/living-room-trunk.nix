@@ -21,64 +21,49 @@
 # state and carries the `import` below; renaming it without a `moved` block plans a
 # destroy + re-import of a profile both trunk ports depend on.
 { den, ... }:
-{
-  den.aspects.infra._.ports._.living-room-trunk = {
-    aspect-name = "infra.ports.living-room-trunk";
-    includes = [ den.aspects.infra._.providers._.unifi ];
-    terranix = {
-      resource.unifi_port_profile.living_room = {
-        name = "Living Room Trunk";
-        op_mode = "switch";
-        poe_mode = "auto";
-        native_networkconf_id = "\${unifi_network.default.id}";
+(import ../_mk-port-profile.nix { inherit den; }) {
+  id = "living-room-trunk";
+  resourceName = "living_room";
+  displayName = "Living Room Trunk";
+  network = "default";
+  unifiId = "6a20cb97119e8dfcb5ece105";
+  extra = {
+    # Restriction is a DENYLIST. tagged_networkconf_ids (the allowlist model) is NOT
+    # implemented by this controller — it discards the list and reports back
+    # forward="all". The controller only honours tagged_vlan_mgmt="custom" +
+    # excluded_networkconf_ids, and it then *derives* forward="customize" from the
+    # presence of exclusions. All three fields must be stated together and must agree
+    # with what the controller computes, or the provider dies with "Provider produced
+    # inconsistent result after apply".
+    #
+    # What stays tagged: trust (Desktop, port 4), iot (Hue Hub, port 2),
+    # work (MacBook, port 1), game (PlayStation 5, port 3). Nothing else is behind
+    # this switch.
+    tagged_vlan_mgmt = "custom";
+    excluded_networkconf_ids = [
+      "\${unifi_network.mgmt.id}"
+      "\${unifi_network.storage.id}"
+      "\${unifi_network.guest.id}"
+      "\${unifi_network.dmz.id}"
+      "\${unifi_network.apps.id}"
+      "\${unifi_network.media.id}"
+      "\${unifi_network.download.id}"
+      "\${unifi_network.services.id}"
+    ];
 
-        # Restriction is a DENYLIST. tagged_networkconf_ids (the allowlist model) is NOT
-        # implemented by this controller — it discards the list and reports back
-        # forward="all". The controller only honours tagged_vlan_mgmt="custom" +
-        # excluded_networkconf_ids, and it then *derives* forward="customize" from the
-        # presence of exclusions. All three fields must be stated together and must agree
-        # with what the controller computes, or the provider dies with "Provider produced
-        # inconsistent result after apply".
-        #
-        # What stays tagged: trust (Desktop, port 4), iot (Hue Hub, port 2),
-        # work (MacBook, port 1), game (PlayStation 5, port 3). Nothing else is behind
-        # this switch.
-        forward = "customize";
-        tagged_vlan_mgmt = "custom";
-        excluded_networkconf_ids = [
-          "\${unifi_network.mgmt.id}"
-          "\${unifi_network.storage.id}"
-          "\${unifi_network.guest.id}"
-          "\${unifi_network.dmz.id}"
-          "\${unifi_network.apps.id}"
-          "\${unifi_network.media.id}"
-          "\${unifi_network.download.id}"
-          "\${unifi_network.services.id}"
-        ];
-
-        autoneg = true;
-        lldpmed_enabled = true;
-        stp_port_mode = true;
-        dot1x_ctrl = "force_authorized";
-        setting_preference = "auto";
-        egress_rate_limit_kbps_enabled = false;
-        full_duplex = false;
-        isolation = false;
-        port_keepalive_enabled = false;
-        port_security_enabled = false;
-        stormctrl_bcast_enabled = false;
-        stormctrl_mcast_enabled = false;
-        stormctrl_ucast_enabled = false;
-        lldpmed_notify_enabled = false;
-        site = "default";
-      };
-
-      import = [
-        {
-          to = "unifi_port_profile.living_room";
-          id = "6a20cb97119e8dfcb5ece105";
-        }
-      ];
-    };
+    autoneg = true;
+    lldpmed_enabled = true;
+    stp_port_mode = true;
+    dot1x_ctrl = "force_authorized";
+    setting_preference = "auto";
+    egress_rate_limit_kbps_enabled = false;
+    full_duplex = false;
+    isolation = false;
+    port_keepalive_enabled = false;
+    port_security_enabled = false;
+    stormctrl_bcast_enabled = false;
+    stormctrl_mcast_enabled = false;
+    stormctrl_ucast_enabled = false;
+    lldpmed_notify_enabled = false;
   };
 }

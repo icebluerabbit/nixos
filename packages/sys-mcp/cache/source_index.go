@@ -108,15 +108,12 @@ func (idx *SourceIndex) Resolve(clientKey, containerName, vlanName, hostName str
 		}
 	}
 	if containerName != "" {
-		if p := RelIfExists(idx.flakePath, "modules/containers/"+containerName+".nix"); p != "" {
+		if p := ContainerAspectPath(idx.flakePath, containerName); p != "" {
 			s.ContainerAspect = &p
 		}
 		if hostName != "" {
-			file := "modules/hosts/" + hostName + "/containers/" + containerName + ".nix"
-			dir := "modules/hosts/" + hostName + "/containers/" + containerName
-			if p := RelIfExists(idx.flakePath, file); p != "" {
-				s.HostContainerConf = &p
-			} else if p := RelIfExistsDir(idx.flakePath, dir); p != "" {
+			base := "modules/hosts/" + hostName + "/containers/" + containerName
+			if p := RelIfExistsFileOrDir(idx.flakePath, base); p != "" {
 				s.HostContainerConf = &p
 			}
 		}
@@ -273,6 +270,47 @@ func RelIfExistsDir(flakePath, rel string) string {
 	info, err := os.Stat(filepath.Join(flakePath, rel))
 	if err == nil && info.IsDir() {
 		return rel
+	}
+	return ""
+}
+
+// RelIfExistsFileOrDir accepts either form an aspect may take: a single
+// `<name>.nix`, or a `<name>/` directory that import-tree walks. Both are
+// normal — of the container aspects, 13 are directories — so a check that
+// only looks for the file reports a missing source for every one of them.
+func RelIfExistsFileOrDir(flakePath, rel string) string {
+	if p := RelIfExists(flakePath, rel+".nix"); p != "" {
+		return p
+	}
+	return RelIfExistsDir(flakePath, rel)
+}
+
+// ContainerAspectPath resolves a container's aspect source, which may be:
+//
+//	modules/containers/<name>.nix
+//	modules/containers/<name>/
+//	modules/containers/<group>/<name>.nix   ← directory named for the grouping
+//
+// The third form is why this cannot be a plain existence check: `tuwunel` lives
+// in `modules/containers/matrix/`, so neither the file nor a same-named
+// directory exists for it.
+func ContainerAspectPath(flakePath, name string) string {
+	base := "modules/containers/" + name
+	if p := RelIfExistsFileOrDir(flakePath, base); p != "" {
+		return p
+	}
+	entries, err := os.ReadDir(filepath.Join(flakePath, "modules/containers"))
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		rel := "modules/containers/" + e.Name() + "/" + name + ".nix"
+		if p := RelIfExists(flakePath, rel); p != "" {
+			return p
+		}
 	}
 	return ""
 }

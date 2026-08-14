@@ -23,6 +23,14 @@ let
         default = { };
         description = "Static IP allocations mapped by host/device name on this VLAN";
       };
+      dhcpStart = lib.mkOption {
+        type = lib.types.str;
+        description = "First address of the DHCP pool. Static allocations must stay below it.";
+      };
+      dhcpStop = lib.mkOption {
+        type = lib.types.str;
+        description = "Last address of the DHCP pool.";
+      };
     };
   };
 

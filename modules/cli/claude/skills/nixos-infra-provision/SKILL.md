@@ -17,24 +17,33 @@ The assistant **may** run zero-effect commands: `just infra-plan-homelab` (read-
 
 ## Subdir model
 
-- **NixOS-only**: `clients/`, `networks/`, `devices/`
-- **Terranix-only**: `cloudflare/`, `portforwards/`, `vpns/`, `wans/`, `wlans/`, `usergroups/`, `settings/`
-- **Dual** (both `nixos` and `terranix` sections): `clients/`, `networks/`
+Every subdir has a `_mk-*.nix` constructor beside it. Write the call, never the aspect body.
+
+- **Dual** (`infra.*` for NixOS + a Terraform resource): `clients/`, `networks/`, `devices/`
+- **Terranix-only**: `ports/`, `wlans/`, `wans/`, `vpns/`, `dyndns/`, `usergroups/`, `settings/`, `cloudflare/{dns,zones}/`, `gitea/repos/`
+- **No resource**: `providers/` — provider blocks, version pins, sops secrets. No `resourceName`.
 - `homelab.nix` = Terranix entrypoint — every resource aspect must be in its `includes` to be provisioned.
 
 ## The import-block convention (critical)
 
-Every Terranix resource that already exists in UniFi/Cloudflare state carries a commented-out `import` block:
+**Every resource carries one, always** — the constructors emit it unconditionally and the id is a required argument. Import blocks are idempotent once the resource is in state, so they stay in the config permanently. A resource without one is a bug.
 
-```nix
-# import = [ { to = "unifi_client.container_radarr"; id = mac; } ];
-```
+Import id by resource type:
 
-**Leave it commented.** It only gets uncommented _after_ the user's first successful `apply` creates the resource. Uncommenting before the resource exists → state errors. When the user confirms a resource was just created by their apply, the assistant may then edit the file to uncomment its import block (a file edit, not an apply) and `nix fmt`.
+| resource                       | id                               |
+| :----------------------------- | :------------------------------- |
+| `unifi_client`, `unifi_device` | MAC                              |
+| `unifi_network`                | display name (`MEDIA`)           |
+| `unifi_setting`                | site name                        |
+| all other `unifi_*`            | controller object id (`unifiId`) |
+| `cloudflare_zone`              | `${var.cf_zone_id}`              |
+| `cloudflare_dns_record`        | `<zone id>/<record id>`          |
+
+Object ids come from `list_unifi_*` or a plan's `Refreshing state... [id=…]` lines. A resource that doesn't exist yet has no id — write it, hand off the apply, then add the import.
 
 ## Procedure
 
-1. Write/edit the resource aspect — import block **commented**.
+1. Write/edit the resource aspect via its `_mk-*.nix` constructor.
 2. Add the aspect to `modules/infra/homelab.nix` `includes`.
 3. `git add` new files; `nix fmt`.
 4. `just eval-server` — catch eval/type errors in generated config.
@@ -43,7 +52,7 @@ Every Terranix resource that already exists in UniFi/Cloudflare state carries a 
    ```bash
    just infra-apply-homelab    # user runs — assistant must NOT
    ```
-7. After the user reports a successful apply that created a new resource, optionally uncomment that resource's `import` block, then `nix fmt`.
+7. After the user reports a successful apply, add the new resource's import block with the id from the plan output, then `nix fmt`.
 
 ## Live state inspection (read-only)
 
@@ -65,7 +74,7 @@ Cross-check declared infra with `get_client`, `get_vlan`, `search`.
 | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ |
 | New container's UniFi client | `modules/infra/clients/container-<name>.nix` (see `nixos-container-create`); ensure it's in `homelab.nix`                                   |
 | Cloudflare DNS record        | `modules/infra/cloudflare/dns/` aspect → add to `homelab.nix`                                                                               |
-| Port forward                 | `modules/infra/portforwards/`                                                                                                               |
+| Port forward                 | no `portforwards/` subdir yet — create it plus a `_mk-port-forward.nix`                                                                     |
 | New VLAN                     | `modules/infra/networks/<vlan>.nix` (dual) + host bridge aspect `modules/hosts/server/networking/vlans/<vlan>.nix` + register in `host.nix` |
 | WiFi SSID                    | `modules/infra/wlans/`                                                                                                                      |
 

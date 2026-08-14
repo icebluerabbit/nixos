@@ -377,3 +377,96 @@ func TestResolve_NilSafe(t *testing.T) {
 		t.Error("nil SourceIndex Resolve should return empty")
 	}
 }
+
+func TestRelIfExistsFileOrDir_File(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "modules/containers"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "modules/containers/loki.nix"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := RelIfExistsFileOrDir(root, "modules/containers/loki"); got != "modules/containers/loki.nix" {
+		t.Fatalf("want modules/containers/loki.nix, got %q", got)
+	}
+}
+
+// 13 of this repo's container aspects are directories rather than a single
+// .nix — resolving them used to report the source as missing.
+func TestRelIfExistsFileOrDir_Dir(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "modules/containers/jellyfin"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if got := RelIfExistsFileOrDir(root, "modules/containers/jellyfin"); got != "modules/containers/jellyfin" {
+		t.Fatalf("want modules/containers/jellyfin, got %q", got)
+	}
+}
+
+func TestRelIfExistsFileOrDir_Missing(t *testing.T) {
+	root := t.TempDir()
+	if got := RelIfExistsFileOrDir(root, "modules/containers/nope"); got != "" {
+		t.Fatalf("want empty, got %q", got)
+	}
+}
+
+func TestResolve_ContainerAspectAsDir(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{
+		"modules/containers/jellyfin",
+		"modules/hosts/server/containers/jellyfin",
+	} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	idx := &SourceIndex{flakePath: root, lastData: &InfraData{}}
+	s := idx.Resolve("", "jellyfin", "", "server")
+	if s.ContainerAspect == nil || *s.ContainerAspect != "modules/containers/jellyfin" {
+		t.Fatalf("ContainerAspect not resolved from dir: %v", s.ContainerAspect)
+	}
+	if s.HostContainerConf == nil || *s.HostContainerConf != "modules/hosts/server/containers/jellyfin" {
+		t.Fatalf("HostContainerConf not resolved from dir: %v", s.HostContainerConf)
+	}
+}
+
+// tuwunel's aspect lives in modules/containers/matrix/, so neither
+// <name>.nix nor <name>/ exists for it.
+func TestContainerAspectPath_GroupingDir(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "modules/containers/matrix"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "modules/containers/matrix/tuwunel.nix"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	want := "modules/containers/matrix/tuwunel.nix"
+	if got := ContainerAspectPath(root, "tuwunel"); got != want {
+		t.Fatalf("want %q, got %q", want, got)
+	}
+}
+
+func TestContainerAspectPath_PrefersOwnDir(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"modules/containers/jellyfin", "modules/containers/other"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "modules/containers/other/jellyfin.nix"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ContainerAspectPath(root, "jellyfin"); got != "modules/containers/jellyfin" {
+		t.Fatalf("want own dir to win, got %q", got)
+	}
+}
+
+func TestContainerAspectPath_Missing(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "modules/containers"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if got := ContainerAspectPath(root, "nope"); got != "" {
+		t.Fatalf("want empty, got %q", got)
+	}
+}

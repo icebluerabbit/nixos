@@ -10,6 +10,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"sys-mcp/app"
+	"sys-mcp/cache"
 )
 
 const containerMACOUI = "62:f5:a4:5b:20:"
@@ -24,7 +25,7 @@ func RegisterProvisionTools(s *server.MCPServer, ac *app.AppContext) {
 func registerNextFreeIP(s *server.MCPServer, ac *app.AppContext) {
 	s.AddTool(
 		mcp.NewTool("next_free_ip",
-			mcp.WithDescription("Find the next available static IP in a VLAN. Scans all staticAddresses and returns the lowest unused host address ≥ .3 (skipping network, gateway, and server slots). Useful when adding a new container."),
+			mcp.WithDescription("Allocate the next static IP in a VLAN. Statics live below the DHCP pool, so the usable range is .3 up to dhcpStart-1 (.0-.2 are network, gateway and server). Returns one past the highest allocation inside that range; addresses at or above the pool are reservations and are ignored when taking the maximum. Gaps are never reused — a freed address can still be live in a lease or an undeployed config, and some gaps are deliberate reservations. Useful when adding a new container."),
 			mcp.WithString("vlan", mcp.Required(), mcp.Description("VLAN name (e.g. services, download, media)")),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -53,9 +54,18 @@ func registerNextFreeIP(s *server.MCPServer, ac *app.AppContext) {
 				}
 			}
 
-			next := nextFreeOctet(used)
+			// Statics live below the DHCP pool. Anything at or above its first
+			// address is a reservation, not an allocation this tool hands out.
+			poolStart, err := lastIPOctet(v.DhcpStart)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("parse dhcpStart %q: %v", v.DhcpStart, err)), nil
+			}
+
+			next := nextFreeOctet(used, poolStart)
 			if next == -1 {
-				return mcp.NewToolResultError("no free host addresses in /24 range"), nil
+				return mcp.NewToolResultError(fmt.Sprintf(
+					"static range %s3-%s%d is exhausted (DHCP pool starts at %s)",
+					base, base, poolStart-1, v.DhcpStart)), nil
 			}
 
 			octets := make([]int, 0, len(used))
@@ -64,18 +74,26 @@ func registerNextFreeIP(s *server.MCPServer, ac *app.AppContext) {
 			}
 			sort.Ints(octets)
 			allocated := make([]string, 0, len(octets))
+			abovePool := make([]string, 0)
 			for _, o := range octets {
-				allocated = append(allocated, fmt.Sprintf("%s%d → %s", base, o, used[o]))
+				entry := fmt.Sprintf("%s%d → %s", base, o, used[o])
+				allocated = append(allocated, entry)
+				if o >= poolStart {
+					abovePool = append(abovePool, entry)
+				}
 			}
 
 			return jsonResult(map[string]any{
-				"vlan":           vlanName,
-				"vlanId":         v.VlanId,
-				"subnet":         fmt.Sprintf("%s/%d", v.Subnet, v.SubnetPrefix),
-				"nextFreeIp":     fmt.Sprintf("%s%d", base, next),
-				"nextOctet":      next,
-				"allocatedCount": len(used),
-				"allocated":      allocated,
+				"vlan":               vlanName,
+				"vlanId":             v.VlanId,
+				"subnet":             fmt.Sprintf("%s/%d", v.Subnet, v.SubnetPrefix),
+				"nextFreeIp":         fmt.Sprintf("%s%d", base, next),
+				"nextOctet":          next,
+				"staticRange":        fmt.Sprintf("%s3-%s%d", base, base, poolStart-1),
+				"dhcpPool":           fmt.Sprintf("%s-%s", v.DhcpStart, v.DhcpStop),
+				"allocatedCount":     len(used),
+				"allocated":          allocated,
+				"outsideStaticRange": abovePool,
 			})
 		},
 	)
@@ -84,7 +102,7 @@ func registerNextFreeIP(s *server.MCPServer, ac *app.AppContext) {
 func registerNextFreeMAC(s *server.MCPServer, ac *app.AppContext) {
 	s.AddTool(
 		mcp.NewTool("next_free_mac",
-			mcp.WithDescription("Compute the next available deterministic container MAC for a VLAN. Formula: OUI 62:f5:a4:5b:20: + hex(vlanId + containerIndex), containerIndex ≥ 1. Picks the lowest index whose last byte is free BOTH on this VLAN and globally — the single-byte space is shared across VLANs, so bytes owned by other VLANs are skipped to guarantee a collision-free MAC. Also returns the expected bridge MAC (82:13:8a:a0:4f: + hex(vlanId+32))."),
+			mcp.WithDescription("Allocate the next deterministic container MAC for a VLAN. Formula: OUI 62:f5:a4:5b:20: + hex(vlanId + containerIndex), containerIndex ≥ 1. Takes the first index past the highest one in use on this VLAN, then skips forward over any last byte already owned by another VLAN — the single-byte space is shared, so that check is what guarantees a collision-free MAC. Gaps are never reused. Also returns the expected bridge MAC (82:13:8a:a0:4f: + hex(vlanId+32))."),
 			mcp.WithString("vlan", mcp.Required(), mcp.Description("VLAN name (e.g. services, download, media)")),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -217,16 +235,39 @@ func registerValidateContainer(s *server.MCPServer, ac *app.AppContext) {
 				checks = append(checks, check{label, ok, detail})
 			}
 
-			clientKey := "container-" + name
+			clientKey := cache.ClientKeyForContainer(name, hosts, infra)
+			if clientKey == "" {
+				clientKey = "container-" + name
+			}
 
-			// 1. VLAN static address
+			// 1. VLAN static address. The allocation is usually keyed on the
+			// container name, but follow the client's own address when they
+			// differ (dnsmasq → container-dns).
 			vlanName := ""
-			for vn, v := range infra.Vlans {
-				if ip, ok := v.StaticAddresses[name]; ok {
-					vlanName = vn
-					addCheck("vlan_static_address", true, fmt.Sprintf("%s.staticAddresses.%s = %s", vn, name, ip))
-					break
+			addrKey := name
+			if client, ok := infra.Clients[clientKey]; ok && client.Ip != nil {
+				for vn, v := range infra.Vlans {
+					for k, ip := range v.StaticAddresses {
+						if ip == *client.Ip {
+							vlanName, addrKey = vn, k
+							break
+						}
+					}
+					if vlanName != "" {
+						break
+					}
 				}
+			}
+			if vlanName == "" {
+				for vn, v := range infra.Vlans {
+					if ip, ok := v.StaticAddresses[name]; ok {
+						vlanName, addrKey = vn, name
+						addCheck("vlan_static_address", true, fmt.Sprintf("%s.staticAddresses.%s = %s", vn, name, ip))
+						break
+					}
+				}
+			} else {
+				addCheck("vlan_static_address", true, fmt.Sprintf("%s.staticAddresses.%s = %s", vlanName, addrKey, infra.Vlans[vlanName].StaticAddresses[addrKey]))
 			}
 			if vlanName == "" {
 				addCheck("vlan_static_address", false, fmt.Sprintf("no VLAN has staticAddresses.%s", name))
@@ -258,7 +299,7 @@ func registerValidateContainer(s *server.MCPServer, ac *app.AppContext) {
 
 			// 4. IP matches VLAN static address
 			if hasClient && vlanName != "" {
-				expectedIP := infra.Vlans[vlanName].StaticAddresses[name]
+				expectedIP := infra.Vlans[vlanName].StaticAddresses[addrKey]
 				if client.Ip != nil && *client.Ip == expectedIP {
 					addCheck("ip_vlan_consistent", true, fmt.Sprintf("%s matches vlan staticAddress", *client.Ip))
 				} else {
@@ -345,7 +386,7 @@ func registerValidateContainer(s *server.MCPServer, ac *app.AppContext) {
 			if sources.ContainerAspect != nil {
 				addCheck("source_container_aspect", true, *sources.ContainerAspect)
 			} else {
-				addCheck("source_container_aspect", false, fmt.Sprintf("modules/containers/%s.nix not found", name))
+				addCheck("source_container_aspect", false, fmt.Sprintf("neither modules/containers/%s.nix nor modules/containers/%s/ found", name, name))
 			}
 
 			if sources.HostContainerConf != nil {
@@ -355,7 +396,7 @@ func registerValidateContainer(s *server.MCPServer, ac *app.AppContext) {
 				if hostLabel == "" {
 					hostLabel = "<host>"
 				}
-				addCheck("source_host_conf", false, fmt.Sprintf("modules/hosts/%s/containers/%s.nix not found", hostLabel, name))
+				addCheck("source_host_conf", false, fmt.Sprintf("neither modules/hosts/%s/containers/%s.nix nor .../%s/ found", hostLabel, name, name))
 			}
 
 			passCount, failCount := 0, 0
@@ -414,27 +455,58 @@ func derefIP(ip *string) string {
 
 // nextFreeOctet returns the lowest integer ≥ 3 not present in used (octet → name).
 // Skips 0 (network), 1, and 2 (conventionally gateway/server).
-func nextFreeOctet(used map[int]string) int {
-	for i := 3; i <= 254; i++ {
-		if _, taken := used[i]; !taken {
-			return i
+// nextFreeOctet returns one past the highest static allocation, floored at .3
+// (below that are the network, gateway and server slots) and confined to the
+// range below poolStart, the first address of the DHCP pool.
+//
+// Addresses at or above poolStart are ignored when taking the maximum. Some
+// exist — storage's UNAS sits at .222, above the pool — but they are DHCP
+// reservations rather than static allocations, and letting one set the
+// high-water mark would strand the whole static range beneath it.
+//
+// It deliberately does NOT fill gaps. A freed address is not safe to hand out:
+// it may still be live in a lease, a peer's ARP cache or a config that has not
+// been redeployed, and gaps are also how reservations are expressed — media
+// keeps .12 unassigned on purpose.
+//
+// Returns -1 when the static range below the pool is exhausted.
+func nextFreeOctet(used map[int]string, poolStart int) int {
+	if poolStart <= 3 || poolStart > 255 {
+		poolStart = 255
+	}
+	max := 2
+	for oct := range used {
+		if oct > max && oct < poolStart {
+			max = oct
 		}
 	}
-	return -1
+	next := max + 1
+	if next >= poolStart {
+		return -1
+	}
+	return next
 }
 
-// nextContainerMACIndex returns the lowest container index ≥ 1 whose last byte
-// (vlanId+index) is free both on this VLAN (used: index → client key) and
-// globally (globalBytes: last byte → client key). The MAC last-byte space is
-// shared across every VLAN, so a byte free on this VLAN can still collide with a
-// client on another VLAN whose (vlanId+index) lands on the same byte — that is
-// exactly how media (base 0x78) index ≥10 overlaps download (base 0x82).
-// Index 0 is reserved for the host VLAN client.
+// nextContainerMACIndex returns the first container index past the highest one
+// in use on this VLAN whose last byte (vlanId+index) is also free globally.
+// Index 0 is reserved for the host VLAN client, so the floor is 1.
+//
+// Like nextFreeOctet this does not fill gaps — a retired MAC can still be in a
+// switch's address table or a DHCP reservation, so allocation only moves
+// forward from the high-water mark.
+//
+// The global check still has to scan: the MAC last-byte space is shared across
+// every VLAN, so a byte free on this VLAN can collide with a client on another
+// whose (vlanId+index) lands on the same byte — that is exactly how media
+// (base 0x78) index ≥10 overlaps download (base 0x82).
 func nextContainerMACIndex(used map[int]string, vlanId int, globalBytes map[int]string) int {
-	for i := 1; i <= 254-vlanId; i++ {
-		if _, taken := used[i]; taken {
-			continue
+	start := 0
+	for idx := range used {
+		if idx > start {
+			start = idx
 		}
+	}
+	for i := start + 1; i <= 254-vlanId; i++ {
 		if _, clash := globalBytes[vlanId+i]; clash {
 			continue
 		}

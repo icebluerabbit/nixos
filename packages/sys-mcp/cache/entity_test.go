@@ -617,3 +617,33 @@ func TestIPToClientKey(t *testing.T) {
 		t.Error("nil IP client should not appear in map")
 	}
 }
+
+func TestClientKeyForContainer_Conventional(t *testing.T) {
+	infra := &InfraData{Clients: map[string]Client{
+		"container-jellyfin": {Mac: "aa", Ip: sp("10.10.120.10")},
+	}}
+	if got := ClientKeyForContainer("jellyfin", nil, infra); got != "container-jellyfin" {
+		t.Fatalf("want container-jellyfin, got %q", got)
+	}
+}
+
+// dnsmasq registers as container-dns; the names do not match, so the fallback
+// has to find it by the container's own localAddress.
+func TestClientKeyForContainer_NameMismatch(t *testing.T) {
+	infra := &InfraData{Clients: map[string]Client{
+		"container-dns": {Mac: "aa", Ip: sp("10.10.140.3")},
+	}}
+	hosts := HostsData{"server": {Containers: map[string]ContainerConf{
+		"dnsmasq": {LocalAddress: "10.10.140.3/24"},
+	}}}
+	if got := ClientKeyForContainer("dnsmasq", hosts, infra); got != "container-dns" {
+		t.Fatalf("want container-dns, got %q", got)
+	}
+}
+
+func TestClientKeyForContainer_Unknown(t *testing.T) {
+	infra := &InfraData{Clients: map[string]Client{}}
+	if got := ClientKeyForContainer("nope", HostsData{}, infra); got != "" {
+		t.Fatalf("want empty, got %q", got)
+	}
+}
