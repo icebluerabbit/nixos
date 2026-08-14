@@ -5,6 +5,7 @@
     aspect-name = "hosts.desktop.networking";
     includes = [
       den.aspects.services._.resolved
+      den.aspects.services._.dns-cache
       den.aspects.networking._.networkmanager
       den.aspects.infra._.networks._.trust
       den.aspects.infra._.clients._.desktop
@@ -38,10 +39,10 @@
           };
 
           defaultGateway = config.infra.vlans.trust.staticAddresses.gateway;
-          nameservers = [
-            config.infra.clients.container-dns.ip
-            "1.1.1.1"
-          ];
+          # Single server on purpose: the local split-forwarder (services.dns-cache)
+          # decides internal-vs-public per domain, so systemd-resolved has nothing to
+          # sticky-fail over to.
+          nameservers = [ "127.0.0.55" ];
         };
       };
   };
