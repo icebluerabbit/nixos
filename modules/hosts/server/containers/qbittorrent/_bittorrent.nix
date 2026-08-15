@@ -49,18 +49,25 @@
   queueingSystemEnabled = false;
 
   maxConnections = 5000;
-  # Raised from 200 on 2026-08-15. Connected-but-choked peers cost no seeks, so
-  # this widens the pool FastestUpload draws its slots from. No per-torrent
-  # series proves the old value bound — global connections peak at 3091/5000 —
-  # so this is a cheap guess, not a measured fix.
-  maxConnectionsPerTorrent = 300;
-  # Raised from 100 on 2026-08-15. The old cap bound only 0.55% of the week but
-  # left 224 peers interested-and-choked at the peak, while the disk job queue
-  # never exceeded 15% of its alert threshold and slot count tracked IO stall
-  # only weakly (66 vs 52 in stalled vs quiet windows). Finite on purpose — see
-  # seedChokingAlgorithm above. Revert if average_time_queue p95 passes 25k or
-  # the stall-window fraction passes 25%.
-  maxUploads = 200;
+  # 200 -> 300 -> 250 on 2026-08-15. Connected-but-choked peers cost no seeks,
+  # so this widens the pool FastestUpload draws its slots from. No per-torrent
+  # series proves any of these values bound — global connections peak at
+  # 3091/5000 — so the number is a choice, not a measured fix.
+  maxConnectionsPerTorrent = 250;
+  # 100 -> 200 -> 150 on 2026-08-15. The old cap of 100 bound only 0.55% of the
+  # week but left 224 peers interested-and-choked at the peak, while the disk
+  # job queue never exceeded 15% of its alert threshold and slot count tracked
+  # IO stall only weakly (66 vs 52 in stalled vs quiet windows). Finite on
+  # purpose — see seedChokingAlgorithm above.
+  #
+  # Briefly suspected of causing the VPN tunnel churn that followed the same
+  # day's restart. It did not: the 2026-08-13 restart produced the same churn
+  # (8 tunnel moves over ~2h) with the caps still at 100/200. Left mid-range
+  # while connectionSpeed is the variable actually under test.
+  #
+  # Revert if average_time_queue p95 passes 25k or the stall-window fraction
+  # passes 25%.
+  maxUploads = 150;
   maxUploadsPerTorrent = -1;
   socketSendBufferSize = 8388608;
   socketReceiveBufferSize = 8388608;
@@ -70,7 +77,20 @@
   # leechers get more in flight; idle peers stay small. Total buffers peaked at
   # 225 MB against 96GB RAM — no memory pressure at this setting.
   sendBufferWatermarkFactor = 300;
-  connectionSpeed = 300;
+  # 300 -> 50 on 2026-08-15. Outbound connection ATTEMPTS per second, not a
+  # concurrency cap — at 300 a restart reconnects 1969 torrents in roughly 7
+  # seconds, and every attempt claims NAT state on the Proton exit whether or
+  # not it completes. The tunnel qbt holds then dies within ~10 minutes and the
+  # broker moves it to a fresh one: observed 2026-08-15 (wg1 -> wg10 -> wg6 ->
+  # wg8 in 25 minutes) and 2026-08-13 (8 moves over ~2h). Both followed a
+  # restart; both settled onto one tunnel afterwards and held it for a day.
+  #
+  # 50 spreads the same reconnect over ~40s. Steady-state seeding is unaffected
+  # — this only governs how fast new outbound attempts are issued.
+  #
+  # Not yet proven: the next restart is the test. Compare tunnel moves in the
+  # hour after it against the two counts above.
+  connectionSpeed = 50;
   socketBacklogSize = 1000;
   # several peers behind one NAT would otherwise collapse to one connection.
   multiConnectionsPerIp = true;
