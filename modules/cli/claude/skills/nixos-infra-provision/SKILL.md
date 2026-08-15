@@ -17,16 +17,18 @@ The assistant **may** run zero-effect commands: `just infra-plan-homelab` (read-
 
 ## Subdir model
 
-Every subdir has a `_mk-*.nix` constructor beside it. Write the call, never the aspect body.
+Every subdir has a `_mk-*.nix` constructor beside it. It takes plain data and returns engine bodies (`mkOs` / `mkTerranix`); the aspect file keeps its identity, its `includes` and its `config` reads. **Never pass an aspect, an `includes` list, or a `config` lambda into a helper** — a helper that references `den.aspects` or `config` is wrong. Dependencies are strict: an aspect includes everything it reads (`container-dns` for networks and vpn, the VLAN for clients/ports/wlans, the port profile for devices, the zone for DNS records).
 
-- **Dual** (`infra.*` for NixOS + a Terraform resource): `clients/`, `networks/`, `devices/`
-- **Terranix-only**: `ports/`, `wlans/`, `wans/`, `vpns/`, `dyndns/`, `usergroups/`, `settings/`, `cloudflare/{dns,zones}/`, `gitea/repos/`
+- **Dual** (`infra.*` registry for NixOS + a Terraform resource): `clients/`, `networks/`, `devices/`, `ports/`, `wlans/`, `wans/`, `vpns/`
+- **Terranix-only**: `dyndns/`, `usergroups/`, `settings/`, `cloudflare/{dns,zones}/`, `gitea/repos/`
 - **No resource**: `providers/` — provider blocks, version pins, sops secrets. No `resourceName`.
 - `homelab.nix` = Terranix entrypoint — every resource aspect must be in its `includes` to be provisioned.
 
 ## The import-block convention (critical)
 
-**Every resource carries one, always** — the constructors emit it unconditionally and the id is a required argument. Import blocks are idempotent once the resource is in state, so they stay in the config permanently. A resource without one is a bug.
+**Every applied resource carries one** — import blocks are idempotent once the resource is in state, so they stay in the config permanently. An applied resource without one is a bug.
+
+The one exception is a resource that has never been applied: it has no controller object to adopt. `_mk-port-profile.nix` takes `unifiId ? null` and emits no import when null. Fill the id in from the apply output afterwards — until you do, a rebuilt state creates a duplicate instead of adopting.
 
 Import id by resource type:
 
@@ -53,6 +55,7 @@ Object ids come from `list_unifi_*` or a plan's `Refreshing state... [id=…]` l
    just infra-apply-homelab    # user runs — assistant must NOT
    ```
 7. After the user reports a successful apply, add the new resource's import block with the id from the plan output, then `nix fmt`.
+8. `just topology` — the README diagrams are generated from these registries, and CI fails if they are stale.
 
 ## Live state inspection (read-only)
 
@@ -77,6 +80,15 @@ Cross-check declared infra with `get_client`, `get_vlan`, `search`.
 | Port forward                 | no `portforwards/` subdir yet — create it plus a `_mk-port-forward.nix`                                                                     |
 | New VLAN                     | `modules/infra/networks/<vlan>.nix` (dual) + host bridge aspect `modules/hosts/server/networking/vlans/<vlan>.nix` + register in `host.nix` |
 | WiFi SSID                    | `modules/infra/wlans/`                                                                                                                      |
+| Wiring a device to a switch  | `modules/infra/ports/<vlan>-<peer>.nix` + `portProfile` on the client/device + the switch's `port_override` — see below                     |
+
+## Port profiles are the link identity
+
+One profile per **connection**, not per VLAN. `id` is `<vlan>-<peer>` for an access port (`trust-desktop`, `mgmt-server-ipmi`) and `<what>-trunk` for a trunk (`living-room-trunk`, `ap-trunk`). The peer half is the exact client/device aspect id, so the join reads itself.
+
+Both ends name the profile: the switch in `extra.port_override[].port_profile_id`, and whatever is plugged in via `portProfile` on its `mkClient`/`mkDevice` call. That pairing is the only thing tying the two ends together — Terraform models no link. Two `infra.options` assertions guard it: a `portProfile` must exist in `infra.ports`, and on a non-trunk profile the client's `vlan` must equal the profile's `network`.
+
+`resourceName` is frozen independently of `id`, so profiles can be renamed in nix with zero Terraform churn. Renaming `resourceName` moves the Terraform address and destroys/recreates the profile — use a `moved` block if you ever must.
 
 ## Guards
 

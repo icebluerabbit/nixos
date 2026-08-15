@@ -1,45 +1,56 @@
 # Cloudflare provider configuration
 { den, ... }:
-(import ../_mk-provider.nix { inherit den; }) {
-  id = "cloudflare";
-  secrets = {
-    cloudflare-api-token = { };
-    cloudflare-zone-name = { };
-    cloudflare-record-name = { };
-    cloudflare-account-id = { };
-    cloudflare-zone-id = { };
-    wan-ip = { };
+let
+  provider = (import ../_mk-provider.nix null) {
+    secrets = {
+      cloudflare-api-token = { };
+      cloudflare-zone-name = { };
+      cloudflare-record-name = { };
+      cloudflare-account-id = { };
+      cloudflare-zone-id = { };
+      wan-ip = { };
+    };
   };
+in
+{
+  den.aspects.infra._.providers._.cloudflare = {
+    aspect-name = "infra.providers.cloudflare";
+    includes = [
+      den.aspects.security._.sops
+    ];
 
-  terranix = {
-    terraform.required_providers.cloudflare = {
-      source = "cloudflare/cloudflare";
-      version = "5.19.1";
-    };
+    provides = provider.mkProvides;
 
-    provider.cloudflare = {
-      # Reads CLOUDFLARE_API_TOKEN environment variable by default
-    };
+    terranix = {
+      terraform.required_providers.cloudflare = {
+        source = "cloudflare/cloudflare";
+        version = "5.19.1";
+      };
 
-    variable = {
-      cf_zone_name = {
-        type = "string";
-        sensitive = true;
+      provider.cloudflare = {
+        # Reads CLOUDFLARE_API_TOKEN environment variable by default
       };
-      cf_record_name = {
-        type = "string";
-        sensitive = true;
-      };
-      cf_account_id = {
-        type = "string";
-        sensitive = true;
-      };
-      cf_zone_id = {
-        type = "string";
-      };
-      wan_ip = {
-        type = "string";
-        sensitive = true;
+
+      variable = {
+        cf_zone_name = {
+          type = "string";
+          sensitive = true;
+        };
+        cf_record_name = {
+          type = "string";
+          sensitive = true;
+        };
+        cf_account_id = {
+          type = "string";
+          sensitive = true;
+        };
+        cf_zone_id = {
+          type = "string";
+        };
+        wan_ip = {
+          type = "string";
+          sensitive = true;
+        };
       };
     };
   };

@@ -184,12 +184,18 @@ func RegisterInfraTools(s *server.MCPServer, ac *app.AppContext) {
 			if !ok {
 				return mcp.NewToolResultError(fmt.Sprintf("device %q not found", name)), nil
 			}
-			return jsonResult(map[string]any{
+			out := map[string]any{
 				"name": name,
 				"ip":   d.Ip,
 				"mac":  d.Mac,
 				"type": d.Type,
-			})
+			}
+			// The upstream port this device plugs into, not a profile on its own
+			// ports — switches and APs are both peers and port owners.
+			if link := cache.LinkForPortProfile(d.PortProfile, name, infra); link != nil {
+				out["uplink"] = link
+			}
+			return jsonResult(out)
 		},
 	)
 

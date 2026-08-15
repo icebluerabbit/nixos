@@ -7,35 +7,27 @@
   literals, so the domain name never lands in the repo. The import id is a
   variable for the same reason.
 */
-{ den }:
+_:
 {
-  id,
   resourceName,
   nameVariable,
   accountVariable,
   importVariable,
 }:
 {
-  den.aspects.infra._.cloudflare._.zones._.${id} = {
-    aspect-name = "infra.cloudflare.zones.${id}";
-    includes = [
-      den.aspects.infra._.providers._.cloudflare
-    ];
-
-    terranix = {
-      resource.cloudflare_zone.${resourceName} = {
-        name = "\${var.${nameVariable}}";
-        account = {
-          id = "\${var.${accountVariable}}";
-        };
+  mkTerranix = {
+    resource.cloudflare_zone.${resourceName} = {
+      name = "\${var.${nameVariable}}";
+      account = {
+        id = "\${var.${accountVariable}}";
       };
-
-      import = [
-        {
-          to = "cloudflare_zone.${resourceName}";
-          id = "\${var.${importVariable}}";
-        }
-      ];
     };
+
+    import = [
+      {
+        to = "cloudflare_zone.${resourceName}";
+        id = "\${var.${importVariable}}";
+      }
+    ];
   };
 }

@@ -57,4 +57,4 @@ den.aspects.<category>._.<name> = {
 | `terranix`                | Terranix                         | `.tf.json` for UniFi + Cloudflare |
 | `provides.to-hosts.nixos` | injected into host's NixOS eval  | host-visible options              |
 
-Infra clients/networks are **dual-engine** (both `nixos` and `terranix`) — never written by hand; each `modules/infra/` subdir has a `_mk-*.nix` constructor emitting both sections (underscore-prefixed, so import-tree skips them). Flake regeneration: `just flake` after adding/removing modules — never hand-edit `flake.nix`.
+Infra clients/networks are **dual-engine** (both `nixos` and `terranix`). Each `modules/infra/` subdir has a `_mk-*.nix` constructor (underscore-prefixed, so import-tree skips it) that builds the engine bodies from plain data and returns `mkOs`/`mkTerranix`. Aspect references and `config` reads stay in the aspect file — a helper never sees either. Flake regeneration: `just flake` after adding/removing modules — never hand-edit `flake.nix`.

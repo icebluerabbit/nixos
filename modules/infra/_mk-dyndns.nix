@@ -8,9 +8,8 @@
   is declared as its own sensitive Terraform variable rather than read from the
   provider block, since it is a per-record credential.
 */
-{ den }:
+_:
 {
-  id,
   service,
   unifiId,
   hostName,
@@ -20,33 +19,25 @@
   resourceName,
 }:
 {
-  den.aspects.infra._.dyndns._.${id} = {
-    aspect-name = "infra.dyndns.${id}";
-    includes = [
-      den.aspects.infra._.providers._.unifi
-      den.aspects.infra._.providers._.cloudflare
-    ];
-
-    terranix = {
-      variable.${passwordVariable} = {
-        type = "string";
-        sensitive = true;
-      };
-
-      resource.unifi_dynamic_dns.${resourceName} = {
-        inherit service interface;
-        host_name = hostName;
-        inherit login;
-        password = "\${var.${passwordVariable}}";
-        site = "default";
-      };
-
-      import = [
-        {
-          to = "unifi_dynamic_dns.${resourceName}";
-          id = unifiId;
-        }
-      ];
+  mkTerranix = {
+    variable.${passwordVariable} = {
+      type = "string";
+      sensitive = true;
     };
+
+    resource.unifi_dynamic_dns.${resourceName} = {
+      inherit service interface;
+      host_name = hostName;
+      inherit login;
+      password = "\${var.${passwordVariable}}";
+      site = "default";
+    };
+
+    import = [
+      {
+        to = "unifi_dynamic_dns.${resourceName}";
+        id = unifiId;
+      }
+    ];
   };
 }

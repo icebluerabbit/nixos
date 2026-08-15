@@ -9,9 +9,8 @@
   `ignoreContentChanges`: the gateway rewrites the value out of band, and without
   it every plan would show drift and try to push the stale address back.
 */
-{ den, lib }:
+{ lib }:
 {
-  id,
   resourceName,
   zone,
   name,
@@ -24,36 +23,29 @@
   ignoreContentChanges ? false,
 }:
 {
-  den.aspects.infra._.cloudflare._.dns._.${id} = {
-    aspect-name = "infra.cloudflare.dns.${id}";
-    includes = [
-      den.aspects.infra._.providers._.cloudflare
-    ];
-
-    terranix = {
-      resource.cloudflare_dns_record.${resourceName} = {
-        zone_id = "\${resource.cloudflare_zone.${zone}.id}";
-        inherit
-          name
-          type
-          content
-          proxied
-          ttl
-          ;
-      }
-      // lib.optionalAttrs ignoreContentChanges {
-        lifecycle = {
-          ignore_changes = [ "content" ];
-        };
+  mkTerranix = {
+    resource.cloudflare_dns_record.${resourceName} = {
+      zone_id = "\${resource.cloudflare_zone.${zone}.id}";
+      inherit
+        name
+        type
+        content
+        proxied
+        ttl
+        ;
+    }
+    // lib.optionalAttrs ignoreContentChanges {
+      lifecycle = {
+        ignore_changes = [ "content" ];
       };
-
-      # cloudflare_dns_record imports as <zone id>/<record id>.
-      import = [
-        {
-          to = "cloudflare_dns_record.${resourceName}";
-          id = "\${var.${zoneIdVariable}}/${recordId}";
-        }
-      ];
     };
+
+    # cloudflare_dns_record imports as <zone id>/<record id>.
+    import = [
+      {
+        to = "cloudflare_dns_record.${resourceName}";
+        id = "\${var.${zoneIdVariable}}/${recordId}";
+      }
+    ];
   };
 }

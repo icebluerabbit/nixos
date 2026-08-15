@@ -15,22 +15,12 @@
   shape there — gitea reads a container's address out of `config`, unifi pins a
   static API URL, cloudflare takes everything from the environment.
 */
-{ den }:
+_:
 {
-  id,
   secrets,
-  terranix,
-  includes ? [ ],
 }:
 {
-  den.aspects.infra._.providers._.${id} = {
-    aspect-name = "infra.providers.${id}";
-    includes = [ den.aspects.security._.sops ] ++ includes;
-
-    provides.to-users.homeManager = _: {
-      sops.secrets = secrets;
-    };
-
-    inherit terranix;
+  mkProvides.to-users.homeManager = _: {
+    sops.secrets = secrets;
   };
 }

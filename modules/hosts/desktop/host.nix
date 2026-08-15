@@ -8,6 +8,7 @@
       den.aspects.hosts._.desktop._.backups
       den.aspects.hosts._.desktop._.boot
       den.aspects.hosts._.desktop._.disks
+      den.aspects.hosts._.desktop._.flake-path
       den.aspects.hosts._.desktop._.impermanence
       den.aspects.hosts._.desktop._.mounts
       den.aspects.hosts._.desktop._.networking

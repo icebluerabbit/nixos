@@ -7,32 +7,26 @@
   fields leaves it unlimited, which is what the default group is for; pass
   `extra` to cap one.
 */
-{ den }:
+_:
 {
-  id,
   displayName,
   unifiId,
   resourceName,
   extra ? { },
 }:
 {
-  den.aspects.infra._.usergroups._.${id} = {
-    aspect-name = "infra.usergroups.${id}";
-    includes = [ den.aspects.infra._.providers._.unifi ];
+  mkTerranix = {
+    resource.unifi_client_qos_rate.${resourceName} = {
+      name = displayName;
+      site = "default";
+    }
+    // extra;
 
-    terranix = {
-      resource.unifi_client_qos_rate.${resourceName} = {
-        name = displayName;
-        site = "default";
+    import = [
+      {
+        to = "unifi_client_qos_rate.${resourceName}";
+        id = unifiId;
       }
-      // extra;
-
-      import = [
-        {
-          to = "unifi_client_qos_rate.${resourceName}";
-          id = unifiId;
-        }
-      ];
-    };
+    ];
   };
 }

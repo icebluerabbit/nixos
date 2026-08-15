@@ -8,7 +8,7 @@
   the provider reports them back empty afterwards, so tracking them would plan a
   re-migration on every run.
 */
-{ den, lib }:
+{ lib }:
 {
   id,
   resourceName,
@@ -26,41 +26,34 @@ assert lib.assertMsg (
   (migrationCloneAddress == null) == (migrationService == null)
 ) "mkGiteaRepo ${id}: migrationCloneAddress and migrationService go together";
 {
-  den.aspects.infra._.gitea._.repos._.${id} = {
-    aspect-name = "infra.gitea.repos.${id}";
-    includes = [
-      den.aspects.infra._.providers._.gitea
-    ];
-
-    terranix = {
-      resource.gitea_repository.${resourceName} = {
-        inherit
-          username
-          name
-          description
-          private
-          mirror
-          ;
-      }
-      // lib.optionalAttrs (migrationCloneAddress != null) {
-        migration_clone_address = migrationCloneAddress;
-        migration_service = migrationService;
-        migration_service_auth_token = "\${var.${migrationTokenVariable}}";
-        lifecycle = {
-          ignore_changes = [
-            "migration_clone_address"
-            "migration_service"
-            "migration_service_auth_token"
-          ];
-        };
+  mkTerranix = {
+    resource.gitea_repository.${resourceName} = {
+      inherit
+        username
+        name
+        description
+        private
+        mirror
+        ;
+    }
+    // lib.optionalAttrs (migrationCloneAddress != null) {
+      migration_clone_address = migrationCloneAddress;
+      migration_service = migrationService;
+      migration_service_auth_token = "\${var.${migrationTokenVariable}}";
+      lifecycle = {
+        ignore_changes = [
+          "migration_clone_address"
+          "migration_service"
+          "migration_service_auth_token"
+        ];
       };
-
-      import = [
-        {
-          to = "gitea_repository.${resourceName}";
-          id = importId;
-        }
-      ];
     };
+
+    import = [
+      {
+        to = "gitea_repository.${resourceName}";
+        id = importId;
+      }
+    ];
   };
 }

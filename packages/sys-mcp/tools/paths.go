@@ -181,9 +181,9 @@ func enrichContainer(meta *pathMeta, name, relPath string, ac *app.AppContext) {
 	if infra, err := ac.IC.Get(); err == nil {
 		if client, ok := infra.Clients[clientKey]; ok {
 			ent := &resolvedEntity{MAC: client.Mac, Ports: client.Ports, Host: hostName}
+			ent.Vlan = cache.VlanForClient(client, infra)
 			if client.Ip != nil {
 				ent.IP = *client.Ip
-				ent.Vlan = ipToVLAN(*client.Ip, infra)
 			}
 			meta.Entity = ent
 		}
@@ -212,9 +212,9 @@ func enrichClient(meta *pathMeta, key, relPath string, ac *app.AppContext) {
 		return
 	}
 	ent := &resolvedEntity{MAC: client.Mac, Ports: client.Ports}
+	ent.Vlan = cache.VlanForClient(client, infra)
 	if client.Ip != nil {
 		ent.IP = *client.Ip
-		ent.Vlan = ipToVLAN(*client.Ip, infra)
 	}
 	meta.Entity = ent
 
@@ -259,9 +259,9 @@ func enrichHostContainerConfig(meta *pathMeta, name, host, relPath string, ac *a
 	if infra, err := ac.IC.Get(); err == nil {
 		if client, ok := infra.Clients[clientKey]; ok {
 			ent := &resolvedEntity{MAC: client.Mac, Ports: client.Ports, Host: host}
+			ent.Vlan = cache.VlanForClient(client, infra)
 			if client.Ip != nil {
 				ent.IP = *client.Ip
-				ent.Vlan = ipToVLAN(*client.Ip, infra)
 			}
 			meta.Entity = ent
 		}
@@ -278,18 +278,6 @@ func containerHost(name string, ac *app.AppContext) string {
 		for h, eval := range hosts {
 			if _, ok := eval.Containers[name]; ok {
 				return h
-			}
-		}
-	}
-	return ""
-}
-
-// ipToVLAN returns the VLAN name whose staticAddresses contains the given IP.
-func ipToVLAN(ip string, infra *cache.InfraData) string {
-	for name, v := range infra.Vlans {
-		for _, addr := range v.StaticAddresses {
-			if addr == ip {
-				return name
 			}
 		}
 	}

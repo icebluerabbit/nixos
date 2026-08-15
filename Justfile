@@ -127,6 +127,32 @@ test-iso host="desktop" out="/tmp/nixos-installer" key="": (make-iso host out)
     "
     rm -rf "$TPM_DIR" "$DISK_DIR"
 
+# Regenerate the topology sections of README.md in place. Nix evaluates the
+# registries and the host's own networking, the Go renderer turns them into
+# markdown, and each view is spliced between its BEGIN/END markers — GitHub has
+# no include, so a README that shows this has to contain it.
+_topology-dump:
+    @nix eval .#nixosConfigurations.server.config --json --apply 'c: { \
+        inherit (c) infra; \
+        bonds = builtins.mapAttrs (_: b: { inherit (b) interfaces; }) c.networking.bonds; \
+        vlans = builtins.mapAttrs (_: v: { inherit (v) id interface; }) c.networking.vlans; \
+        bridges = builtins.mapAttrs (_: b: { inherit (b) interfaces; }) c.networking.bridges; \
+        containers = builtins.mapAttrs (_: k: { inherit (k) hostBridge localAddress; }) c.containers; \
+      }'
+
+topology file="README.md": _track
+    @just _topology-dump | nix run .#topology -- --view physical \
+        --into {{file}} --marker topology-physical
+    @just _topology-dump | nix run .#topology -- --view logical \
+        --into {{file}} --marker topology-logical
+    @echo "{{file}}"
+
+# Same, on every save under modules/infra or packages/topology.
+topology-watch file="README.md":
+    nix run nixpkgs#watchexec -- \
+      -w modules/infra -w packages/topology -e nix,go \
+      -- just topology {{file}}
+
 flake: _track
     nix run .#write-flake
 

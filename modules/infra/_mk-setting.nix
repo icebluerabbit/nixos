@@ -8,30 +8,24 @@
   parameters. `settings` is passed through verbatim; this only supplies the
   aspect envelope and the import that binds it to the existing site.
 */
-{ den }:
+_:
 {
-  id,
   settings,
   site ? "default",
   resourceName,
 }:
 {
-  den.aspects.infra._.settings._.${id} = {
-    aspect-name = "infra.settings.${id}";
-    includes = [ den.aspects.infra._.providers._.unifi ];
+  mkTerranix = {
+    resource.unifi_setting.${resourceName} = {
+      inherit site;
+    }
+    // settings;
 
-    terranix = {
-      resource.unifi_setting.${resourceName} = {
-        inherit site;
+    import = [
+      {
+        to = "unifi_setting.${resourceName}";
+        id = site;
       }
-      // settings;
-
-      import = [
-        {
-          to = "unifi_setting.${resourceName}";
-          id = site;
-        }
-      ];
-    };
+    ];
   };
 }

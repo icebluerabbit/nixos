@@ -10,7 +10,7 @@
   keypair, so reading it back as drift would replace the server and invalidate
   every enrolled peer.
 */
-{ den }:
+_:
 {
   id,
   displayName,
@@ -21,41 +21,46 @@
   resourceName,
 }:
 {
-  den.aspects.infra._.vpns._.${id} = {
-    aspect-name = "infra.vpns.${id}";
-    includes = [ den.aspects.infra._.providers._.unifi ];
+  mkOs = {
+    infra.vpns.${id} = {
+      name = displayName;
+      inherit
+        subnet
+        port
+        wanInterface
+        unifiId
+        ;
+    };
+  };
 
-    terranix =
-      { config, ... }:
-      {
-        resource.unifi_vpn_server.${resourceName} = {
-          name = displayName;
-          enabled = true;
-          inherit subnet;
-          wan = {
-            interface = wanInterface;
-            ip = "any";
-          };
-          wireguard = {
-            inherit port;
-          };
-          site = "default";
-          dns = {
-            enabled = true;
-            servers = [ config.infra.clients.container-dns.ip ];
-          };
-
-          lifecycle = {
-            ignore_changes = [ "wireguard" ];
-          };
-        };
-
-        import = [
-          {
-            to = "unifi_vpn_server.${resourceName}";
-            id = unifiId;
-          }
-        ];
+  mkTerranix = dnsServers: {
+    resource.unifi_vpn_server.${resourceName} = {
+      name = displayName;
+      enabled = true;
+      inherit subnet;
+      wan = {
+        interface = wanInterface;
+        ip = "any";
       };
+      wireguard = {
+        inherit port;
+      };
+      site = "default";
+      dns = {
+        enabled = true;
+        servers = dnsServers;
+      };
+
+      lifecycle = {
+        ignore_changes = [ "wireguard" ];
+      };
+    };
+
+    import = [
+      {
+        to = "unifi_vpn_server.${resourceName}";
+        id = unifiId;
+      }
+    ];
   };
 }

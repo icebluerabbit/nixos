@@ -24,20 +24,17 @@
 
       den.aspects.infra._.vpns._.one-click-vpn
 
+      den.aspects.infra._.ports._.ap-trunk
+      den.aspects.infra._.ports._.gateway-trunk
       den.aspects.infra._.ports._.living-room-trunk
       den.aspects.infra._.ports._.server-trunk
-      den.aspects.infra._.ports._.work
-      den.aspects.infra._.ports._.iot
-      den.aspects.infra._.ports._.game
-      den.aspects.infra._.ports._.storage
-      den.aspects.infra._.ports._.mgmt
-      den.aspects.infra._.ports._.trust
-      den.aspects.infra._.ports._.apps
-      den.aspects.infra._.ports._.dmz
-      den.aspects.infra._.ports._.download
-      den.aspects.infra._.ports._.guest
-      den.aspects.infra._.ports._.media
-      den.aspects.infra._.ports._.services
+      den.aspects.infra._.ports._.work-macbookpro-work-1
+      den.aspects.infra._.ports._.iot-hue-hub
+      den.aspects.infra._.ports._.game-playstation5
+      den.aspects.infra._.ports._.storage-unas-pro
+      den.aspects.infra._.ports._.mgmt-server
+      den.aspects.infra._.ports._.mgmt-server-ipmi
+      den.aspects.infra._.ports._.trust-desktop
 
       den.aspects.infra._.networks._.default
       den.aspects.infra._.networks._.mgmt

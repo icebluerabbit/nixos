@@ -50,6 +50,41 @@ type clientStat struct {
 	Oui      string `json:"oui"`
 }
 
+// devicePort is the live per-port state from stat/device.
+//
+// Decoded here rather than read off unificlient.Device.PortTable: go-unifi
+// v1.33.42 has an inverted error check in DevicePortTable.UnmarshalJSON —
+// `if v, err := aux.PortIdx.Int64(); err != nil { dst.PortIdx = v }` — so every
+// field routed through that custom unmarshaler (port_idx, speed, rx/tx bytes and
+// errors, satisfaction) is left at zero. stat/device carries the same data, so
+// decoding it straight avoids the bug entirely.
+type devicePort struct {
+	PortIdx         int64  `json:"port_idx"`
+	Name            string `json:"name"`
+	Up              bool   `json:"up"`
+	Speed           int64  `json:"speed"`
+	PoeEnable       bool   `json:"poe_enable"`
+	PoePower        string `json:"poe_power"`
+	RxBytes         int64  `json:"rx_bytes"`
+	TxBytes         int64  `json:"tx_bytes"`
+	RxErrors        int64  `json:"rx_errors"`
+	TxErrors        int64  `json:"tx_errors"`
+	NativeNetworkID string `json:"native_networkconf_id"`
+	IsUplink        bool   `json:"is_uplink"`
+	Satisfaction    int64  `json:"satisfaction"`
+	OpMode          string `json:"op_mode"`
+}
+
+// devicePortOverride is the declared config for a port. `port_profile_id` is the
+// controller object id, which joins to infra.ports.<key>.unifiId.
+type devicePortOverride struct {
+	PortIdx          int64   `json:"port_idx"`
+	Name             string  `json:"name"`
+	PortProfileID    string  `json:"portconf_id"`
+	OpMode           string  `json:"op_mode"`
+	AggregateMembers []int64 `json:"aggregate_members"`
+}
+
 type deviceStat struct {
 	MAC      string `json:"mac"`
 	Version  string `json:"version"`
@@ -61,6 +96,8 @@ type deviceStat struct {
 		Loadavg1 string `json:"loadavg_1"`
 		Loadavg5 string `json:"loadavg_5"`
 	} `json:"sys_stats"`
+	PortTable     []devicePort         `json:"port_table"`
+	PortOverrides []devicePortOverride `json:"port_overrides"`
 }
 
 func (conn *unifiConn) rawGet(ctx context.Context, path string, out any) error {
@@ -237,23 +274,34 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 			st := stats[found.MAC]
 
 			type portRow struct {
-				Idx             int64  `json:"port"`
-				Name            string `json:"name,omitempty"`
-				Up              bool   `json:"up"`
-				Speed           int64  `json:"speed_mbps"`
-				PoE             bool   `json:"poe"`
-				PoePower        string `json:"poe_power_w,omitempty"`
-				RxBytes         int64  `json:"rx_bytes"`
-				TxBytes         int64  `json:"tx_bytes"`
-				RxErrors        int64  `json:"rx_errors"`
-				TxErrors        int64  `json:"tx_errors"`
-				NativeNetworkID string `json:"native_vlan_id,omitempty"`
-				IsUplink        bool   `json:"is_uplink"`
-				Satisfaction    int64  `json:"satisfaction"`
+				Idx              int64            `json:"port"`
+				Name             string           `json:"name,omitempty"`
+				Up               bool             `json:"up"`
+				Speed            int64            `json:"speed_mbps"`
+				PoE              bool             `json:"poe"`
+				PoePower         string           `json:"poe_power_w,omitempty"`
+				RxBytes          int64            `json:"rx_bytes"`
+				TxBytes          int64            `json:"tx_bytes"`
+				RxErrors         int64            `json:"rx_errors"`
+				TxErrors         int64            `json:"tx_errors"`
+				NativeNetworkID  string           `json:"native_vlan_id,omitempty"`
+				IsUplink         bool             `json:"is_uplink"`
+				Satisfaction     int64            `json:"satisfaction"`
+				OpMode           string           `json:"op_mode,omitempty"`
+				AggregateMembers []int64          `json:"aggregate_members,omitempty"`
+				PortProfile      string           `json:"port_profile,omitempty"`
+				Peers            []cache.PortPeer `json:"peers,omitempty"`
 			}
-			ports := make([]portRow, 0, len(found.PortTable))
-			for _, p := range found.PortTable {
-				ports = append(ports, portRow{
+
+			infra, _ := ac.IC.Get()
+			overrides := make(map[int64]devicePortOverride, len(st.PortOverrides))
+			for _, o := range st.PortOverrides {
+				overrides[o.PortIdx] = o
+			}
+
+			ports := make([]portRow, 0, len(st.PortTable))
+			for _, p := range st.PortTable {
+				r := portRow{
 					Idx:             p.PortIdx,
 					Name:            p.Name,
 					Up:              p.Up,
@@ -264,10 +312,21 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 					TxBytes:         p.TxBytes,
 					RxErrors:        p.RxErrors,
 					TxErrors:        p.TxErrors,
-					NativeNetworkID: p.NativeNetworkconfID,
+					NativeNetworkID: p.NativeNetworkID,
 					IsUplink:        p.IsUplink,
 					Satisfaction:    p.Satisfaction,
-				})
+					OpMode:          p.OpMode,
+				}
+				// The port profile is what pairs this port with whatever is
+				// plugged into it — a port with no profile has no resolvable peer.
+				if o, ok := overrides[p.PortIdx]; ok && infra != nil {
+					r.AggregateMembers = o.AggregateMembers
+					if key := cache.PortKeyForUnifiId(o.PortProfileID, infra); key != "" {
+						r.PortProfile = key
+						r.Peers = cache.PeersOfPort(key, "", infra)
+					}
+				}
+				ports = append(ports, r)
 			}
 
 			result := map[string]any{

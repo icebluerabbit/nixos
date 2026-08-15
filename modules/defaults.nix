@@ -47,9 +47,13 @@
             options = "--delete-older-than 30d";
           };
         };
+        # Where the installer drops the repo (modules/iso/installer.nix), so this
+        # is right on a freshly-installed machine. A host that keeps a working
+        # checkout elsewhere overrides it — otherwise `nh` and sys-mcp both read
+        # the install-time snapshot forever.
         environment.variables = {
-          FLAKE = "/src/nixos";
-          NH_FLAKE = "/src/nixos";
+          FLAKE = lib.mkDefault "/src/nixos";
+          NH_FLAKE = lib.mkDefault "/src/nixos";
         };
         home-manager = {
           useGlobalPkgs = true;

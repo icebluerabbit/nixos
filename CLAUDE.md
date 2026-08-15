@@ -47,7 +47,8 @@ git clone --depth 1 --filter=blob:none --sparse <url> <scratchpad-path>
 - **Formatter**: `nix fmt` (treefmt — `modules/formatter.nix`) — always run before evaluating. Covers nix (nixfmt-rfc-style), python (ruff), go (gofmt), shell (shfmt + shellcheck), markdown (prettier, `*.md` only). Configs are explicit at the repo root: `ruff.toml`, `.prettierrc.toml`, `.editorconfig` (drives shfmt), `.shellcheckrc`. The pre-commit hook runs the same wrapper, so hook and `nix fmt` cannot disagree.
 - **flake.nix is auto-generated** (`import-tree ./modules` auto-imports every `.nix`; `_`-prefixed paths and non-`.nix` files are ignored). Never hand-edit it. Run `just flake` after adding/removing modules.
 - **Flakes ignore untracked files** — `git add` (or `git add -N`) new files before Nix can evaluate them. `just format` runs `git add -N .` first.
-- Commands: `just build-*` / `eval-*` (safe checks), `just vm-*`, `just sops-host-secrets` / `sops-user-secrets`, `just gc`, `just infra-plan-homelab`. See _Operational Safety_ for the human-only set.
+- Commands: `just build-*` / `eval-*` (safe checks), `just vm-*`, `just sops-host-secrets` / `sops-user-secrets`, `just gc`, `just infra-plan-homelab`, `just topology`. See _Operational Safety_ for the human-only set.
+- **`just topology`** regenerates the README's Network Topology sections from `modules/infra` + the server's `networking`/`containers` (renderer: `packages/topology/`). CI fails if stale — run it after any change to a client, device, port profile or container.
 
 ---
 

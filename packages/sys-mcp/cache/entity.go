@@ -33,6 +33,9 @@ type ClientInfo struct {
 	Mac     string         `json:"mac"`
 	Ports   map[string]int `json:"ports"`
 	Blocked bool           `json:"blocked"`
+	// Link is the switch port this client is cabled to, absent for wireless
+	// clients and anything a host synthesises.
+	Link *PortLink `json:"link,omitempty"`
 }
 
 type ContainerInfo struct {
@@ -57,6 +60,81 @@ type HostInfo struct {
 	// ContainerNames is set when the entity is rooted at a host.
 	ContainerNames []string            `json:"containerNames,omitempty"`
 	Aspects        map[string][]string `json:"aspects,omitempty"`
+}
+
+// PortPeer is one end of a cable: whatever declares a given port profile.
+type PortPeer struct {
+	Kind string `json:"kind"` // "client"|"device"
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+// PortLink is the port profile a client or device is wired through, plus
+// whoever else declares it. Nothing in Terraform ties the two ends together —
+// the shared profile is the only thing that does.
+type PortLink struct {
+	Profile      string     `json:"profile"`
+	Display      string     `json:"display"`
+	Network      string     `json:"network"`
+	Trunk        bool       `json:"trunk"`
+	ResourceName string     `json:"resourceName"`
+	Peers        []PortPeer `json:"peers,omitempty"`
+}
+
+// PortKeyForUnifiId maps a controller port-profile object id — what a switch's
+// port_override carries — back to its infra.ports key. Empty if unknown, which
+// happens for a profile applied outside Terraform.
+func PortKeyForUnifiId(id string, infra *InfraData) string {
+	if id == "" {
+		return ""
+	}
+	for key, p := range infra.Ports {
+		if p.UnifiId == id {
+			return key
+		}
+	}
+	return ""
+}
+
+// PeersOfPort lists everything declaring this port profile, skipping selfKey.
+// Pass an empty selfKey to get every end.
+func PeersOfPort(portKey, selfKey string, infra *InfraData) []PortPeer {
+	if portKey == "" {
+		return nil
+	}
+	var peers []PortPeer
+	for key, c := range infra.Clients {
+		if c.PortProfile == portKey && key != selfKey {
+			peers = append(peers, PortPeer{Kind: "client", Key: key, Name: c.Name})
+		}
+	}
+	for key, d := range infra.Devices {
+		if d.PortProfile == portKey && key != selfKey {
+			peers = append(peers, PortPeer{Kind: "device", Key: key, Name: d.Name})
+		}
+	}
+	sort.Slice(peers, func(i, j int) bool { return peers[i].Key < peers[j].Key })
+	return peers
+}
+
+// LinkForPortProfile builds the PortLink for a named profile, from the point of
+// view of selfKey. Returns nil when the profile is unset or unknown.
+func LinkForPortProfile(portKey, selfKey string, infra *InfraData) *PortLink {
+	if portKey == "" {
+		return nil
+	}
+	p, ok := infra.Ports[portKey]
+	if !ok {
+		return nil
+	}
+	return &PortLink{
+		Profile:      portKey,
+		Display:      p.Name,
+		Network:      p.Network,
+		Trunk:        p.Trunk,
+		ResourceName: p.ResourceName,
+		Peers:        PeersOfPort(portKey, selfKey, infra),
+	}
 }
 
 type SourcePaths struct {
@@ -115,6 +193,7 @@ func ResolveFromClient(clientKey string, infra *InfraData, hosts HostsData, idx 
 		Mac:     c.Mac,
 		Ports:   c.Ports,
 		Blocked: c.Blocked,
+		Link:    LinkForPortProfile(c.PortProfile, clientKey, infra),
 	}
 
 	vlanName := vlanForClient(c, infra)
@@ -292,7 +371,14 @@ func buildCommands(name, sshTarget string, isLocal bool) ContainerCommands {
 	}
 }
 
-func vlanForClient(c Client, infra *InfraData) string {
+// VlanForClient prefers the VLAN the client declares. The staticAddresses
+// lookup is only a fallback: it cannot resolve a client whose address is a
+// literal rather than an allocation — every physical device is one — and it
+// cannot resolve a client with no address at all.
+func VlanForClient(c Client, infra *InfraData) string {
+	if c.Vlan != "" {
+		return c.Vlan
+	}
 	if c.Ip == nil {
 		return ""
 	}
@@ -305,6 +391,8 @@ func vlanForClient(c Client, infra *InfraData) string {
 	}
 	return ""
 }
+
+func vlanForClient(c Client, infra *InfraData) string { return VlanForClient(c, infra) }
 
 func containerForIP(ip *string, hosts HostsData) (containerName, hostName string) {
 	if ip == nil || hosts == nil {

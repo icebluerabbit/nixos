@@ -23,13 +23,13 @@ Caddy auto-generates a virtualHost for **every** infra client that has a `proxy`
 So to proxy a service, edit its infra client `modules/infra/clients/container-<name>.nix` and add `proxy.port` (the named port **key** from `ports`) to the `_mk-client.nix` call. One line — the constructor feeds both engines:
 
 ```nix
-(import ../_mk-client.nix { inherit den lib; }) {
-  id = "container-radarr";
-  resourceName = "container_radarr";
-  # …
-  ports.default = 7878;
-  proxy.port = "default";        # ← key into ports; exposes radarr.caddy.<apps-domain>
-}
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-radarr";
+    resourceName = "container_radarr";
+    # …
+    ports.default = 7878;
+    proxy.port = "default";      # ← key into ports; exposes radarr.caddy.<apps-domain>
+  };
 ```
 
 Multi-port: point at the right key, e.g. `proxy.port = "http";` or `"web"` / `"ui"`.

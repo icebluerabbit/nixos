@@ -335,22 +335,31 @@ func TestClassifyPath_RelatedExcludesSelf(t *testing.T) {
 	}
 }
 
-// --- ipToVLAN ---
+// --- cache.VlanForClient (replaced the old ipToVLAN address-only lookup) ---
 
-func TestIPToVLAN_Found(t *testing.T) {
+func TestVlanForClient_Declared(t *testing.T) {
+	infra := &cache.InfraData{Vlans: map[string]cache.Vlan{}}
+	if got := cache.VlanForClient(cache.Client{Vlan: "trust"}, infra); got != "trust" {
+		t.Errorf("got %q want trust", got)
+	}
+}
+
+func TestVlanForClient_FallsBackToStaticAddress(t *testing.T) {
 	infra := &cache.InfraData{
 		Vlans: map[string]cache.Vlan{
 			"media": {StaticAddresses: map[string]string{"bazarr": "10.10.120.5"}},
 		},
 	}
-	if got := ipToVLAN("10.10.120.5", infra); got != "media" {
+	ip := "10.10.120.5"
+	if got := cache.VlanForClient(cache.Client{Ip: &ip}, infra); got != "media" {
 		t.Errorf("got %q want media", got)
 	}
 }
 
-func TestIPToVLAN_NotFound(t *testing.T) {
+func TestVlanForClient_NotFound(t *testing.T) {
 	infra := &cache.InfraData{Vlans: map[string]cache.Vlan{}}
-	if got := ipToVLAN("1.2.3.4", infra); got != "" {
+	ip := "1.2.3.4"
+	if got := cache.VlanForClient(cache.Client{Ip: &ip}, infra); got != "" {
 		t.Errorf("got %q want empty", got)
 	}
 }

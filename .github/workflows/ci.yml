@@ -36,3 +36,15 @@ jobs:
         run: |
           nix fmt
           git diff --exit-code
+
+      # Checked rather than committed: regenerating needs a full eval of the
+      # server config, which is too slow for a pre-commit hook, and committing
+      # from CI needs write access and races with concurrent pushes. `nix flake
+      # check` above has already evaluated both hosts, so this is nearly free.
+      - name: Verify topology docs are current
+        run: |
+          nix develop --command just topology
+          git diff --exit-code || {
+            echo "::error::README topology sections are stale — run 'just topology'"
+            exit 1
+          }

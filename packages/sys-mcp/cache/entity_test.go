@@ -647,3 +647,93 @@ func TestClientKeyForContainer_Unknown(t *testing.T) {
 		t.Fatalf("want empty, got %q", got)
 	}
 }
+
+// --- port profile links ---
+
+func linkInfra() *InfraData {
+	return &InfraData{
+		Ports: map[string]Port{
+			"trust-desktop": {
+				Name: "Trust Port", Network: "trust",
+				UnifiId: "6a3049b2efa3052c88b3c52f", ResourceName: "trust",
+			},
+			"living-room-trunk": {
+				Name: "Living Room Trunk", Network: "default",
+				UnifiId: "6a20cb97119e8dfcb5ece105", ResourceName: "living_room",
+				Trunk: true, ExcludedNetworks: []string{"mgmt"},
+			},
+		},
+		Clients: map[string]Client{
+			"desktop":  {Name: "Desktop", Vlan: "trust", PortProfile: "trust-desktop"},
+			"iphone":   {Name: "iPhone", Vlan: "trust"},
+			"unas-pro": {Name: "UNAS-Pro", PortProfile: "storage-unas-pro"},
+		},
+		Devices: map[string]Device{
+			"usw-flex-2-5g-8":   {Name: "USW Flex 2.5G 8", PortProfile: "living-room-trunk"},
+			"usw-pro-hd-24-poe": {Name: "USW Pro HD 24 PoE"},
+		},
+	}
+}
+
+func TestPortKeyForUnifiId(t *testing.T) {
+	infra := linkInfra()
+	if got := PortKeyForUnifiId("6a20cb97119e8dfcb5ece105", infra); got != "living-room-trunk" {
+		t.Fatalf("want living-room-trunk, got %q", got)
+	}
+	if got := PortKeyForUnifiId("nope", infra); got != "" {
+		t.Fatalf("want empty for unknown id, got %q", got)
+	}
+	if got := PortKeyForUnifiId("", infra); got != "" {
+		t.Fatalf("want empty for blank id, got %q", got)
+	}
+}
+
+// A profile with one declared peer resolves to exactly that peer, and a client
+// with no cable resolves to nothing.
+func TestPeersOfPort(t *testing.T) {
+	infra := linkInfra()
+	peers := PeersOfPort("trust-desktop", "", infra)
+	if len(peers) != 1 || peers[0].Key != "desktop" || peers[0].Kind != "client" {
+		t.Fatalf("unexpected peers: %+v", peers)
+	}
+	if got := PeersOfPort("trust-desktop", "desktop", infra); got != nil {
+		t.Fatalf("self should be excluded, got %+v", got)
+	}
+	if got := PeersOfPort("", "", infra); got != nil {
+		t.Fatalf("want nil for blank profile, got %+v", got)
+	}
+}
+
+func TestPeersOfPort_Device(t *testing.T) {
+	peers := PeersOfPort("living-room-trunk", "", linkInfra())
+	if len(peers) != 1 || peers[0].Key != "usw-flex-2-5g-8" || peers[0].Kind != "device" {
+		t.Fatalf("unexpected peers: %+v", peers)
+	}
+}
+
+func TestLinkForPortProfile(t *testing.T) {
+	infra := linkInfra()
+	link := LinkForPortProfile("living-room-trunk", "usw-flex-2-5g-8", infra)
+	if link == nil {
+		t.Fatal("want a link")
+	}
+	if link.ResourceName != "living_room" || !link.Trunk || link.Network != "default" {
+		t.Fatalf("unexpected link: %+v", link)
+	}
+	if len(link.Peers) != 0 {
+		t.Fatalf("self should be excluded from peers, got %+v", link.Peers)
+	}
+}
+
+// A PortProfile naming a profile that is not in the registry must not
+// fabricate a link. The nix-side assertion catches this, but the reader
+// should not depend on the config being valid.
+func TestLinkForPortProfile_DanglingAndUnset(t *testing.T) {
+	infra := linkInfra()
+	if got := LinkForPortProfile("storage-unas-pro", "unas-pro", infra); got != nil {
+		t.Fatalf("want nil for unknown profile, got %+v", got)
+	}
+	if got := LinkForPortProfile("", "iphone", infra); got != nil {
+		t.Fatalf("want nil for unset profile, got %+v", got)
+	}
+}

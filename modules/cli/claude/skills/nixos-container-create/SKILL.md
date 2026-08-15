@@ -40,25 +40,45 @@ Only place an IP literal appears.
 
 ## Step 2 — Infra client — `modules/infra/clients/container-<name>.nix`
 
-Call `_mk-client.nix`. It emits both engine sections, the `unifi_client` resource and the import block — never hand-write those.
+The aspect owns its identity, its `includes` and its `config` reads. `_mk-client.nix` only builds the two engine bodies — it takes plain data, returns `{ mkOs, mkTerranix }`, and never sees an aspect or `config`.
 
 ```nix
 { den, lib, ... }:
-(import ../_mk-client.nix { inherit den lib; }) {
-  id = "container-radarr";
-  resourceName = "container_radarr";   # Terraform address — state key, never rename
-  name = "Radarr Container";
-  mac = "62:f5:a4:5b:20:79";           # from next_free_mac
-  vlan = "media";
-  addressKey = "radarr";               # key in that VLAN's staticAddresses
-  ports.default = 7878;                # named ports = single source of truth
-  proxy.port = "default";              # web-facing only — auto Caddy vhost
+let
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-radarr";
+    resourceName = "container_radarr";  # Terraform address — state key, never rename
+    name = "Radarr Container";
+    mac = "62:f5:a4:5b:20:79";          # from next_free_mac
+    vlan = "media";
+    kind = "virtual";
+    ports.default = 7878;               # named ports = single source of truth
+    proxy.port = "default";             # web-facing only — auto Caddy vhost
+  };
+in
+{
+  den.aspects.infra._.clients._.container-radarr = {
+    aspect-name = "infra.clients.container-radarr";
+    includes = [
+      den.aspects.infra._.providers._.unifi
+      den.aspects.infra._.options
+      den.aspects.infra._.networks._.media
+    ];
+
+    os = { config, ... }: client.mkOs config.infra.vlans.media.staticAddresses.radarr;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.media.staticAddresses.radarr;
+  };
 }
 ```
 
-Every argument is explicit — nothing derived from `id`. `vlan`+`addressKey` resolve the IP; `ip` is the alternative for a client with no static allocation (never both — asserted). `resourceName` keys Terraform state: changing one plans a destroy. Import is always emitted. Omit `ports`/`proxy` if nothing is exposed.
+**Rules, and they are not negotiable:**
 
-Sibling constructors in `modules/infra/`: `_mk-network`, `_mk-port-profile`, `_mk-device`, `_mk-wlan`, `_mk-wan`, `_mk-vpn`, `_mk-dyndns`, `_mk-usergroup`, `_mk-setting`, `_mk-dns-record`, `_mk-zone`, `_mk-gitea-repo`, `_mk-provider`.
+- **Aspects are referenced only in aspect files.** Never pass an aspect or an `includes` list into a helper, and never let a helper build one.
+- **`config` is read only in aspect files.** The address is looked up where `config` is already in scope and passed in as a value. Never hand a helper a `config: …` lambda.
+- **Dependencies are strict.** The aspect includes every aspect it reads: its VLAN here, and for other kinds `container-dns` (networks, vpn), the VLAN (ports, wlans), the port profile (devices), the zone (DNS records).
+- Pass `null` to `mkOs`/`mkTerranix` for a client with no fixed address.
+
+Same shape for every sibling in `modules/infra/`: `_mk-network`, `_mk-port-profile`, `_mk-device`, `_mk-wlan`, `_mk-wan`, `_mk-vpn`, `_mk-dyndns`, `_mk-usergroup`, `_mk-setting`, `_mk-dns-record`, `_mk-zone`, `_mk-gitea-repo`, `_mk-provider`.
 
 ## Step 3 — Container aspect — `modules/containers/<name>.nix`
 
@@ -164,6 +184,7 @@ git add modules/infra/clients/container-radarr.nix modules/containers/radarr.nix
 just flake && nix fmt
 validate_container radarr     # vlan addr, client, ports, IP/VLAN match, MAC formula, host decl, sources
 just eval-server              # fast eval — fix every failing check before handing off
+just topology                 # README VLAN tables; CI fails if stale
 ```
 
 **Deploy is human-only.** The assistant never runs `switch*`/`test*`/`infra-apply`. After eval passes, hand the user `just switch-server`.

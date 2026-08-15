@@ -29,6 +29,12 @@ type Client struct {
 	Blocked bool           `json:"blocked"`
 	Groups  []string       `json:"groups"`
 	Ports   map[string]int `json:"ports"`
+	Vlan    string         `json:"vlan"`
+	Kind    string         `json:"kind"`
+	// PortProfile names the infra.ports key on the switch port this client is
+	// wired to. Empty for anything with no cable: wireless clients, container
+	// veths, bridges.
+	PortProfile string `json:"portProfile"`
 }
 
 type Device struct {
@@ -36,12 +42,28 @@ type Device struct {
 	Name string `json:"name"`
 	Ip   string `json:"ip"`
 	Type string `json:"type"`
+	// PortProfile names the infra.ports key on the *upstream* switch port this
+	// device plugs into — not a profile on its own ports.
+	PortProfile string `json:"portProfile"`
+}
+
+// Port is a UniFi port profile. It doubles as the link identity: the switch
+// names it in a port_override and whatever is plugged in names it in
+// PortProfile, so the pair identifies a cable.
+type Port struct {
+	Name             string   `json:"name"`
+	Network          string   `json:"network"`
+	UnifiId          string   `json:"unifiId"`
+	ResourceName     string   `json:"resourceName"`
+	Trunk            bool     `json:"trunk"`
+	ExcludedNetworks []string `json:"excludedNetworks"`
 }
 
 type InfraData struct {
 	Vlans   map[string]Vlan   `json:"vlans"`
 	Clients map[string]Client `json:"clients"`
 	Devices map[string]Device `json:"devices"`
+	Ports   map[string]Port   `json:"ports"`
 }
 
 type InfraCache struct {

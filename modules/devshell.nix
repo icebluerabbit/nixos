@@ -14,6 +14,11 @@ _: {
         # on PATH so editors and one-off runs use the same binaries the
         # formatter and the pre-commit hook do.
         packages = [
+          # Every documented workflow in the README is a `just` recipe, and the
+          # recipes call each other — so it has to be on PATH, not just in the
+          # caller's shell.
+          pkgs.just
+
           pkgs.go
           pkgs.gopls
           pkgs.ruff

@@ -23,6 +23,8 @@ bond0 (trunk)
 
 Each VLAN bridge is its own aspect: `modules/hosts/server/networking/vlans/<vlan>.nix`. Bridge MAC and host IP both come from infra clients (`server-vlan-<name>`, `server-bridge-<name>`), never hardcoded.
 
+Above `bond0` is the switch: USW Pro HD ports 25+26 as one LACP group carrying the `server-trunk` port profile, which excludes only `mgmt` — the server reaches MGMT on its own NIC via port 2 instead. The two ends are joined by that profile name, declared on the switch's `port_override` and on `infra.clients.server-trunk.portProfile`. A VLAN added to the server must also stay tagged on that trunk, or the bridge comes up carrying nothing.
+
 **Adding a container VLAN**: a bridge aspect must exist and be registered in `modules/hosts/server/host.nix` under `networking.vlans.<name>`.
 
 ## Deterministic MAC scheme
