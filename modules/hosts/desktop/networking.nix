@@ -11,6 +11,7 @@
       den.aspects.infra._.clients._.desktop
       den.aspects.infra._.options
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-pi-hole
     ];
 
     nixos =

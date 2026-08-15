@@ -16,11 +16,19 @@ in
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-pi-hole
     ];
 
     os = _: vpn.mkOs;
+    # Pi-hole first so roaming clients get filtering; it forwards the internal
+    # domains to the DNS container rather than answering them. dnsmasq stays as
+    # fallback — a dead Pi-hole times out, which fails over, where an NXDOMAIN
+    # would not have.
     terranix =
       { config, ... }:
-      vpn.mkTerranix [ config.infra.clients.container-dns.ip ];
+      vpn.mkTerranix [
+        config.infra.clients.container-pi-hole.ip
+        config.infra.clients.container-dns.ip
+      ];
   };
 }

@@ -177,7 +177,8 @@
               (import ./rest-commands/_matrix-login.nix { inherit config; })
               // (import ./rest-commands/_matrix-get-event.nix { inherit config; })
               // (import ./rest-commands/_qbt-add.nix { inherit config; })
-              // (import ./rest-commands/_vpn-rotate.nix { inherit config; });
+              // (import ./rest-commands/_vpn-rotate.nix { inherit config; })
+              // (import ./rest-commands/_prometheus-query.nix { inherit config; });
             automation = [
               (import ./automations/_moes-button-1-living-33.nix { })
               (import ./automations/_moes-button-2-living-66.nix { })
@@ -200,6 +201,8 @@
               (import ./automations/_nixos-webhook.nix { })
               (import ./automations/_backup-webhook.nix { })
               (import ./automations/_grafana-alerts-webhook.nix { inherit lib; })
+              (import ./automations/_dns-events-webhook.nix { })
+              (import ./automations/_dns-digest.nix { })
               (import ./automations/_cross-seed-webhook.nix { })
               (import ./automations/_cleanuparr-webhook.nix { })
               (import ./automations/_seasonpackarr-webhook.nix { })

@@ -11,6 +11,7 @@ let
     ports = {
       dns = 53;
       web = 80;
+      exporter = 9617;
     };
     proxy.port = "web";
   };

@@ -136,6 +136,7 @@
               (import ./dashboards/_network_metrics.nix)
               (import ./dashboards/_nfs.nix)
               (import ./dashboards/_opencode.nix)
+              (import ./dashboards/_pi-hole.nix)
               (import ./dashboards/_postgres.nix)
               (import ./dashboards/_prowlarr.nix)
               (import ./dashboards/_qbittorrent.nix)
@@ -254,6 +255,10 @@
                   ./alerts/_nfs_retransmissions.nix
                   ./alerts/_no_healthy_tunnels.nix
                   ./alerts/_oom_kill.nix
+                  ./alerts/_pihole_down.nix
+                  ./alerts/_pihole_gravity_empty.nix
+                  ./alerts/_pihole_internal_split_broken.nix
+                  ./alerts/_pihole_upstream_slow.nix
                   ./alerts/_postgres_connections_high.nix
                   ./alerts/_postgres_deadlocks.nix
                   ./alerts/_postgres_down.nix
