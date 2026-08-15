@@ -8,6 +8,8 @@
       den.aspects.security._.sops
       den.aspects.infra._.clients._.container-grafana
       den.aspects.infra._.clients._.container-home-assistant
+      den.aspects.infra._.clients._.container-loki
+      den.aspects.infra._.clients._.container-prometheus
       den.aspects.infra._.networks._.trust
     ];
 
@@ -73,6 +75,10 @@
                 SYS_MCP_FLAKE_PATH = osConfig.environment.variables.FLAKE;
                 UNIFI_URL = "https://${osConfig.infra.vlans.trust.staticAddresses.gateway}";
                 UNIFI_SITE = "default";
+                # The observability tools query these two directly rather than
+                # going through Grafana, so they need no service-account token.
+                PROMETHEUS_URL = "http://${osConfig.infra.clients.container-prometheus.ip}:${toString osConfig.infra.clients.container-prometheus.ports.default}";
+                LOKI_URL = "http://${osConfig.infra.clients.container-loki.ip}:${toString osConfig.infra.clients.container-loki.ports.default}";
               };
             };
 

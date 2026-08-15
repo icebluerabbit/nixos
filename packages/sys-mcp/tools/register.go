@@ -12,4 +12,5 @@ func RegisterAll(s *server.MCPServer, ac *app.AppContext) {
 	RegisterUnifiTools(s, ac)
 	RegisterPathTools(s, ac)
 	RegisterProvisionTools(s, ac)
+	RegisterObservabilityTools(s, ac)
 }

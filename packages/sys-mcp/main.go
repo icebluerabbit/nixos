@@ -22,11 +22,16 @@ func main() {
 	hc := cache.NewHostsCache(cfg.FlakePath)
 	hc.Prewarm()
 
+	alerts := cache.NewAlertsCache(cfg.FlakePath)
+	alerts.Prewarm()
+
 	ac := &app.AppContext{
 		Cfg: cfg,
 		IC:  ic,
 		HC:  hc,
 		SI:  cache.NewSourceIndex(cfg.FlakePath, ic),
+		AC:  alerts,
+		DC:  cache.NewDashboardCache(cfg.FlakePath),
 	}
 
 	s := server.NewMCPServer("sys-mcp", "0.1.0",

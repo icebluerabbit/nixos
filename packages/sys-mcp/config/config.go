@@ -6,11 +6,13 @@ import (
 )
 
 type Config struct {
-	FlakePath   string
-	Hostname    string
-	UnifiURL    string
-	UnifiAPIKey string
-	UnifiSite   string
+	FlakePath     string
+	Hostname      string
+	UnifiURL      string
+	UnifiAPIKey   string
+	UnifiSite     string
+	PrometheusURL string
+	LokiURL       string
 }
 
 func Load() (*Config, error) {
@@ -30,11 +32,13 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		FlakePath:   flake,
-		Hostname:    hostname,
-		UnifiURL:    os.Getenv("UNIFI_URL"),
-		UnifiAPIKey: os.Getenv("UNIFI_API_KEY"),
-		UnifiSite:   site,
+		FlakePath:     flake,
+		Hostname:      hostname,
+		UnifiURL:      os.Getenv("UNIFI_URL"),
+		UnifiAPIKey:   os.Getenv("UNIFI_API_KEY"),
+		UnifiSite:     site,
+		PrometheusURL: os.Getenv("PROMETHEUS_URL"),
+		LokiURL:       os.Getenv("LOKI_URL"),
 	}, nil
 }
 
