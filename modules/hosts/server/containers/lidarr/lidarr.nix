@@ -85,8 +85,13 @@
                   # Import sidecar extras (lyrics/cue/log/art) present in the download folder.
                   # All new files — never modifies audio, so torrent-safe. (Fetched art comes
                   # from the Kodi metadata consumer below, not from the peer.)
+                  #
+                  # toc/xml are whipper's: the .toc describes the disc layout and the .xml is
+                  # the rip's MusicBrainz submission. Without them here, a CD rip coming in
+                  # via beets loses half its provenance at import, and the .log — the proof
+                  # of rip quality — arrives without the disc data that backs it.
                   import_extra_files = true;
-                  extra_file_extensions = "lrc,cue,log,m3u,jpg,jpeg,png,nfo,txt";
+                  extra_file_extensions = "lrc,cue,log,m3u,toc,xml,jpg,jpeg,png,nfo,txt";
                 };
                 # Album/artist artwork + NFO as sidecar files (cover.jpg, *.nfo). Never rewrites
                 # audio tags, so it can't corrupt an actively-seeding hardlinked file.

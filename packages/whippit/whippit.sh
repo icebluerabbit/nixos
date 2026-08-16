@@ -38,15 +38,15 @@ fi
 read -rp "Keep this rip for beets? [y/N] " ans
 case "$ans" in
 y | Y)
-  mkdir -p /mnt/media/rips
+  mkdir -p /mnt/media/watch/rips
   # cp -a (not mv): /tmp is tmpfs and /mnt/media is NFS, so this is
   # always a cross-device copy — and mv cannot merge into an existing
   # non-empty dir (whipper's Type dir, e.g. ep/, may already be there
   # from a prior rip), failing with "Directory not empty". cp -a merges
   # dir-by-dir; then drop the tmp staging.
-  cp -a "$tmp"/. /mnt/media/rips/
+  cp -a "$tmp"/. /mnt/media/watch/rips/
   rm -rf "$tmp"
-  echo ">> promoted album subdirs to /mnt/media/rips/ — beets will import"
+  echo ">> promoted album subdirs to /mnt/media/watch/rips/ — beets will import"
   ;;
 *)
   rm -rf "$tmp"

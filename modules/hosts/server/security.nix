@@ -255,6 +255,12 @@ _: {
               OPENSUBTITLES_PASSWORD=${config.sops.placeholder.opensubtitles-password}
               SUBDL_API_KEY=${config.sops.placeholder.subdl-api-key}
             '';
+            # beets hands finished albums to Lidarr for import, so it needs
+            # Lidarr's key. No new secret material — the same key, rendered for
+            # a second consumer.
+            "beets-env".content = ''
+              LIDARR_API_KEY=${config.sops.placeholder.lidarr-apikey}
+            '';
             "lidarr-env".content = ''
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}
               LIDARR__AUTH__METHOD=External

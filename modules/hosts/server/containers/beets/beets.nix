@@ -28,8 +28,19 @@
           localAddress = "${config.infra.clients.container-beets.ip}/${toString config.infra.vlans.media.subnetPrefix}";
           gateway = config.infra.vlans.media.staticAddresses.gateway;
           port = config.infra.clients.container-beets.ports.default;
-          importDir = "/mnt/media/rips";
+          # whippit promotes finished rips into the watch dir; beets tags them
+          # and writes to the complete dir, where they stay. Lidarr links them
+          # into the library from there, exactly as it links a finished torrent
+          # out of complete/music — a rip reaches the library the same way a
+          # download does, and the rip survives as its own tree.
+          importDir = "/mnt/media/watch/rips";
+          outputDir = "/mnt/media/complete/rips";
           importInterval = "10min";
+          lidarrUrl = "http://${config.infra.clients.container-lidarr.ip}:${toString config.infra.clients.container-lidarr.ports.default}";
+          # Hardlink, not duplicate: Lidarr's copyUsingHardlinks is on and both
+          # trees share /mnt/media, so the retained rip costs no extra space.
+          lidarrImportMode = "Copy";
+          envFile = config.sops.templates."beets-env".path;
           # beets policy — deep-merged over the aspect's structural defaults
           # (directory / library / plugin list / web port stay container-owned).
           settings = {
@@ -51,11 +62,24 @@
               # replaygain, lastgenre, embedart, badfiles etc. still run on import.
               autotag = false;
             };
-            # Artist/Album layout Lidarr + Jellyfin expect.
+            # Every path is exactly <artist>/<album>/<file>, and all three
+            # templates must hold that shape. Two things depend on it:
+            #
+            #   - Nothing is ever left loose in an artist folder. The previous
+            #     singleton template was "Non-Album/$artist/$title" — a bare
+            #     file with no album directory at all.
+            #   - The parent of an album directory is always a real artist
+            #     name, because Lidarr identifies an import by parsing that
+            #     folder name. "Non-Album" and "Compilations" resolve to no
+            #     artist, so those albums would never import and would sit here
+            #     unnoticed.
+            #
+            # Lidarr renames into the library afterwards, so this layout only
+            # has to be structurally correct, not pretty.
             paths = {
               default = "$albumartist/$album%aunique{}/$track $title";
-              singleton = "Non-Album/$artist/$title";
-              comp = "Compilations/$album%aunique{}/$track $title";
+              singleton = "$albumartist/Non-Album/$title";
+              comp = "Various Artists/$album%aunique{}/$track $title";
             };
             match.strong_rec_thresh = 0.1;
             # accurate release metadata for archival rips
@@ -105,6 +129,8 @@
               ".log"
               ".m3u"
               ".toc"
+              ".xml"
+              ".nfo"
             ];
           };
           bindMounts = {
@@ -133,6 +159,9 @@
           "d /var/lib/appdata/beets 0770 ${toString cfg.uid} ${toString cfg.gid} - -"
           "Z /var/lib/appdata/beets 0770 ${toString cfg.uid} ${toString cfg.gid} - -"
           "d ${cfg.importDir} 0775 ${toString cfg.uid} ${toString cfg.gid} - -"
+          # Lidarr moves albums out of here, so it needs write access too; the
+          # media group is what both containers share.
+          "d ${cfg.outputDir} 0775 ${toString cfg.uid} ${toString cfg.gid} - -"
         ];
 
         systemd.services."container@beets" = {
