@@ -108,10 +108,6 @@
       url = "github:nix-community/stylix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    tabline-wez = {
-      url = "github:michaelbrusegard/tabline.wez";
-      flake = false;
-    };
     terranix = {
       url = "github:terranix/terranix";
       inputs.nixpkgs.follows = "nixpkgs";

@@ -1220,7 +1220,6 @@
         "quickshell": "quickshell",
         "sops-nix": "sops-nix",
         "stylix": "stylix",
-        "tabline-wez": "tabline-wez",
         "terranix": "terranix",
         "treefmt-nix": "treefmt-nix_2",
         "youtarr-flake": "youtarr-flake"
@@ -1429,22 +1428,6 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
-        "type": "github"
-      }
-    },
-    "tabline-wez": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1784843526,
-        "narHash": "sha256-QER46p4HoLyAqsRzNT7rDKgdi6JFChkTxW3w9XIi+4I=",
-        "owner": "michaelbrusegard",
-        "repo": "tabline.wez",
-        "rev": "dc2ddbe6c466502ae25345ff63d6f4b8c7cb8772",
-        "type": "github"
-      },
-      "original": {
-        "owner": "michaelbrusegard",
-        "repo": "tabline.wez",
         "type": "github"
       }
     },

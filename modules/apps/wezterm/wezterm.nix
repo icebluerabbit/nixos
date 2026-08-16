@@ -3,15 +3,8 @@
   https://github.com/wez/wezterm
   Supports a persistent mux server (wezterm-mux-server) for session persistence across launches.
 */
-{ den, inputs, ... }:
+{ den, ... }:
 {
-  flake-file.inputs = {
-    tabline-wez = {
-      url = "github:michaelbrusegard/tabline.wez";
-      flake = false;
-    };
-  };
-
   den.aspects.apps._.wezterm = {
     aspect-name = "apps.wezterm";
     includes = [
@@ -29,22 +22,7 @@
 
         programs.wezterm = {
           enable = true;
-          extraConfig = ''
-            local wezterm = require('wezterm')
-            wezterm.plugin = wezterm.plugin or {}
-            wezterm.plugin.list = function()
-              return {
-                {
-                  plugin_dir = "${inputs.tabline-wez}/dummy",
-                  component = "dummy"
-                }
-              }
-            end
-            package.path = package.path .. ';${inputs.tabline-wez}/lua/?.lua;${inputs.tabline-wez}/plugin/?.lua'
-            local tabline = dofile('${inputs.tabline-wez}/plugin/init.lua')
-
-            ${builtins.readFile ./config.lua}
-          '';
+          extraConfig = builtins.readFile ./config.lua;
         };
 
         systemd.user.services.wezterm-mux-server = {

@@ -58,6 +58,24 @@
           ];
           text = builtins.readFile "${hooks}/stop.sh";
         };
+        wezTabHook = pkgs.writeShellApplication {
+          name = "claude-wezterm-tab";
+          runtimeInputs = [
+            pkgs.coreutils
+            pkgs.gnugrep
+            pkgs.wezterm
+          ];
+          text = builtins.readFile "${hooks}/wezterm-tab.sh";
+        };
+        wezTab = state: {
+          matcher = "";
+          hooks = [
+            {
+              type = "command";
+              command = "${wezTabHook}/bin/claude-wezterm-tab ${state}";
+            }
+          ];
+        };
       in
       {
         programs.claude-code = {
@@ -109,6 +127,7 @@
               command = "${lib.getExe pkgs.bash} ${inputs.caveman}/src/hooks/caveman-statusline.sh";
             };
             hooks = {
+              UserPromptSubmit = [ (wezTab "busy") ];
               Notification = [
                 {
                   matcher = "";
@@ -119,6 +138,7 @@
                     }
                   ];
                 }
+                (wezTab "notification")
               ];
               Stop = [
                 {
@@ -130,7 +150,9 @@
                     }
                   ];
                 }
+                (wezTab "done")
               ];
+              SessionEnd = [ (wezTab "") ];
             };
             env = {
               CLAUDE_CODE_ENABLE_TELEMETRY = "1";
