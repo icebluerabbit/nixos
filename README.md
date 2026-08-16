@@ -190,7 +190,7 @@ The configuration is structured as independent modules, each containing distinct
 
 | Module Category                                   | Description                                                                                                                         |
 | :------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------- |
-| 🖥️ **[apps](modules/apps/README.md)**             | GUI applications (Chromium, Neovide, Wezterm, etc.) and their user configurations.                                                  |
+| 🖥️ **[apps](modules/apps/README.md)**             | GUI applications (Chromium, Neovide, kitty, etc.) and their user configurations.                                                    |
 | 🥾 **[boot](modules/boot/README.md)**             | Disko disk layouts and impermanence roots. Bootloaders are per-host, in `modules/hosts/<host>/boot.nix`.                            |
 | 🐚 **[cli](modules/cli/README.md)**               | Shell (Zsh), terminal tooling (Tmux, git, fzf), Neovim, and this repo's Claude Code and MCP configuration.                          |
 | 📦 **[containers](modules/containers/README.md)** | systemd-nspawn container aspects (media stacks, databases, self-hosted applications), bridged directly onto VLANs.                  |

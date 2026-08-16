@@ -38,7 +38,12 @@
     };
 
     homeManager =
-      { lib, pkgs, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         skills = ./skills;
         hooks = ./hooks;
@@ -58,21 +63,29 @@
           ];
           text = builtins.readFile "${hooks}/stop.sh";
         };
-        wezTabHook = pkgs.writeShellApplication {
-          name = "claude-wezterm-tab";
+        # Tints the session's kitty tab; a no-op outside kitty.
+        kittyTabHook = pkgs.writeShellApplication {
+          name = "claude-kitty-tab";
           runtimeInputs = [
-            pkgs.coreutils
             pkgs.gnugrep
-            pkgs.wezterm
+            pkgs.kitty
           ];
-          text = builtins.readFile "${hooks}/wezterm-tab.sh";
+          # The four state colours and the text colour drawn on them.
+          runtimeEnv = {
+            CLAUDE_TAB_BUSY = config.lib.stylix.colors.withHashtag.base0A;
+            CLAUDE_TAB_ATTENTION = config.lib.stylix.colors.withHashtag.base08;
+            CLAUDE_TAB_IDLE = config.lib.stylix.colors.withHashtag.base0D;
+            CLAUDE_TAB_DONE = config.lib.stylix.colors.withHashtag.base0B;
+            CLAUDE_TAB_FG = config.lib.stylix.colors.withHashtag.base00;
+          };
+          text = builtins.readFile "${hooks}/kitty-tab.sh";
         };
-        wezTab = state: {
+        kittyTab = state: {
           matcher = "";
           hooks = [
             {
               type = "command";
-              command = "${wezTabHook}/bin/claude-wezterm-tab ${state}";
+              command = "${kittyTabHook}/bin/claude-kitty-tab ${state}";
             }
           ];
         };
@@ -127,7 +140,7 @@
               command = "${lib.getExe pkgs.bash} ${inputs.caveman}/src/hooks/caveman-statusline.sh";
             };
             hooks = {
-              UserPromptSubmit = [ (wezTab "busy") ];
+              UserPromptSubmit = [ (kittyTab "busy") ];
               Notification = [
                 {
                   matcher = "";
@@ -138,7 +151,7 @@
                     }
                   ];
                 }
-                (wezTab "notification")
+                (kittyTab "notification")
               ];
               Stop = [
                 {
@@ -150,9 +163,9 @@
                     }
                   ];
                 }
-                (wezTab "done")
+                (kittyTab "done")
               ];
-              SessionEnd = [ (wezTab "") ];
+              SessionEnd = [ (kittyTab "") ];
             };
             env = {
               CLAUDE_CODE_ENABLE_TELEMETRY = "1";

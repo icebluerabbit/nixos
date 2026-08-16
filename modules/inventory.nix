@@ -20,7 +20,7 @@
               den.aspects.apps._.easyeffects
               den.aspects.apps._.firefox
               den.aspects.apps._.neovide
-              den.aspects.apps._.wezterm
+              den.aspects.apps._.kitty
               den.aspects.apps._.walker
               den.aspects.apps._.zed
               den.aspects.apps._.picard

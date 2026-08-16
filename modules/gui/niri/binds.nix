@@ -7,7 +7,7 @@
   den.aspects.gui._.niri._.binds = {
     aspect-name = "gui.niri.binds";
     includes = [
-      den.aspects.apps._.wezterm
+      den.aspects.apps._.kitty
       den.aspects.apps._.walker
     ];
 
@@ -15,7 +15,7 @@
       { pkgs, lib, ... }:
       {
         programs.niri.settings.binds = {
-          "Mod+Return".action.spawn = [ (lib.getExe pkgs.wezterm) ];
+          "Mod+Return".action.spawn = [ (lib.getExe pkgs.kitty) ];
           "Mod+Space".action.spawn = [ (lib.getExe pkgs.walker) ];
 
           "Mod+Q".action.close-window = [ ];
