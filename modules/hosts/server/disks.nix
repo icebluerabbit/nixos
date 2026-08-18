@@ -114,8 +114,28 @@
         services.cachefilesd = {
           enable = true;
           cacheDir = "/var/cache/fscache";
-          # Dedicated drive: cachefilesd defaults (cull <7% free, hard-stop <3%) let the
-          # cache use nearly the whole 2TB. No pool-sharing watermarks needed.
+          # Watermarks are percent-FREE, not percent-used: above brun the cache grows
+          # freely, below bcull the culler runs, below bstop allocations are refused.
+          # The `%` is load-bearing — fs/cachefiles/daemon.c rejects a bare integer with
+          # EINVAL ("CacheFiles gave config error: Invalid argument"), which fails the
+          # unit at start and takes the switch down with it.
+          #
+          # These are set explicitly because cachefilesd's built-in stop is 1%, not the
+          # 3% previously claimed here — left to itself the cache ran the drive to 1.02%
+          # free and sat there, refusing 60M cache writes (fscache `NoSpace: nwr`). A
+          # DRAM-less TLC SSD with no free blocks has no spare area to garbage-collect
+          # into, and fstrim can discard nothing, so every write amplifies.
+          #
+          # Holding ~8-10% free costs 10% of a cache measured at a ~2% hit rate (see the
+          # io_stalled alert) — i.e. nothing — and buys the controller room to work.
+          extraConfig = ''
+            brun 10%
+            bcull 8%
+            bstop 6%
+            frun 10%
+            fcull 8%
+            fstop 6%
+          '';
         };
 
         # Ship fscache hit/miss counters to Grafana. fscache has no exporter, so parse

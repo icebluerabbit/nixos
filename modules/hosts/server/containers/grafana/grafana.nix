@@ -267,6 +267,7 @@
                   ./alerts/_qbt_disk_queue.nix
                   ./alerts/_qbt_vpn_disconnected.nix
                   ./alerts/_root_disk_low.nix
+                  ./alerts/_run_tmpfs_low.nix
                   ./alerts/_smart_critical_warning.nix
                   ./alerts/_smart_spare_low.nix
                   ./alerts/_smart_wearout.nix

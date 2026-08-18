@@ -693,11 +693,9 @@ _: {
                       # network/vpn veth/broker isn't settled yet at boot; with the module
                       # default Restart=no it then stays dead forever. Restart=always retries
                       # until the environment settles (on-failure would NOT fire — the race
-                      # exit is 0). StartLimit turns a genuinely-broken config into a visible
-                      # failed unit instead of an infinite loop.
+                      # exit is 0).
                       qbittorrent = {
-                        startLimitIntervalSec = 300;
-                        startLimitBurst = 10;
+                        startLimitIntervalSec = 0;
                         serviceConfig = {
                           PrivateUsers = lib.mkForce false;
                           ReadWritePaths = [

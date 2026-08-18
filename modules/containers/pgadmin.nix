@@ -20,8 +20,8 @@ _: {
           // {
             initialEmail = lib.mkOption {
               type = lib.types.str;
-              default = "admin@homelab";
-              description = "Initial admin email address";
+              default = "admin@homelab.internal";
+              description = "Initial admin email address; pgAdmin rejects a domain with no dot";
             };
             initialPasswordFile = lib.mkOption {
               type = lib.types.str;
@@ -83,7 +83,32 @@ _: {
 
                   services.postgresql.package = pkgs.postgresql;
 
-                  systemd.services.pgadmin.serviceConfig.DynamicUser = lib.mkForce false;
+                  systemd.services.pgadmin = {
+                    serviceConfig.DynamicUser = lib.mkForce false;
+
+                    # setup-db only creates initialEmail on a fresh DB. An existing DB built
+                    # under a different email leaves that user absent forever, and postStart's
+                    # load-servers --user then fails the unit. Create it if missing.
+                    preStart = lib.mkAfter ''
+                      if ! ${config.services.pgadmin.package}/bin/pgadmin4-cli get-users \
+                           | grep -qF ${lib.escapeShellArg cfg.initialEmail}; then
+                        ${config.services.pgadmin.package}/bin/pgadmin4-cli add-user \
+                          ${lib.escapeShellArg cfg.initialEmail} \
+                          "$(cat "$CREDENTIALS_DIRECTORY/initial_password")" --admin
+                      fi
+                    '';
+
+                    postStart = lib.mkIf (cfg.servers != { }) ''
+                      for i in {1..10}; do
+                        if [ -f /var/lib/pgadmin/pgadmin4.db ]; then
+                          ${config.services.pgadmin.package}/bin/pgadmin4-cli load-servers /etc/pgadmin/servers.json --user ${lib.escapeShellArg cfg.initialEmail} --replace
+                          break
+                        fi
+                        sleep 1
+                      done
+                    '';
+                  };
+
                   users.users.pgadmin.uid = cfg.uid;
                   users.groups.pgadmin.gid = cfg.gid;
 
@@ -93,16 +118,6 @@ _: {
                     user = "pgadmin";
                     group = "pgadmin";
                   };
-
-                  systemd.services.pgadmin.postStart = lib.mkIf (cfg.servers != { }) ''
-                    for i in {1..10}; do
-                      if [ -f /var/lib/pgadmin/pgadmin4.db ]; then
-                        ${config.services.pgadmin.package}/bin/pgadmin4-cli load-servers /etc/pgadmin/servers.json --user ${lib.escapeShellArg cfg.initialEmail} --replace
-                        break
-                      fi
-                      sleep 1
-                    done
-                  '';
 
                 };
             };

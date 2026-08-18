@@ -13,8 +13,10 @@
 # for one filling disk.
 #
 # /var/cache/fscache is excluded: it's a dedicated cachefilesd drive that self-culls (LRU)
-# at 7% free and hard-caps at 3%, so it's designed to grow to ~95% full and sit there. A
-# linear "fills in 7 days" projection fires forever on it by design — it never runs out.
+# below 8% free and refuses allocations below 6% (watermarks set explicitly in the server's
+# disks.nix — cachefilesd's own defaults stop at 1%), so it's designed to grow to ~90% full
+# and sit there. A linear "fills in 7 days" projection fires forever on it by design — it
+# never runs out.
 #
 # btrfs is handled factually instead (btrfs_free_low + btrfs_allocation_low): statfs avail
 # is UNRELIABLE on btrfs and prediction misfired on every qbt temp spike. This rule keeps

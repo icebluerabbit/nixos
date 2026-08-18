@@ -147,7 +147,11 @@ _: {
 
                   services.pihole-ftl = {
                     enable = true;
-                    inherit (cfg) lists;
+                    # Not `inherit (cfg) lists`: nixpkgs' pihole-ftl-setup POSTs each list to
+                    # the FTL API and counts the API's "item is already present" as a failure,
+                    # so it exits 1 on every start after the first. Seeding is owned by
+                    # pihole-adlist-seed below.
+                    lists = [ ];
                     settings = {
                       webserver.api.password = "";
                       dns = { inherit (cfg) upstreams listeningMode; };
@@ -165,38 +169,80 @@ _: {
                     };
                   };
 
-                  # pihole-ftl-setup only runs `pihole -g` when gravity.db is absent, and
-                  # nixpkgs ships no timer for it, so list *contents* would never refresh
-                  # after the initial build.
-                  systemd.services.pihole-gravity-refresh = lib.mkIf (cfg.lists != [ ]) {
-                    description = "Refresh Pi-hole gravity blocklists";
-                    after = [
-                      "network-online.target"
-                      "pihole-ftl.service"
-                    ];
-                    requires = [ "network-online.target" ];
-                    startAt = cfg.gravityInterval;
-                    serviceConfig = {
-                      Type = "oneshot";
-                      User = "pihole";
-                      Group = "pihole";
-                      ExecStart = "${lib.getExe config.services.pihole-ftl.piholePackage} -g";
+                  # Idempotent adlist seeding (see services.pihole-ftl.lists above). INSERT OR
+                  # IGNORE keys on adlist.address, so a re-run is a no-op and a list added to
+                  # cfg.lists later still lands — which is why this replaces the upstream unit
+                  # rather than suppressing it.
+                  systemd.services = {
+                    pihole-adlist-seed = lib.mkIf (cfg.lists != [ ]) {
+                      description = "Seed Pi-hole adlists into gravity.db";
+                      after = [ "pihole-ftl.service" ];
+                      requires = [ "pihole-ftl.service" ];
+                      wantedBy = [ "multi-user.target" ];
+                      serviceConfig = {
+                        Type = "oneshot";
+                        User = "pihole";
+                        Group = "pihole";
+                      };
+                      script =
+                        let
+                          pihole = lib.getExe config.services.pihole-ftl.piholePackage;
+                          sqlStr = s: "'${lib.replaceStrings [ "'" ] [ "''" ] s}'";
+                          row =
+                            l:
+                            lib.concatStringsSep ", " [
+                              (sqlStr l.url)
+                              (if l.enabled or true then "1" else "0")
+                              (sqlStr (l.description or ""))
+                              (if (l.type or "block") == "allow" then "1" else "0")
+                            ];
+                        in
+                        ''
+                          db=/var/lib/pihole/gravity.db
+                          # nixpkgs' setup unit built gravity.db; with lists=[] it no longer
+                          # runs, so create the schema here on a from-scratch container.
+                          [ -e "$db" ] || ${pihole} -g
+                          ${lib.concatMapStringsSep "\n" (l: ''
+                            ${pkgs.sqlite}/bin/sqlite3 "$db" \
+                              "INSERT OR IGNORE INTO adlist (address, enabled, comment, type) VALUES (${row l});"
+                          '') cfg.lists}
+                          ${pihole} -g
+                        '';
                     };
-                  };
 
-                  # Prometheus exporter — reads the FTL v6 REST API (/api/stats/*). The
-                  # nixpkgs exporter module is not used: it still passes the removed
-                  # -pihole_api_token flag, puts any password on argv, and never forwards
-                  # a bind address, so it would listen on 0.0.0.0.
-                  systemd.services.pihole-exporter = lib.mkIf cfg.exporter.enable {
-                    description = "Pi-hole Prometheus exporter";
-                    after = [ "pihole-ftl.service" ];
-                    wantedBy = [ "multi-user.target" ];
-                    serviceConfig = {
-                      ExecStart = "${lib.getExe pkgs.prometheus-pihole-exporter} -pihole_protocol http -pihole_hostname 127.0.0.1 -pihole_port ${toString cfg.webPort} -bind_addr 127.0.0.1 -port ${toString cfg.exporter.port}";
-                      DynamicUser = true;
-                      Restart = "on-failure";
-                      RestartSec = 10;
+                    # pihole-ftl-setup only runs `pihole -g` when gravity.db is absent, and
+                    # nixpkgs ships no timer for it, so list *contents* would never refresh
+                    # after the initial build.
+                    pihole-gravity-refresh = lib.mkIf (cfg.lists != [ ]) {
+                      description = "Refresh Pi-hole gravity blocklists";
+                      after = [
+                        "network-online.target"
+                        "pihole-ftl.service"
+                      ];
+                      requires = [ "network-online.target" ];
+                      startAt = cfg.gravityInterval;
+                      serviceConfig = {
+                        Type = "oneshot";
+                        User = "pihole";
+                        Group = "pihole";
+                        ExecStart = "${lib.getExe config.services.pihole-ftl.piholePackage} -g";
+                      };
+                    };
+
+                    # Prometheus exporter — reads the FTL v6 REST API (/api/stats/*). The
+                    # nixpkgs exporter module is not used: it still passes the removed
+                    # -pihole_api_token flag, puts any password on argv, and never forwards
+                    # a bind address, so it would listen on 0.0.0.0.
+                    pihole-exporter = lib.mkIf cfg.exporter.enable {
+                      description = "Pi-hole Prometheus exporter";
+                      after = [ "pihole-ftl.service" ];
+                      wantedBy = [ "multi-user.target" ];
+                      serviceConfig = {
+                        ExecStart = "${lib.getExe pkgs.prometheus-pihole-exporter} -pihole_protocol http -pihole_hostname 127.0.0.1 -pihole_port ${toString cfg.webPort} -bind_addr 127.0.0.1 -port ${toString cfg.exporter.port}";
+                        DynamicUser = true;
+                        Restart = "on-failure";
+                        RestartSec = 10;
+                      };
                     };
                   };
 
