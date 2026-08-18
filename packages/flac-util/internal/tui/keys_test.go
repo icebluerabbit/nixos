@@ -3,8 +3,8 @@ package tui
 import (
 	"testing"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestDefaultKeyMapBindings(t *testing.T) {
@@ -26,13 +26,13 @@ func TestQuitBindingMatchesTheUsualKeys(t *testing.T) {
 
 	tests := []struct {
 		name string
-		msg  tea.KeyMsg
+		msg  tea.KeyPressMsg
 		want bool
 	}{
-		{"letter q", tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}, true},
-		{"control c", tea.KeyMsg{Type: tea.KeyCtrlC}, true},
-		{"escape", tea.KeyMsg{Type: tea.KeyEsc}, true},
-		{"an unrelated letter", tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")}, false},
+		{"letter q", keyPress("q"), true},
+		{"control c", keyPress("ctrl+c"), true},
+		{"escape", keyPress("esc"), true},
+		{"an unrelated letter", keyPress("x"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestQuitBindingMatchesTheUsualKeys(t *testing.T) {
 func TestHelpBindingMatchesQuestionMark(t *testing.T) {
 	keys := DefaultKeyMap()
 
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")}
+	msg := keyPress("?")
 	if !key.Matches(msg, keys.Help) {
 		t.Error("the help binding does not match a question mark")
 	}

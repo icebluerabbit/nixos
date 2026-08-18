@@ -104,7 +104,7 @@ func TestNewSetIncludesEveryAccumulator(t *testing.T) {
 		t.Fatalf("NewSet() error = %v", err)
 	}
 
-	want := []string{"fingerprint", "levels", "bits", "stereo", "silence", "spectrum"}
+	want := []string{"fingerprint", "levels", "bits", "stereo", "silence", "loudness", "truepeak", "spectrum"}
 	got := make([]string, 0, len(set.Accumulators()))
 	for _, a := range set.Accumulators() {
 		got = append(got, a.Name())
@@ -127,8 +127,8 @@ func TestNewSetSkipSpectrum(t *testing.T) {
 	if set.Spectrum != nil {
 		t.Error("Spectrum accumulator built despite SkipSpectrum")
 	}
-	if got := len(set.Accumulators()); got != 5 {
-		t.Errorf("len(Accumulators()) = %d, want 5", got)
+	if got := len(set.Accumulators()); got != 7 {
+		t.Errorf("len(Accumulators()) = %d, want 6", got)
 	}
 	if set.Results().Spectrum != nil {
 		t.Error("Results().Spectrum non-nil despite SkipSpectrum")

@@ -2,11 +2,13 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/lipgloss/v2"
 
 	"flac-util/internal/pipeline"
 	"flac-util/internal/progress"
@@ -54,6 +56,29 @@ func TestCollectModelTickReadsTheCounters(t *testing.T) {
 	}
 }
 
+func TestCollectModelFinishedReadsTheCountersOneLastTime(t *testing.T) {
+	m, counters := newTestCollectModel()
+	counters.Discovered(4)
+	counters.Completed(1024)
+	m.Update(tickMsg(modelStart))
+
+	// What the last three files did lands after that tick, which is exactly
+	// the case that used to leave the finished run showing 1/4.
+	for range 3 {
+		counters.Completed(1024)
+	}
+
+	updated, _ := m.Update(FinishedMsg{})
+	m = updated.(*CollectModel)
+
+	if m.snapshot.Completed != 4 {
+		t.Errorf("Completed = %d, want 4", m.snapshot.Completed)
+	}
+	if got := m.snapshot.Fraction(); got != 1 {
+		t.Errorf("Fraction() = %v, want 1", got)
+	}
+}
+
 func TestCollectModelWithoutCounters(t *testing.T) {
 	m := NewCollectModel(nil)
 	if _, cmd := m.Update(tickMsg(modelStart)); cmd == nil {
@@ -97,7 +122,7 @@ func TestCollectModelKeepsFailuresSeparately(t *testing.T) {
 	}
 
 	got := m.View(100)
-	for _, want := range []string{"recent failures", "broken.flac", "truncated frame", pipeline.StageDecode} {
+	for _, want := range []string{"recent faults", "broken.flac", "truncated frame", pipeline.StageDecode} {
 		if !strings.Contains(got, want) {
 			t.Errorf("view does not contain %q:\n%s", want, got)
 		}
@@ -251,5 +276,148 @@ func TestHumanBytes(t *testing.T) {
 				t.Errorf("humanBytes(%d) = %q, want %q", tt.bytes, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCollectModelKeepsFaultsWithFailures(t *testing.T) {
+	// A file that produced a report despite a bad frame is the one a reader is
+	// most likely to want to look at, so it belongs in the same list.
+	m, _ := newTestCollectModel()
+
+	updated, _ := m.Update(EventMsg{
+		Outcome: progress.OutcomeFaulted,
+		Path:    "/music/Album/03 - short.flac",
+		Stage:   pipeline.StageDecode,
+		Err:     errors.New("frame 1696: invalid sync-code"),
+	})
+	m = updated.(*CollectModel)
+
+	if len(m.failures) != 1 {
+		t.Fatalf("kept %d entries, want the fault", len(m.failures))
+	}
+	got := m.View(120)
+	for _, want := range []string{"partial", "Album/03 - short.flac", "invalid sync-code"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the fault list does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestTrackLabel(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"album and file", "/mnt/media/library/music/A/Album (2024)/01 - Track.flac", "Album (2024)/01 - Track.flac"},
+		{"no directory", "track.flac", "track.flac"},
+		{"at the root", "/track.flac", "track.flac"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := trackLabel(tt.path); got != tt.want {
+				t.Errorf("trackLabel(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestReasonOfDropsTheRepeatedPath covers the display fault that made the list
+// useless: the decoder puts the path in front of every message, so showing the
+// error verbatim beside a truncated path printed the path twice and pushed the
+// actual reason off the end of the line.
+func TestReasonOfDropsTheRepeatedPath(t *testing.T) {
+	path := "/mnt/media/library/music/A/Album/01 - Track.flac"
+	e := progress.Event{
+		Path:  path,
+		Stage: pipeline.StageDecode,
+		Err:   fmt.Errorf("decode %s: frame 1696: invalid sync-code", path),
+	}
+
+	got := reasonOf(e)
+	if strings.Contains(got, path) {
+		t.Errorf("reasonOf() still carries the path: %q", got)
+	}
+	if want := "decode: frame 1696: invalid sync-code"; got != want {
+		t.Errorf("reasonOf() = %q, want %q", got, want)
+	}
+}
+
+func TestReasonOfWithoutAnError(t *testing.T) {
+	if got := reasonOf(progress.Event{}); got != "" {
+		t.Errorf("reasonOf() = %q, want empty", got)
+	}
+}
+
+func TestOutcomeLabel(t *testing.T) {
+	if got := outcomeLabel(progress.OutcomeFaulted); got != "partial" {
+		t.Errorf("outcomeLabel(faulted) = %q", got)
+	}
+	if got := outcomeLabel(progress.OutcomeFailed); got != "failed" {
+		t.Errorf("outcomeLabel(failed) = %q", got)
+	}
+}
+
+// frameWidths returns the visible width of every line of the stage table.
+func frameWidths(t *testing.T, m *CollectModel) []int {
+	t.Helper()
+	m.Update(tickMsg(modelStart))
+
+	var out []int
+	for _, line := range strings.Split(m.stages(120), "\n") {
+		out = append(out, lipgloss.Width(line))
+	}
+	return out
+}
+
+func TestCollectStageTableKeepsItsShapeAsTheRunProceeds(t *testing.T) {
+	// The stage table is redrawn on every tick while its values grow. If its
+	// geometry followed those values the renderer would leave the rows that
+	// happened not to change holding the previous layout, and the table would
+	// show two different column positions at once.
+	counters := progress.NewCounters(pipeline.CollectStageNames(), modelStart)
+	counters.Discovered(69)
+	m := NewCollectModel(counters)
+	m.now = func() time.Time { return modelStart.Add(10 * time.Second) }
+
+	early := frameWidths(t, m)
+
+	// Time the stages, giving each a different duration so that the run ends
+	// with a wide spread of values in the busy column.
+	for i, name := range pipeline.CollectStageNames() {
+		stage := counters.Stage(name)
+		stage.Enter()
+		stage.Leave(time.Duration(i)*47*time.Second, nil)
+	}
+
+	late := frameWidths(t, m)
+
+	if len(early) != len(late) {
+		t.Fatalf("frame has %d lines early and %d late", len(early), len(late))
+	}
+	for i := range early {
+		if early[i] != late[i] {
+			t.Errorf("line %d is %d wide early and %d wide late; the table moved",
+				i, early[i], late[i])
+		}
+	}
+}
+
+func TestCollectStageTableRowsAreAllTheSameWidth(t *testing.T) {
+	counters := progress.NewCounters(pipeline.CollectStageNames(), modelStart)
+	counters.Discovered(69)
+	for i, name := range pipeline.CollectStageNames() {
+		stage := counters.Stage(name)
+		stage.Enter()
+		stage.Leave(time.Duration(i)*47*time.Second, nil)
+	}
+	m := NewCollectModel(counters)
+	m.now = func() time.Time { return modelStart.Add(10 * time.Second) }
+
+	widths := frameWidths(t, m)
+	for i, got := range widths {
+		if got != widths[0] {
+			t.Errorf("line %d is %d wide, want %d like the rest", i, got, widths[0])
+		}
 	}
 }

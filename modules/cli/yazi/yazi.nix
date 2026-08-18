@@ -27,6 +27,8 @@
           pkgs.p7zip
           # Drives the mediainfo plugin below.
           pkgs.mediainfo
+          # Reformats JSON for the preview pane, see the previewer below.
+          pkgs.jq
         ];
 
         programs.yazi = {
@@ -70,9 +72,18 @@
                   url = "*.md";
                   run = "rich-preview";
                 }
+                # JSON is often written without any layout at all - a whole
+                # document on one line - which the syntax highlighter renders
+                # faithfully as a single unreadable row. jq reformats it first
+                # and colours it on the way out.
+                #
+                # A file that does not parse falls back to its own bytes.
+                # jq's complaint is discarded to get there: piper shows
+                # anything on stderr in place of the preview, so leaving it
+                # would replace the file with the parse error.
                 {
                   url = "*.json";
-                  run = "rich-preview";
+                  run = ''piper -- ${lib.getExe pkgs.jq} -C . "$1" 2>/dev/null || cat "$1"'';
                 }
                 # .nfo is CP437 box-drawing art. Yazi's text previewer
                 # reads it as UTF-8 and renders mojibake, so transcode it

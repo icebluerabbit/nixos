@@ -43,6 +43,8 @@ func (p *Plain) Send(e Event) {
 	switch {
 	case e.Outcome == OutcomeFailed:
 		fmt.Fprintf(p.w, "failed  %s: %v\n", e.Path, e.Err)
+	case e.Outcome == OutcomeFaulted:
+		fmt.Fprintf(p.w, "faulted %s: %v\n", e.Path, e.Err)
 	case p.opts.Verbose && e.Outcome == OutcomeSkipped:
 		fmt.Fprintf(p.w, "skipped %s: %s\n", e.Path, e.Reason)
 	case p.opts.Verbose:
@@ -81,8 +83,8 @@ func (p *Plain) Close() error {
 
 // Summarise renders a snapshot as one line.
 func Summarise(s Snapshot) string {
-	return fmt.Sprintf("%d/%d files  %d done  %d skipped  %d failed  %s elapsed  %.1f files/s",
+	return fmt.Sprintf("%d/%d files  %d done  %d skipped  %d faulted  %d failed  %s elapsed  %.1f files/s",
 		s.Finished(), s.Discovered,
-		s.Completed, s.Skipped, s.Failed,
+		s.Completed, s.Skipped, s.Faulted, s.Failed,
 		s.Elapsed.Round(time.Second), s.Rate())
 }

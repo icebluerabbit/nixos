@@ -392,3 +392,85 @@ func TestPowerDB(t *testing.T) {
 		})
 	}
 }
+
+// TestSpectrumSummarisesEveryChannelSeparately covers what the mono grid
+// cannot show: a defect in one channel only, which mixing halves.
+func TestSpectrumSummarisesEveryChannelSeparately(t *testing.T) {
+	format := Format{SampleRate: 44100, Channels: 2, BitsPerSample: 16}
+	opts := testSpectrumOptions()
+	size := opts.SizeFor(format.SampleRate)
+
+	a, err := NewSpectrum(format, opts)
+	if err != nil {
+		t.Fatalf("NewSpectrum() error = %v", err)
+	}
+
+	// A tone in the left channel only, silence in the right.
+	const bin = 20
+	amplitude := format.FullScale() - 1
+	left := make([]int32, size*4)
+	for i := range left {
+		phase := 2 * math.Pi * float64(bin) * float64(i) / float64(size)
+		left[i] = int32(math.Round(amplitude * math.Sin(phase)))
+	}
+	a.Write(Block{Samples: [][]int32{left, make([]int32, len(left))}})
+
+	got := a.Result()
+	if len(got.Channels) != 2 {
+		t.Fatalf("%d channel summaries, want 2", len(got.Channels))
+	}
+
+	loud := got.Channels[0].Mean[bin]
+	quiet := got.Channels[1].Mean[bin]
+	if loud <= quiet*1000 {
+		t.Errorf("left bin %v against right %v: the channels were not measured apart", loud, quiet)
+	}
+}
+
+// TestSpectrumPeakOutlivesTheMean covers the other half: a brief burst that a
+// mean over a whole track buries.
+func TestSpectrumPeakOutlivesTheMean(t *testing.T) {
+	format := Format{SampleRate: 44100, Channels: 1, BitsPerSample: 16}
+	opts := testSpectrumOptions()
+	size := opts.SizeFor(format.SampleRate)
+
+	a, err := NewSpectrum(format, opts)
+	if err != nil {
+		t.Fatalf("NewSpectrum() error = %v", err)
+	}
+
+	// One loud frame, then many silent ones.
+	const bin = 30
+	amplitude := format.FullScale() - 1
+	burst := make([]int32, size)
+	for i := range burst {
+		phase := 2 * math.Pi * float64(bin) * float64(i) / float64(size)
+		burst[i] = int32(math.Round(amplitude * math.Sin(phase)))
+	}
+	a.Write(Block{Samples: [][]int32{burst}})
+	for range 40 {
+		a.Write(Block{Samples: [][]int32{make([]int32, size)}})
+	}
+
+	got := a.Result().Channels[0]
+	if got.Peak[bin] <= got.Mean[bin]*10 {
+		t.Errorf("peak %v against mean %v: the burst was averaged away with nothing to show for it",
+			got.Peak[bin], got.Mean[bin])
+	}
+}
+
+func TestSpectrumChannelSummariesAreBinLength(t *testing.T) {
+	format := Format{SampleRate: 44100, Channels: 2, BitsPerSample: 16}
+	a, err := NewSpectrum(format, testSpectrumOptions())
+	if err != nil {
+		t.Fatalf("NewSpectrum() error = %v", err)
+	}
+
+	got := a.Result()
+	for c, ch := range got.Channels {
+		if len(ch.Mean) != got.Bins || len(ch.Peak) != got.Bins {
+			t.Errorf("channel %d: mean %d, peak %d, want %d bins each",
+				c, len(ch.Mean), len(ch.Peak), got.Bins)
+		}
+	}
+}

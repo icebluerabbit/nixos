@@ -73,6 +73,7 @@ type Counters struct {
 	discovered atomic.Int64
 	completed  atomic.Int64
 	skipped    atomic.Int64
+	faulted    atomic.Int64
 	failed     atomic.Int64
 	bytes      atomic.Int64
 
@@ -115,6 +116,12 @@ func (c *Counters) Completed(bytesRead int64) {
 // Skipped records a file that needed no work.
 func (c *Counters) Skipped() { c.skipped.Add(1) }
 
+// Faulted records a file that produced a report despite a fault in its audio.
+func (c *Counters) Faulted(bytesRead int64) {
+	c.faulted.Add(1)
+	c.bytes.Add(bytesRead)
+}
+
 // Failed records a file that could not be processed.
 func (c *Counters) Failed() { c.failed.Add(1) }
 
@@ -123,6 +130,7 @@ type Snapshot struct {
 	Discovered int64
 	Completed  int64
 	Skipped    int64
+	Faulted    int64
 	Failed     int64
 	Bytes      int64
 	Elapsed    time.Duration
@@ -130,7 +138,9 @@ type Snapshot struct {
 }
 
 // Finished returns how many files have reached a terminal state.
-func (s Snapshot) Finished() int64 { return s.Completed + s.Skipped + s.Failed }
+func (s Snapshot) Finished() int64 {
+	return s.Completed + s.Skipped + s.Faulted + s.Failed
+}
 
 // Remaining returns how many discovered files are still outstanding.
 func (s Snapshot) Remaining() int64 { return max(s.Discovered-s.Finished(), 0) }
@@ -161,6 +171,7 @@ func (c *Counters) Snapshot(now time.Time) Snapshot {
 		Discovered: c.discovered.Load(),
 		Completed:  c.completed.Load(),
 		Skipped:    c.skipped.Load(),
+		Faulted:    c.faulted.Load(),
 		Failed:     c.failed.Load(),
 		Bytes:      c.bytes.Load(),
 		Stages:     make([]StageSnapshot, 0, len(c.order)),

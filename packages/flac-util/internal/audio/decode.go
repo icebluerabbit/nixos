@@ -30,6 +30,9 @@ type DecodeOptions struct {
 
 // DecodeResult is what one pass over a file's audio produced.
 type DecodeResult struct {
+	// Subframes counts how the stream was encoded, which is a fingerprint of
+	// the encoder that wrote it.
+	Subframes *SubframeStats
 	// StreamInfo is the header the decoder read, which lets a caller confirm
 	// it decoded the file it probed.
 	StreamInfo StreamInfo
@@ -81,17 +84,25 @@ func DecodeReader(ctx context.Context, r io.Reader, opts DecodeOptions) (DecodeR
 		return DecodeResult{StreamInfo: info}, err
 	}
 
-	frames, err := run(ctx, stream, set, info.Channels)
+	stats := NewSubframeStats()
+	frames, err := run(ctx, stream, set, info.Channels, stats)
 	out := DecodeResult{
 		StreamInfo: info,
 		Results:    set.Results(),
 		Frames:     frames,
+		Subframes:  stats,
 	}
 	return out, err
 }
 
 // run pulls frames until the stream ends, feeding each one to the accumulators.
-func run(ctx context.Context, stream *flac.Stream, set *measure.Set, channels int) (int64, error) {
+func run(
+	ctx context.Context,
+	stream *flac.Stream,
+	set *measure.Set,
+	channels int,
+	stats *SubframeStats,
+) (int64, error) {
 	// The block handed to the accumulators points straight at the decoder's
 	// own sample slices; reusing the outer slice avoids an allocation per
 	// frame, and accumulators are forbidden from retaining it.
@@ -110,6 +121,8 @@ func run(ctx context.Context, stream *flac.Stream, set *measure.Set, channels in
 		if err != nil {
 			return frames, fmt.Errorf("frame %d: %w", frames, err)
 		}
+
+		stats.Add(frame)
 
 		block.Samples = block.Samples[:0]
 		for _, subframe := range frame.Subframes {

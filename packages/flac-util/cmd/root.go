@@ -93,6 +93,7 @@ func NewRootCommand() *cobra.Command {
 		"log every file, not only the ones that failed")
 
 	root.AddCommand(newCollectCommand(&global))
+	root.AddCommand(newViewCommand(&global))
 	return root
 }
 

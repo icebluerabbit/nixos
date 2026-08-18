@@ -11,15 +11,19 @@ import (
 // FileMode is the permission applied to files written beside a track.
 const FileMode fs.FileMode = 0o644
 
-// Marshal renders a report as indented JSON.
+// Marshal renders a report as compact JSON.
 //
-// It is indented because a person will open it: the file sits next to the
-// music, and whoever finds it is owed something readable.
+// Indenting it would put every spectrum value on its own line, and there are
+// thousands of them: the leading spaces and newlines came to 56% of a report,
+// more than all of its numbers together. What indentation buys is a file that
+// reads well under a pager, and a report is 5,000 lines of frequency bins that
+// no pager makes legible anyway. Whoever opens one reaches for jq, which does
+// not care.
 func Marshal(r *Report) ([]byte, error) {
 	if r == nil {
 		return nil, fmt.Errorf("report: report is nil")
 	}
-	data, err := json.MarshalIndent(r, "", "  ")
+	data, err := json.Marshal(r)
 	if err != nil {
 		return nil, fmt.Errorf("report: marshal: %w", err)
 	}

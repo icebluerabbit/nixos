@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 
 	"flac-util/internal/audio"
@@ -29,6 +29,9 @@ type collectFlags struct {
 	force           bool
 	dryRun          bool
 	skipSpectrogram bool
+	skipExternal    bool
+	flacTool        string
+	fpcalcTool      string
 	reportSuffix    string
 	specSuffix      string
 
@@ -90,6 +93,10 @@ func registerCollectFlags(cmd *cobra.Command, f *collectFlags) {
 	fs.BoolVar(&f.force, "force", false, "re-measure files that already have a current report")
 	fs.BoolVar(&f.dryRun, "dry-run", false, "measure everything and write nothing")
 	fs.BoolVar(&f.skipSpectrogram, "skip-spectrogram", false, "write the report but no image")
+	fs.BoolVar(&f.skipExternal, "skip-external", false,
+		"omit the stages that shell out to flac and fpcalc, which roughly halves a run")
+	fs.StringVar(&f.flacTool, "flac", "flac", "the reference decoder to consult, found on PATH")
+	fs.StringVar(&f.fpcalcTool, "fpcalc", "fpcalc", "the acoustic fingerprinter to run, found on PATH")
 	fs.StringVar(&f.reportSuffix, "report-suffix", report.DefaultReportSuffix, "suffix of the report written beside each track")
 	fs.StringVar(&f.specSuffix, "spec-suffix", report.DefaultSpecSuffix, "suffix of the image written beside each track")
 
@@ -189,6 +196,9 @@ func (f *collectFlags) collectOptions(global *GlobalOptions) (pipeline.CollectOp
 		DryRun:          f.dryRun,
 		Force:           f.force,
 		ReadBufferSize:  f.readBufferBytes,
+		SkipExternal:    f.skipExternal,
+		FlacTool:        f.flacTool,
+		FpcalcTool:      f.fpcalcTool,
 		Stages:          stages,
 	}
 	if err := opts.Validate(); err != nil {

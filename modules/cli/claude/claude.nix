@@ -66,22 +66,21 @@
         # Tints the session's kitty tab; a no-op outside kitty.
         kittyTabHook = pkgs.writeShellApplication {
           name = "claude-kitty-tab";
-          runtimeInputs = [
-            pkgs.gnugrep
-            pkgs.kitty
-          ];
-          # The four state colours and the text colour drawn on them.
+          runtimeInputs = [ pkgs.kitty ];
+          # The state colours and the text colour drawn on them.
           runtimeEnv = {
             CLAUDE_TAB_BUSY = config.lib.stylix.colors.withHashtag.base0A;
             CLAUDE_TAB_ATTENTION = config.lib.stylix.colors.withHashtag.base08;
             CLAUDE_TAB_IDLE = config.lib.stylix.colors.withHashtag.base0D;
             CLAUDE_TAB_DONE = config.lib.stylix.colors.withHashtag.base0B;
+            CLAUDE_TAB_FAILED = config.lib.stylix.colors.withHashtag.base09;
+            CLAUDE_TAB_COMPACTING = config.lib.stylix.colors.withHashtag.base0C;
             CLAUDE_TAB_FG = config.lib.stylix.colors.withHashtag.base00;
           };
           text = builtins.readFile "${hooks}/kitty-tab.sh";
         };
-        kittyTab = state: {
-          matcher = "";
+        kittyTabFor = matcher: state: {
+          inherit matcher;
           hooks = [
             {
               type = "command";
@@ -89,6 +88,7 @@
             }
           ];
         };
+        kittyTab = kittyTabFor "";
       in
       {
         programs.claude-code = {
@@ -141,6 +141,10 @@
             };
             hooks = {
               UserPromptSubmit = [ (kittyTab "busy") ];
+              # Repaints busy after every tool call. Approving a permission
+              # prompt fires no hook of its own, so without this the
+              # attention colour would sit there until the turn ended.
+              PostToolUse = [ (kittyTab "busy") ];
               Notification = [
                 {
                   matcher = "";
@@ -151,7 +155,11 @@
                     }
                   ];
                 }
-                (kittyTab "notification")
+                # Notification matchers name the notification type, so the
+                # two cases split here rather than by sniffing the payload
+                # inside the hook script.
+                (kittyTabFor "permission_prompt" "attention")
+                (kittyTabFor "idle_prompt" "idle")
               ];
               Stop = [
                 {
@@ -165,6 +173,14 @@
                 }
                 (kittyTab "done")
               ];
+              # A turn that died on an API error rather than finishing.
+              StopFailure = [ (kittyTab "failed") ];
+              # Compaction is slow and silent; the colour says the session
+              # is busy rather than wedged.
+              PreCompact = [ (kittyTab "compacting") ];
+              # Both ends of a session start from no tint, so a resumed one
+              # does not inherit whatever colour it died with.
+              SessionStart = [ (kittyTab "") ];
               SessionEnd = [ (kittyTab "") ];
             };
             env = {

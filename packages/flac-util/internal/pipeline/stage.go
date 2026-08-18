@@ -39,11 +39,21 @@ type Job struct {
 
 	Metadata *audio.Metadata
 	Decode   audio.DecodeResult
-	Levels   *spectrogram.Levels
-	Image    *image.Paletted
-	PNG      []byte
-	Report   *report.Report
-	JSON     []byte
+	// DecodeErr is set when the audio stopped short but enough of it was read
+	// to be worth reporting. The job carries on to write that report, so this
+	// is a fault recorded rather than a failure raised.
+	DecodeErr error
+
+	// FileHash, Verify and Fingerprint come from the stages that read the file
+	// again rather than from the decode.
+	FileHash    string
+	Verify      audio.VerifyResult
+	Fingerprint audio.FingerprintResult
+	Levels      *spectrogram.Levels
+	Image       *image.Paletted
+	PNG         []byte
+	Report      *report.Report
+	JSON        []byte
 }
 
 // Terminal reports whether the job has already finished, either by failing or
@@ -248,6 +258,16 @@ func (r *Runner) finish(job *Job) {
 		event.Err = job.Err
 		if r.counters != nil {
 			r.counters.Failed()
+		}
+	case job.DecodeErr != nil:
+		// The report was written and the fault is in it. Counting this as a
+		// success would bury a damaged file among the good ones; counting it
+		// as a failure would say nothing was produced, when something was.
+		event.Outcome = progress.OutcomeFaulted
+		event.Err = job.DecodeErr
+		event.Stage = StageDecode
+		if r.counters != nil {
+			r.counters.Faulted(job.Size())
 		}
 	case job.Skip != report.SkipNone:
 		event.Outcome = progress.OutcomeSkipped

@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"flac-util/internal/audio"
@@ -28,6 +30,29 @@ const Note = "Automated measurements of the FLAC file beside this report. " +
 // finite, since JSON has no way to write infinity or not-a-number and silence
 // legitimately measures as negative infinity.
 type Number float64
+
+// spectrumDecimals is how much of a decibel figure the spectrum arrays keep.
+//
+// A dB value arrives here from float32 power sums by way of a logarithm, and
+// prints in full as something like -94.64743041992188. Everything past the
+// second decimal is an artifact of the binary representation rather than
+// anything the transform resolved, and 0.01 dB is already far finer than the
+// quantisation floor of the files being measured. Written out in full, those
+// digits are most of a report: there are thousands of them per file and only a
+// few dozen other numbers.
+const spectrumDecimals = 2
+
+// roundDB rounds a decibel figure to the precision the spectrum arrays keep.
+//
+// Values that are not finite pass through untouched, so that a silent bin
+// stays negative infinity and still marshals as null.
+func roundDB(v float64) Number {
+	if math.IsInf(v, 0) || math.IsNaN(v) {
+		return Number(v)
+	}
+	scale := math.Pow(10, spectrumDecimals)
+	return Number(math.Round(v*scale) / scale)
+}
 
 // MarshalJSON implements json.Marshaler.
 func (n Number) MarshalJSON() ([]byte, error) {
@@ -115,6 +140,123 @@ type Integrity struct {
 	FramesDecoded int64 `json:"frames_decoded"`
 }
 
+// Decode records how reading the audio went.
+//
+// A file whose audio stops short still gets a report. Everything measured up
+// to the fault is real, and the fault itself is one of the more telling things
+// a file can tell you - a stream that ends in the wrong place has been through
+// something. Discarding all of it because the last frame was bad would throw
+// away the evidence along with the error.
+//
+// Read this before anything else in the report: measurements taken over part
+// of a file describe that part, not the file.
+type Decode struct {
+	// Complete is true when every frame was read and the stream ended where
+	// it said it would.
+	Complete bool `json:"complete"`
+	// Error is what went wrong, empty when nothing did.
+	Error string `json:"error,omitempty"`
+	// Stage names where it went wrong, empty when nothing did. A fault in the
+	// header means no audio was read at all; one in the frames means the
+	// measurements cover whatever came before it.
+	Stage string `json:"stage,omitempty"`
+}
+
+// Loudness reports programme loudness to ITU-R BS.1770-5 and loudness range to
+// EBU Tech 3342.
+//
+// Both are standard measures rather than this tool's own, so a figure here is
+// comparable with one from any other meter. A CD master mixed for loudness and
+// a hi-res master of the same music differ here by more than they differ
+// anywhere else in this report.
+type Loudness struct {
+	// IntegratedLUFS is the loudness of the whole track, gated so that silence
+	// between passages does not drag it down. Digital silence marshals as null.
+	IntegratedLUFS Number `json:"integrated_lufs"`
+	// RangeLU is the spread between its quiet and loud parts.
+	RangeLU Number `json:"range_lu"`
+	// Blocks is how many windows were measured, and GatedBlocks how many
+	// counted towards the figure. A wide gap between them means a track with a
+	// lot of near-silence in it.
+	Blocks      int `json:"blocks"`
+	GatedBlocks int `json:"gated_blocks"`
+}
+
+// Provenance is what the file says about itself from outside the audio.
+//
+// The checksum in integrity covers the decoded samples, so two files with the
+// same music and different tags share it. FileSHA256 covers the bytes on disk,
+// which is what finds the same file twice rather than the same recording.
+// Fingerprint is the opposite: it identifies the recording however it was
+// encoded or tagged.
+type Provenance struct {
+	// FileSHA256 is the digest of the whole file.
+	FileSHA256 string `json:"file_sha256,omitempty"`
+	// ReferenceDecoder is what the reference implementation made of the file.
+	ReferenceDecoder ReferenceDecoder `json:"reference_decoder"`
+	// AcoustID is the acoustic fingerprint, empty when none was taken.
+	AcoustID string `json:"acoustid_fingerprint,omitempty"`
+	// AcoustIDDuration is the length the fingerprinter measured, which need
+	// not agree with the header.
+	AcoustIDDuration string `json:"acoustid_duration,omitempty"`
+}
+
+// ReferenceDecoder records a second opinion on the file.
+//
+// This program has its own decoder, and everything measured here came out of
+// it. Recording what the reference implementation says about the same file is
+// what makes a disagreement visible rather than invisible.
+type ReferenceDecoder struct {
+	// Ran is false when the tool was not installed, which is not a fault in
+	// the file.
+	Ran bool `json:"ran"`
+	// OK is true when it read the file without complaint.
+	OK bool `json:"ok"`
+	// Output is what it said.
+	Output string `json:"output,omitempty"`
+}
+
+// Encoding counts how the stream was compressed.
+//
+// FLAC lets an encoder choose how to predict each subframe, and encoders differ
+// in what they reach for and how hard they look. The distribution is therefore
+// a fingerprint of the program that wrote the file, which is worth having when
+// the vendor string has been stripped by a tagger - as it has on most files
+// that have been through anything.
+//
+// Nothing here names an encoder. The counts are recorded; which encoder they
+// resemble is the reader's business.
+type Encoding struct {
+	// Constant, Verbatim, Fixed and LPC count subframes by prediction method.
+	// Verbatim means the encoder stored samples untouched, which a well-run
+	// encoder rarely needs to do.
+	Constant int64 `json:"constant"`
+	Verbatim int64 `json:"verbatim"`
+	Fixed    int64 `json:"fixed"`
+	LPC      int64 `json:"lpc"`
+	// FixedOrders and LPCOrders count how often each prediction order was
+	// chosen, keyed by order.
+	FixedOrders map[string]int64 `json:"fixed_orders"`
+	LPCOrders   map[string]int64 `json:"lpc_orders"`
+	// WastedBits counts subframes whose samples shared trailing zero bits.
+	WastedBits int64 `json:"wasted_bits_subframes"`
+	// Subframes is the total counted.
+	Subframes int64 `json:"subframes"`
+}
+
+// TruePeak reports the level the waveform reaches between samples.
+//
+// The sample peak in levels is the highest value stored; this is the highest
+// the reconstructed waveform passes through, which is what a converter sees.
+// A signal can sit below full scale at every sample and still exceed it in
+// between, so this figure can be above zero and on a loud master usually is.
+type TruePeak struct {
+	// ChannelsDBTP is the true peak of each channel, in dBTP.
+	ChannelsDBTP []Number `json:"channels_dbtp"`
+	// Oversample is the factor the waveform was reconstructed at.
+	Oversample int `json:"oversample"`
+}
+
 // ChannelLevels holds the amplitude measurements for one channel.
 type ChannelLevels struct {
 	PeakSample     int32  `json:"peak_sample"`
@@ -167,6 +309,23 @@ type Spectrum struct {
 	// AverageDBFS is the mean level of each frequency bin across the whole
 	// track, in decibels relative to full scale, from lowest bin to highest.
 	AverageDBFS []Number `json:"average_dbfs"`
+	// Channels summarises each channel separately, unmixed. AverageDBFS
+	// collapses the channels together, which hides content present in only
+	// one of them.
+	Channels []ChannelSpectrum `json:"channels,omitempty"`
+}
+
+// ChannelSpectrum is one channel's frequency content over a whole track.
+//
+// Mean and peak answer different questions. Content present for the whole
+// track shows in both. Content present only in bursts is averaged away in the
+// mean and survives only in the peak, so the two together say whether a band
+// is continuously occupied or occasionally reached.
+type ChannelSpectrum struct {
+	// MeanDBFS is the average level of each bin across every frame.
+	MeanDBFS []Number `json:"mean_dbfs"`
+	// PeakDBFS is the highest level each bin ever reached in any one frame.
+	PeakDBFS []Number `json:"peak_dbfs"`
 }
 
 // Settings records the configuration that produced the numbers, so that a
@@ -194,8 +353,13 @@ type Report struct {
 	File       File            `json:"file"`
 	Stream     Stream          `json:"stream"`
 	Tags       Tags            `json:"tags"`
+	Decode     Decode          `json:"decode"`
 	Integrity  Integrity       `json:"integrity"`
 	Levels     []ChannelLevels `json:"levels"`
+	Loudness   Loudness        `json:"loudness"`
+	TruePeak   TruePeak        `json:"true_peak"`
+	Encoding   Encoding        `json:"encoding"`
+	Provenance Provenance      `json:"provenance"`
 	Resolution Resolution      `json:"resolution"`
 	// Stereo is absent for streams with fewer than two channels.
 	Stereo  *Stereo `json:"stereo,omitempty"`
@@ -213,9 +377,18 @@ type Input struct {
 	Tool     Tool
 	Metadata *audio.Metadata
 	Decode   audio.DecodeResult
-	Spectrum measure.SpectrumOptions
-	Image    spectrogram.Options
-	Now      time.Time
+	// DecodeErr is why the decode stopped early, nil when it did not.
+	DecodeErr error
+	// DecodeStage names where it stopped, empty when it did not.
+	DecodeStage string
+	// FileSHA256, Verify and Fingerprint come from the stages that read the
+	// file rather than decode it.
+	FileSHA256  string
+	Verify      audio.VerifyResult
+	Fingerprint audio.FingerprintResult
+	Spectrum    measure.SpectrumOptions
+	Image       spectrogram.Options
+	Now         time.Time
 }
 
 // New assembles a report from one file's measurements.
@@ -260,6 +433,11 @@ func New(in Input) (*Report, error) {
 			PaddingBytes:      in.Metadata.PaddingBytes,
 			ForeignTags:       orEmptyStrings(in.Metadata.ForeignTags),
 		},
+		Decode: Decode{
+			Complete: in.DecodeErr == nil,
+			Error:    errorText(in.DecodeErr, in.Path),
+			Stage:    in.DecodeStage,
+		},
 		Integrity: Integrity{
 			StoredMD5:        info.MD5,
 			ComputedMD5:      results.Fingerprint.MD5,
@@ -276,6 +454,24 @@ func New(in Input) (*Report, error) {
 			LeadingSamples:  results.Silence.LeadingSamples,
 			TrailingSamples: results.Silence.TrailingSamples,
 			AllSilent:       results.Silence.AllSilent,
+		},
+		TruePeak: truePeak(results.TruePeak),
+		Encoding: encoding(in.Decode.Subframes),
+		Provenance: Provenance{
+			FileSHA256: in.FileSHA256,
+			ReferenceDecoder: ReferenceDecoder{
+				Ran:    in.Verify.Ran,
+				OK:     in.Verify.OK,
+				Output: in.Verify.Output,
+			},
+			AcoustID:         in.Fingerprint.Fingerprint,
+			AcoustIDDuration: in.Fingerprint.Duration,
+		},
+		Loudness: Loudness{
+			IntegratedLUFS: Number(results.Loudness.IntegratedLUFS),
+			RangeLU:        Number(results.Loudness.RangeLU),
+			Blocks:         results.Loudness.Blocks,
+			GatedBlocks:    results.Loudness.GatedBlocks,
 		},
 		Settings: Settings{
 			Spectrum: in.Spectrum,
@@ -339,7 +535,30 @@ func summariseSpectrum(g *measure.Grid) *Spectrum {
 		if columns > 0 {
 			mean = sum / float64(columns)
 		}
-		out.AverageDBFS[bin] = Number(measure.PowerDB(mean))
+		out.AverageDBFS[bin] = roundDB(measure.PowerDB(mean))
+	}
+
+	out.Channels = make([]ChannelSpectrum, len(g.Channels))
+	for c, ch := range g.Channels {
+		out.Channels[c] = ChannelSpectrum{
+			MeanDBFS: powerColumnDB(ch.Mean, g.Bins),
+			PeakDBFS: powerColumnDB(ch.Peak, g.Bins),
+		}
+	}
+	return out
+}
+
+// powerColumnDB converts a run of linear bin powers into decibels, padded or
+// truncated to the grid's bin count so every channel is the same length as
+// AverageDBFS and can be indexed alongside it.
+func powerColumnDB(power []float64, bins int) []Number {
+	out := make([]Number, bins)
+	for bin := range bins {
+		v := 0.0
+		if bin < len(power) {
+			v = power[bin]
+		}
+		out[bin] = roundDB(measure.PowerDB(v))
 	}
 	return out
 }
@@ -384,4 +603,62 @@ func orEmptyStrings(in []string) []string {
 		return []string{}
 	}
 	return in
+}
+
+// errorText renders an error for the report, empty when there is none.
+//
+// The file's own path is taken back out of the message. The decoder puts it in
+// front of everything it returns, and a report already says which file it is
+// about - leaving it in would make every error string unique to its file, so
+// grouping a library's reports by what went wrong would find nothing in
+// common between two copies of the same fault.
+func errorText(err error, path string) string {
+	if err == nil {
+		return ""
+	}
+
+	text := err.Error()
+	if path != "" {
+		if _, after, found := strings.Cut(text, path+": "); found {
+			return after
+		}
+	}
+	return text
+}
+
+// truePeak converts the measured true peak for the report.
+func truePeak(r measure.TruePeakResult) TruePeak {
+	out := TruePeak{Oversample: r.Oversample}
+	for _, dbtp := range r.ChannelsDBTP {
+		out.ChannelsDBTP = append(out.ChannelsDBTP, Number(dbtp))
+	}
+	return out
+}
+
+// encoding converts the subframe statistics for the report.
+func encoding(s *audio.SubframeStats) Encoding {
+	if s == nil {
+		return Encoding{FixedOrders: map[string]int64{}, LPCOrders: map[string]int64{}}
+	}
+
+	return Encoding{
+		Constant:    s.Constant,
+		Verbatim:    s.Verbatim,
+		Fixed:       s.Fixed,
+		LPC:         s.LPC,
+		FixedOrders: orders(s.FixedOrders),
+		LPCOrders:   orders(s.LPCOrders),
+		WastedBits:  s.WastedBits,
+		Subframes:   s.Subframes,
+	}
+}
+
+// orders renders an order histogram with string keys, since JSON objects have
+// no others.
+func orders(counts map[int]int64) map[string]int64 {
+	out := make(map[string]int64, len(counts))
+	for order, n := range counts {
+		out[strconv.Itoa(order)] = n
+	}
+	return out
 }

@@ -14,6 +14,11 @@ const (
 	OutcomeCompleted Outcome = iota
 	// OutcomeSkipped means the file already had a current report.
 	OutcomeSkipped
+	// OutcomeFaulted means the file was reported, but its audio did not read
+	// cleanly and the report says so. It is neither a success nor a failure:
+	// the work was done and the result is worth reading, with a caveat that
+	// has to travel with it.
+	OutcomeFaulted
 	// OutcomeFailed means the file could not be processed.
 	OutcomeFailed
 )
@@ -25,6 +30,8 @@ func (o Outcome) String() string {
 		return "completed"
 	case OutcomeSkipped:
 		return "skipped"
+	case OutcomeFaulted:
+		return "faulted"
 	case OutcomeFailed:
 		return "failed"
 	default:

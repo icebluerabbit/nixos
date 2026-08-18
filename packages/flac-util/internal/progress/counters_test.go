@@ -209,3 +209,35 @@ func TestCountersAreConcurrencySafe(t *testing.T) {
 		t.Errorf("stage Out = %d, want %d", got.Stages[0].Out, workers*each)
 	}
 }
+
+func TestCountersFaulted(t *testing.T) {
+	c := NewCounters(nil, testStart)
+	c.Discovered(3)
+	c.Completed(1024)
+	c.Faulted(2048)
+	c.Faulted(512)
+
+	s := c.Snapshot(testStart.Add(time.Second))
+	if s.Faulted != 2 {
+		t.Errorf("Faulted = %d, want 2", s.Faulted)
+	}
+	// A faulted file was still read, so its bytes count towards the rate.
+	if s.Bytes != 1024+2048+512 {
+		t.Errorf("Bytes = %d, want %d", s.Bytes, 1024+2048+512)
+	}
+	if s.Finished() != 3 {
+		t.Errorf("Finished() = %d, want 3: a fault is a terminal state", s.Finished())
+	}
+	if s.Remaining() != 0 {
+		t.Errorf("Remaining() = %d, want 0", s.Remaining())
+	}
+	if got := s.Fraction(); got != 1 {
+		t.Errorf("Fraction() = %v, want 1", got)
+	}
+}
+
+func TestOutcomeFaultedString(t *testing.T) {
+	if got := OutcomeFaulted.String(); got != "faulted" {
+		t.Errorf("OutcomeFaulted.String() = %q", got)
+	}
+}

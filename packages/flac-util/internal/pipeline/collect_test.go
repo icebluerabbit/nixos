@@ -86,6 +86,7 @@ func runCollect(t *testing.T, dir string, opts CollectOptions) *progress.Recorde
 func TestCollectStageNames(t *testing.T) {
 	want := []string{
 		"screen", "probe", "decode",
+		"hash", "verify", "fingerprint",
 		"scale", "build", "annotate", "encode",
 		"report", "marshal", "write",
 	}

@@ -2,13 +2,17 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
-	bubbleprogress "github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	bubbleprogress "charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/mattn/go-runewidth"
 
 	"flac-util/internal/progress"
 )
@@ -46,7 +50,7 @@ type CollectModel struct {
 
 // NewCollectModel returns the body for a collect run.
 func NewCollectModel(counters *progress.Counters) *CollectModel {
-	bar := bubbleprogress.New(bubbleprogress.WithDefaultGradient())
+	bar := bubbleprogress.New(bubbleprogress.WithDefaultBlend())
 	bar.ShowPercentage = true
 
 	spin := spinner.New()
@@ -62,7 +66,23 @@ func NewCollectModel(counters *progress.Counters) *CollectModel {
 }
 
 // Title implements Body.
-func (m *CollectModel) Title() string { return "flac-util collect" }
+func (m *CollectModel) Title() string { return "collect" }
+
+// Keys implements Body. A run has no keys of its own: it is watched, not
+// driven.
+func (m *CollectModel) Keys() []key.Binding { return nil }
+
+// Status implements Body, giving the title bar the run's clock.
+//
+// It comes from the counters rather than from the wall, so it measures the
+// work rather than the process, and it is only ever shown while there is work
+// to measure.
+func (m *CollectModel) Status() string {
+	if m.counters == nil {
+		return ""
+	}
+	return m.snapshot.Elapsed.Round(time.Second).String()
+}
 
 // Init implements Body.
 func (m *CollectModel) Init() tea.Cmd { return tea.Batch(tick(), m.spin.Tick) }
@@ -80,6 +100,12 @@ func (m *CollectModel) Update(msg tea.Msg) (Body, tea.Cmd) {
 
 	case DroppedMsg:
 		m.dropped = int64(msg)
+		return m, nil
+
+	case FinishedMsg:
+		// The counters are final by the time this arrives, so this is the
+		// reading the last frame should show.
+		m.refresh()
 		return m, nil
 
 	case spinner.TickMsg:
@@ -105,7 +131,7 @@ func (m *CollectModel) record(e progress.Event) {
 	if len(m.recent) > recentLimit {
 		m.recent = m.recent[len(m.recent)-recentLimit:]
 	}
-	if e.Outcome == progress.OutcomeFailed {
+	if e.Outcome == progress.OutcomeFailed || e.Outcome == progress.OutcomeFaulted {
 		m.failures = append(m.failures, e)
 		if len(m.failures) > recentLimit {
 			m.failures = m.failures[len(m.failures)-recentLimit:]
@@ -138,13 +164,14 @@ func (m *CollectModel) View(width int) string {
 func (m *CollectModel) overview(width int) string {
 	s := m.snapshot
 
-	m.bar.Width = max(width-20, 10)
+	m.bar.SetWidth(max(width-20, 10))
 	bar := m.bar.ViewAs(s.Fraction())
 
-	counts := fmt.Sprintf("%s  %s  %s  %s",
+	counts := fmt.Sprintf("%s  %s  %s  %s  %s",
 		m.theme.Value.Render(fmt.Sprintf("%d/%d", s.Finished(), s.Discovered)),
 		m.theme.Good.Render(fmt.Sprintf("%d done", s.Completed)),
 		m.theme.Subtle.Render(fmt.Sprintf("%d skipped", s.Skipped)),
+		m.theme.Warn.Render(fmt.Sprintf("%d partial", s.Faulted)),
 		m.theme.Bad.Render(fmt.Sprintf("%d failed", s.Failed)),
 	)
 
@@ -158,45 +185,133 @@ func (m *CollectModel) overview(width int) string {
 	}, "\n")
 }
 
+// stageColumns are the columns of the per-stage table.
+func stageColumns() []column {
+	return []column{
+		{Title: "stage", Width: 10, Primary: true},
+		{Title: "queued", Width: 8, Numeric: true},
+		{Title: "done", Width: 8, Numeric: true},
+		{Title: "failed", Width: 8, Numeric: true},
+		{Title: "busy", Width: 12, Numeric: true},
+	}
+}
+
+// stageRows turns the counters into the table's rows.
+//
+// Two values are coloured, and both for the same reason: they are the ones
+// that mean something has to change. A stage holding items is where the run is
+// bottlenecked and where more workers would go; a stage with failures is where
+// the files are breaking.
+func (m *CollectModel) stageRows() [][]cell {
+	rows := make([][]cell, 0, len(m.snapshot.Stages))
+	for _, s := range m.snapshot.Stages {
+		queued := cell{Text: strconv.FormatInt(s.Queued, 10)}
+		if s.Queued > 0 {
+			queued = styled(queued.Text, m.theme.Warn)
+		}
+		failed := cell{Text: strconv.FormatInt(s.Failed, 10)}
+		if s.Failed > 0 {
+			failed = styled(failed.Text, m.theme.Bad)
+		}
+
+		rows = append(rows, []cell{
+			{Text: s.Name},
+			queued,
+			{Text: strconv.FormatInt(s.Out, 10)},
+			failed,
+			{Text: s.Busy.Round(time.Millisecond).String()},
+		})
+	}
+	return rows
+}
+
 // stages renders the per-stage table, which is what makes the worker counts
 // tunable: whichever stage is holding items is the one to give more workers.
+//
+// Nothing here is selectable, so the table is built unfocused and redrawn from
+// the counters on every tick rather than being kept between frames.
 func (m *CollectModel) stages(width int) string {
 	if len(m.snapshot.Stages) == 0 {
 		return m.theme.Subtle.Render("waiting for the first file")
 	}
 
-	nameWidth := 0
-	for _, s := range m.snapshot.Stages {
-		nameWidth = max(nameWidth, len(s.Name))
-	}
+	rows := m.stageRows()
+	// Fixed rather than fitted: this table is redrawn as the run proceeds, and
+	// a table that changes shape while it is on screen leaves the geometry of
+	// whichever rows did not change behind.
+	styler := newFixedTableStyler(m.theme, stageColumns())
 
-	rows := []string{m.theme.Label.Render(fmt.Sprintf(
-		"%-*s  %8s  %8s  %8s  %10s", nameWidth, "stage", "queued", "done", "failed", "busy"))}
+	// The widget keeps one line of its height for itself, so a table of n rows
+	// asks for n+1; anything more leaves blank rows under the last stage.
+	widget := styler.newTable(rows, len(rows)+1, false)
 
-	for _, s := range m.snapshot.Stages {
-		queued := fmt.Sprintf("%8d", s.Queued)
-		if s.Queued > 0 {
-			queued = m.theme.Warn.Render(queued)
+	return lipgloss.NewStyle().MaxWidth(width).Render(widget.View())
+}
+
+// failureList renders what went wrong, and where.
+//
+// The track is named by its album and file rather than by its path, and the
+// reason is stated without the path in it. The previous version showed the
+// path truncated as a label and then the error, which repeated the path -
+// usually leaving no room for the one part that says what actually happened.
+func (m *CollectModel) failureList(width int) string {
+	rows := []string{m.theme.Bad.Render("recent faults")}
+
+	// The reason is what a reader is here for, so the track gets whatever is
+	// left after the reason has room, not the other way round.
+	nameWidth := max(min(width/3, 44), 12)
+
+	for _, e := range m.failures {
+		style := m.theme.Bad
+		if e.Outcome == progress.OutcomeFaulted {
+			style = m.theme.Warn
 		}
-		failed := fmt.Sprintf("%8d", s.Failed)
-		if s.Failed > 0 {
-			failed = m.theme.Bad.Render(failed)
-		}
 
-		rows = append(rows, fmt.Sprintf("%-*s  %s  %8d  %s  %10s",
-			nameWidth, s.Name, queued, s.Out, failed, s.Busy.Round(time.Millisecond)))
+		rows = append(rows, fmt.Sprintf("  %s  %s  %s",
+			style.Render(fmt.Sprintf("%-7s", outcomeLabel(e.Outcome))),
+			m.theme.Value.Render(runewidth.FillRight(
+				runewidth.Truncate(trackLabel(e.Path), nameWidth, "…"), nameWidth)),
+			m.theme.Subtle.Render(reasonOf(e))))
 	}
 	return lipgloss.NewStyle().MaxWidth(width).Render(strings.Join(rows, "\n"))
 }
 
-// failureList renders the most recent failures.
-func (m *CollectModel) failureList(width int) string {
-	rows := []string{m.theme.Bad.Render("recent failures")}
-	for _, e := range m.failures {
-		rows = append(rows, fmt.Sprintf("  %s  %s: %v",
-			m.theme.Subtle.Render(e.Stage), truncatePath(e.Path, width/2), e.Err))
+// outcomeLabel names an outcome for the fault list.
+func outcomeLabel(o progress.Outcome) string {
+	if o == progress.OutcomeFaulted {
+		return "partial"
 	}
-	return lipgloss.NewStyle().MaxWidth(width).Render(strings.Join(rows, "\n"))
+	return "failed"
+}
+
+// trackLabel names a track by its album and filename, which is what identifies
+// it to a reader. The rest of the path is the same for every row on screen and
+// only crowds out the reason.
+func trackLabel(path string) string {
+	dir, file := filepath.Split(path)
+	album := filepath.Base(filepath.Clean(dir))
+	if album == "." || album == string(filepath.Separator) {
+		return file
+	}
+	return filepath.Join(album, file)
+}
+
+// reasonOf renders an event's error with the path taken back out of it. The
+// decoder puts the path in front of every message, and repeating it here
+// leaves no room for what it is in front of.
+func reasonOf(e progress.Event) string {
+	if e.Err == nil {
+		return ""
+	}
+
+	reason := e.Err.Error()
+	if _, after, found := strings.Cut(reason, e.Path+": "); found {
+		reason = after
+	}
+	if e.Stage != "" {
+		return e.Stage + ": " + reason
+	}
+	return reason
 }
 
 // truncatePath shortens a path from the left, keeping the part that identifies

@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/charmbracelet/bubbles/key"
+import "charm.land/bubbles/v2/key"
 
 // KeyMap is the set of keys the shell responds to. Subcommand bodies may add
 // their own, but these are always present.

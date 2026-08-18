@@ -11,10 +11,14 @@
 # colours. Nothing is written to the tab title, which stays free to name
 # the task.
 #
-# States overwrite each other and SessionEnd clears, so nothing here needs
-# to know about focus: a tint lasts until the session's next event. The
-# one visible consequence is that a finished session stays tinted until
-# you give it a new prompt.
+# States overwrite each other, and SessionStart and SessionEnd both clear,
+# so nothing here needs to know about focus: a tint lasts until the
+# session's next event. The one visible consequence is that a finished
+# session stays tinted until you give it a new prompt.
+#
+# Which state a hook event means is decided in claude.nix, by the event it
+# is registered on and its matcher; this script only maps a name to a
+# colour.
 #
 # Palette comes from stylix via runtimeEnv on the wrapper in claude.nix.
 #
@@ -24,21 +28,13 @@ state=${1:-}
 # Nothing to tint when Claude is not running under kitty.
 [ -n "${KITTY_WINDOW_ID:-}" ] || exit 0
 
-# Notification fires both for permission prompts and for idle pings. The
-# raw payload on stdin tells them apart without needing a JSON parser.
-if [ "$state" = "notification" ]; then
-  if grep -q permission_prompt; then
-    state=attention
-  else
-    state=idle
-  fi
-fi
-
 case "$state" in
 busy) bg=$CLAUDE_TAB_BUSY ;;
 attention) bg=$CLAUDE_TAB_ATTENTION ;;
 idle) bg=$CLAUDE_TAB_IDLE ;;
 done) bg=$CLAUDE_TAB_DONE ;;
+failed) bg=$CLAUDE_TAB_FAILED ;;
+compacting) bg=$CLAUDE_TAB_COMPACTING ;;
 *) bg=none ;;
 esac
 

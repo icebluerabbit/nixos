@@ -15,7 +15,7 @@ func TestMarshalRejectsNil(t *testing.T) {
 	}
 }
 
-func TestMarshalIsIndentedAndNewlineTerminated(t *testing.T) {
+func TestMarshalIsCompactAndNewlineTerminated(t *testing.T) {
 	data, err := Marshal(&Report{Note: Note})
 	if err != nil {
 		t.Fatalf("Marshal() error = %v", err)
@@ -24,11 +24,45 @@ func TestMarshalIsIndentedAndNewlineTerminated(t *testing.T) {
 	if !bytes.HasSuffix(data, []byte("\n")) {
 		t.Error("output does not end with a newline")
 	}
-	if !bytes.Contains(data, []byte("\n  ")) {
-		t.Error("output is not indented, but a person is meant to read it")
+	if n := bytes.Count(data, []byte("\n")); n != 1 {
+		t.Errorf("output holds %d newlines, want only the terminator", n)
 	}
 	if !json.Valid(data) {
 		t.Error("output is not valid JSON")
+	}
+}
+
+// TestMarshalSpendsNothingOnLayout is the reason Marshal is compact: the
+// spectrum arrays are thousands of values long, and indenting them costs more
+// bytes in leading spaces and newlines than the values themselves take.
+func TestMarshalSpendsNothingOnLayout(t *testing.T) {
+	const bins = 1024
+
+	spectrum := &Spectrum{AverageDBFS: make([]Number, bins)}
+	for i := range spectrum.AverageDBFS {
+		spectrum.AverageDBFS[i] = Number(-90.5)
+	}
+
+	// The note is left off: it is prose, and its spaces would be counted as
+	// layout below.
+	data, err := Marshal(&Report{Spectrum: spectrum})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	indented, err := json.MarshalIndent(&Report{Spectrum: spectrum}, "", "  ")
+	if err != nil {
+		t.Fatalf("MarshalIndent() error = %v", err)
+	}
+
+	if len(data) >= len(indented) {
+		t.Errorf("compact output is %d bytes against %d indented, want smaller",
+			len(data), len(indented))
+	}
+	// Whitespace is what separates one form from the other, so it is what the
+	// saving has to come from.
+	if got := bytes.Count(data, []byte(" ")) + bytes.Count(data, []byte("\n")); got > 1 {
+		t.Errorf("output carries %d bytes of layout, want only the terminator", got)
 	}
 }
 

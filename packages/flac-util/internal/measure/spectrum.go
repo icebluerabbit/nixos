@@ -98,6 +98,21 @@ type Grid struct {
 	Frames int64
 	// FramesPerColumn is how many frames each column averages.
 	FramesPerColumn int64
+	// Channels summarises each channel across the whole track, unmixed.
+	Channels []ChannelSpectrum
+}
+
+// ChannelSpectrum summarises one channel over a whole track.
+//
+// Mean and Peak answer different questions. A shelf left by an encoder is
+// present for the whole track, so it shows in the mean. A brief burst of real
+// high-frequency content is not, and only shows in the peak.
+type ChannelSpectrum struct {
+	// Mean is the average power of each bin, linear and relative to full
+	// scale.
+	Mean []float64
+	// Peak is the highest power each bin ever reached.
+	Peak []float64
 }
 
 // Columns returns the number of time slices in the grid.
@@ -125,9 +140,18 @@ func PowerDB(power float64) float64 {
 
 // Spectrum accumulates a Grid from decoded audio.
 //
-// Channels are mixed to mono before analysis, matching how spectrograms are
-// conventionally presented; per-channel differences are the business of the
-// Stereo accumulator.
+// The grid itself is mixed to mono, matching how spectrograms are
+// conventionally drawn, and it is the largest thing this package produces: one
+// value per time column per frequency bin.
+//
+// Alongside it, and independently of the columns, it keeps two summaries per
+// channel across the whole track: the mean level of each bin and the highest
+// that bin ever reached. They cost one array per channel rather than one per
+// column, and they answer two questions the mono grid cannot. A defect in one
+// channel only - which is what a joint-stereo transcode leaves behind - is
+// halved by mixing. And a mean buries anything brief, so a cymbal with real
+// content at 30 kHz can average to nothing across three minutes of a track
+// that is otherwise quiet up there.
 type Spectrum struct {
 	format Format
 	opts   SpectrumOptions
@@ -146,6 +170,13 @@ type Spectrum struct {
 
 	sums   [][]float32
 	counts []int32
+
+	// channelSum and channelPeak summarise each channel over the whole track,
+	// one entry per bin rather than one per column.
+	channelSum     [][]float64
+	channelPeak    [][]float64
+	channelFrames  int64
+	channelPending [][]float64
 
 	columns      int
 	curColumn    int
@@ -202,6 +233,15 @@ func NewSpectrum(f Format, opts SpectrumOptions) (*Spectrum, error) {
 	for i := range a.sums {
 		a.sums[i] = make([]float32, bins)
 	}
+
+	a.channelSum = make([][]float64, f.Channels)
+	a.channelPeak = make([][]float64, f.Channels)
+	a.channelPending = make([][]float64, f.Channels)
+	for c := range f.Channels {
+		a.channelSum[c] = make([]float64, bins)
+		a.channelPeak[c] = make([]float64, bins)
+		a.channelPending[c] = make([]float64, 0, size+4096)
+	}
 	return a, nil
 }
 
@@ -230,6 +270,54 @@ func (a *Spectrum) Write(b Block) {
 		a.pending = append(a.pending, acc*scale)
 	}
 	a.drain()
+
+	// The per-channel summaries run over the same audio but are not mixed, so
+	// they buffer separately.
+	full := 1 / a.format.FullScale()
+	for c := range min(channels, len(a.channelPending)) {
+		for i := range n {
+			a.channelPending[c] = append(a.channelPending[c], float64(b.Samples[c][i])*full)
+		}
+	}
+	a.drainChannels()
+}
+
+// drainChannels analyses every whole frame each channel has accumulated.
+func (a *Spectrum) drainChannels() {
+	if len(a.channelPending) == 0 {
+		return
+	}
+
+	consumed := 0
+	for len(a.channelPending[0])-consumed >= a.fftSize {
+		for c := range a.channelPending {
+			a.channelFrame(c, a.channelPending[c][consumed:consumed+a.fftSize])
+		}
+		a.channelFrames++
+		consumed += a.hop
+	}
+	if consumed > 0 {
+		for c := range a.channelPending {
+			a.channelPending[c] = append(a.channelPending[c][:0], a.channelPending[c][consumed:]...)
+		}
+	}
+}
+
+// channelFrame folds one frame of one channel into its running mean and peak.
+func (a *Spectrum) channelFrame(channel int, samples []float64) {
+	for i, s := range samples {
+		a.re[i] = s * a.window[i] / a.gain
+		a.im[i] = 0
+	}
+	a.plan.powerSpectrum(a.re, a.im, a.power)
+
+	sum, peak := a.channelSum[channel], a.channelPeak[channel]
+	for k, p := range a.power {
+		sum[k] += p
+		if p > peak[k] {
+			peak[k] = p
+		}
+	}
 }
 
 // drain consumes every whole frame available in the pending buffer and shifts
@@ -330,6 +418,7 @@ func (a *Spectrum) Result() Grid {
 		Hop:             a.hop,
 		Frames:          a.frames,
 		FramesPerColumn: a.framesPerCol,
+		Channels:        a.channelResults(),
 	}
 	for i := range used {
 		column := make([]float32, a.bins)
@@ -342,4 +431,23 @@ func (a *Spectrum) Result() Grid {
 		g.Power[i] = column
 	}
 	return g
+}
+
+// channelResults finalises the per-channel summaries.
+func (a *Spectrum) channelResults() []ChannelSpectrum {
+	out := make([]ChannelSpectrum, len(a.channelSum))
+	for c := range out {
+		mean := make([]float64, a.bins)
+		if a.channelFrames > 0 {
+			inv := 1 / float64(a.channelFrames)
+			for k, v := range a.channelSum[c] {
+				mean[k] = v * inv
+			}
+		}
+		peak := make([]float64, a.bins)
+		copy(peak, a.channelPeak[c])
+
+		out[c] = ChannelSpectrum{Mean: mean, Peak: peak}
+	}
+	return out
 }

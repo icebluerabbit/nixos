@@ -23,6 +23,9 @@ const (
 	StageScreen   = "screen"
 	StageProbe    = "probe"
 	StageDecode   = "decode"
+	StageHash     = "hash"
+	StageVerify   = "verify"
+	StageFinger   = "fingerprint"
 	StageScale    = "scale"
 	StageBuild    = "build"
 	StageAnnotate = "annotate"
@@ -77,6 +80,21 @@ func CollectStages() []StageDefinition {
 			Name:     StageDecode,
 			Defaults: StageConfig{Workers: cores, Buffer: 32},
 			Why:      "the expensive stage and the only compute bound one; its queue is deep because everything upstream is cheap",
+		},
+		{
+			Name:     StageHash,
+			Defaults: StageConfig{Workers: 8, Buffer: 16},
+			Why:      "reads the file again but does nothing with it; bounded by the disk rather than by the processor",
+		},
+		{
+			Name:     StageVerify,
+			Defaults: StageConfig{Workers: max(cores/2, 1), Buffer: 8},
+			Why:      "decodes the whole file a second time in another process, so it competes with decode for the same cores",
+		},
+		{
+			Name:     StageFinger,
+			Defaults: StageConfig{Workers: max(cores/2, 1), Buffer: 8},
+			Why:      "decodes and resamples in another process; competes with decode much as verify does",
 		},
 		{
 			Name:     StageScale,
@@ -145,6 +163,13 @@ type CollectOptions struct {
 	Force bool
 	// ReadBufferSize is the read-ahead applied to each file.
 	ReadBufferSize int
+	// SkipExternal omits the stages that shell out, which are the ones that
+	// roughly double a run.
+	SkipExternal bool
+	// FlacTool and FpcalcTool name the external programs, for a caller that
+	// has them somewhere unusual. Empty selects the names on PATH.
+	FlacTool   string
+	FpcalcTool string
 	// Stages overrides the per-stage worker counts, keyed by stage name.
 	// Stages absent from the map keep the defaults declared by CollectStages.
 	Stages map[string]StageConfig
@@ -198,6 +223,9 @@ func NewCollectPipeline(opts CollectOptions) ([]StageSpec, error) {
 		StageScreen:   NewStage(StageScreen, opts.screen),
 		StageProbe:    NewStage(StageProbe, opts.probe),
 		StageDecode:   NewStage(StageDecode, opts.decode),
+		StageHash:     NewStage(StageHash, opts.hash),
+		StageVerify:   NewStage(StageVerify, opts.verify),
+		StageFinger:   NewStage(StageFinger, opts.fingerprint),
 		StageScale:    NewStage(StageScale, opts.scale),
 		StageBuild:    NewStage(StageBuild, opts.build),
 		StageAnnotate: NewStage(StageAnnotate, opts.annotate),
@@ -266,10 +294,25 @@ func (o CollectOptions) decode(ctx context.Context, j *Job) error {
 		Measure:    o.Measure,
 		BufferSize: o.ReadBufferSize,
 	})
-	if err != nil {
+	j.Decode = result
+
+	switch {
+	case err == nil:
+		return nil
+	case ctx.Err() != nil:
+		// The run is winding down rather than the file being bad, and a report
+		// covering however much was read before the interruption would say
+		// something about this run rather than about the file.
+		return err
+	case result.Frames == 0:
+		// Nothing came out of the file, so there is nothing to describe. A
+		// header that will not parse is the whole finding.
 		return err
 	}
-	j.Decode = result
+
+	// The audio stopped short, but what was read is real and the fault is
+	// worth recording. Carrying on writes a report that says both.
+	j.DecodeErr = err
 	return nil
 }
 
@@ -334,15 +377,20 @@ func (o CollectOptions) encode(_ context.Context, j *Job) error {
 // report assembles the document written beside the track.
 func (o CollectOptions) report(_ context.Context, j *Job) error {
 	r, err := report.New(report.Input{
-		Path:     j.Path,
-		Size:     j.Size(),
-		Modified: modTime(j),
-		Tool:     o.Tool,
-		Metadata: j.Metadata,
-		Decode:   j.Decode,
-		Spectrum: o.Measure.Spectrum,
-		Image:    o.Image,
-		Now:      o.Now(),
+		Path:        j.Path,
+		Size:        j.Size(),
+		Modified:    modTime(j),
+		Tool:        o.Tool,
+		Metadata:    j.Metadata,
+		Decode:      j.Decode,
+		DecodeErr:   j.DecodeErr,
+		DecodeStage: decodeStageOf(j),
+		FileSHA256:  j.FileHash,
+		Verify:      j.Verify,
+		Fingerprint: j.Fingerprint,
+		Spectrum:    o.Measure.Spectrum,
+		Image:       o.Image,
+		Now:         o.Now(),
 	})
 	if err != nil {
 		return err
@@ -390,4 +438,63 @@ func modTime(j *Job) time.Time {
 		return time.Time{}
 	}
 	return j.Info.ModTime()
+}
+
+// decodeStageOf names where a decode fault happened, empty when there was
+// none. There is only one stage that reads audio, so this is a constant in all
+// but name - it exists so the report says where the fault came from rather
+// than leaving a reader to infer it.
+func decodeStageOf(j *Job) string {
+	if j.DecodeErr == nil {
+		return ""
+	}
+	return StageDecode
+}
+
+// hash digests the file as it sits on disk.
+func (o CollectOptions) hash(_ context.Context, j *Job) error {
+	if o.SkipExternal {
+		return nil
+	}
+
+	sum, err := audio.FileHash(j.Path, o.ReadBufferSize)
+	if err != nil {
+		return err
+	}
+	j.FileHash = sum
+	return nil
+}
+
+// verify asks the reference decoder for its opinion of the file.
+//
+// A tool that is not installed is not a fault in the file: the result records
+// that nothing was asked, and the run carries on.
+func (o CollectOptions) verify(ctx context.Context, j *Job) error {
+	if o.SkipExternal {
+		return nil
+	}
+
+	result, err := audio.Verify(ctx, o.FlacTool, j.Path)
+	if err != nil {
+		return err
+	}
+	j.Verify = result
+	return nil
+}
+
+// fingerprint computes an acoustic fingerprint of the audio.
+func (o CollectOptions) fingerprint(ctx context.Context, j *Job) error {
+	if o.SkipExternal {
+		return nil
+	}
+
+	result, err := audio.Fingerprint(ctx, o.FpcalcTool, j.Path)
+	if err != nil {
+		// A fingerprint that cannot be taken is worth noting and not worth
+		// abandoning a file over: everything else about it still stands.
+		j.Fingerprint = audio.FingerprintResult{Ran: true}
+		return nil
+	}
+	j.Fingerprint = result
+	return nil
 }

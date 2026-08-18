@@ -99,6 +99,8 @@ type Set struct {
 	Bits        *Bits
 	Stereo      *Stereo
 	Silence     *Silence
+	Loudness    *Loudness
+	TruePeak    *TruePeak
 	// Spectrum is nil when Options.SkipSpectrum was set.
 	Spectrum *Spectrum
 }
@@ -115,8 +117,13 @@ func NewSet(f Format, opts Options) (*Set, error) {
 		Bits:        NewBits(f),
 		Stereo:      NewStereo(f),
 		Silence:     NewSilence(f),
+		Loudness:    NewLoudness(f),
+		TruePeak:    NewTruePeak(f),
 	}
-	s.all = []Accumulator{s.Fingerprint, s.Levels, s.Bits, s.Stereo, s.Silence}
+	s.all = []Accumulator{
+		s.Fingerprint, s.Levels, s.Bits, s.Stereo, s.Silence,
+		s.Loudness, s.TruePeak,
+	}
 
 	if !opts.SkipSpectrum {
 		spectrum, err := NewSpectrum(f, opts.Spectrum)
@@ -153,6 +160,8 @@ type Results struct {
 	Bits        BitsResult
 	Stereo      StereoResult
 	Silence     SilenceResult
+	Loudness    LoudnessResult
+	TruePeak    TruePeakResult
 	// Spectrum is nil when the spectrum accumulator was skipped.
 	Spectrum *Grid
 }
@@ -167,6 +176,8 @@ func (s *Set) Results() Results {
 		Bits:        s.Bits.Result(),
 		Stereo:      s.Stereo.Result(),
 		Silence:     s.Silence.Result(),
+		Loudness:    s.Loudness.Result(),
+		TruePeak:    s.TruePeak.Result(),
 	}
 	if s.Spectrum != nil {
 		grid := s.Spectrum.Result()

@@ -2,6 +2,8 @@ package report
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -250,12 +252,109 @@ func TestSummariseSpectrumAveragesAcrossColumns(t *testing.T) {
 	if len(got.AverageDBFS) != 2 {
 		t.Fatalf("len(AverageDBFS) = %d, want 2", len(got.AverageDBFS))
 	}
-	// One column at full scale and one silent averages to half power.
-	if want := measure.PowerDB(0.5); math.Abs(float64(got.AverageDBFS[0])-want) > 1e-9 {
-		t.Errorf("AverageDBFS[0] = %v, want %v", float64(got.AverageDBFS[0]), want)
+	// One column at full scale and one silent averages to half power, which
+	// the spectrum arrays keep to two decimals.
+	if want := roundDB(measure.PowerDB(0.5)); got.AverageDBFS[0] != want {
+		t.Errorf("AverageDBFS[0] = %v, want %v", float64(got.AverageDBFS[0]), float64(want))
 	}
 	if !math.IsInf(float64(got.AverageDBFS[1]), -1) {
 		t.Errorf("AverageDBFS[1] = %v, want -Inf", float64(got.AverageDBFS[1]))
+	}
+}
+
+func TestSummariseSpectrumRecordsEachChannel(t *testing.T) {
+	grid := &measure.Grid{
+		Power:      [][]float32{{1, 0}},
+		Bins:       2,
+		SampleRate: 4000,
+		FFTSize:    4,
+		Channels: []measure.ChannelSpectrum{
+			{Mean: []float64{0.5, 0}, Peak: []float64{1, 0}},
+			{Mean: []float64{0.25, 0.25}, Peak: []float64{0.25, 1}},
+		},
+	}
+
+	got := summariseSpectrum(grid)
+	if len(got.Channels) != 2 {
+		t.Fatalf("len(Channels) = %d, want 2", len(got.Channels))
+	}
+	for c, ch := range got.Channels {
+		if len(ch.MeanDBFS) != grid.Bins || len(ch.PeakDBFS) != grid.Bins {
+			t.Errorf("channel %d has %d mean and %d peak bins, want %d each",
+				c, len(ch.MeanDBFS), len(ch.PeakDBFS), grid.Bins)
+		}
+	}
+
+	if want := roundDB(measure.PowerDB(0.5)); got.Channels[0].MeanDBFS[0] != want {
+		t.Errorf("Channels[0].MeanDBFS[0] = %v, want %v",
+			float64(got.Channels[0].MeanDBFS[0]), float64(want))
+	}
+	if want := roundDB(measure.PowerDB(1)); got.Channels[0].PeakDBFS[0] != want {
+		t.Errorf("Channels[0].PeakDBFS[0] = %v, want %v",
+			float64(got.Channels[0].PeakDBFS[0]), float64(want))
+	}
+	// A bin that is silent on average and silent at its peak stays silent.
+	if !math.IsInf(float64(got.Channels[0].PeakDBFS[1]), -1) {
+		t.Errorf("Channels[0].PeakDBFS[1] = %v, want -Inf", float64(got.Channels[0].PeakDBFS[1]))
+	}
+	// The second channel occupies a band the first never reaches, which is
+	// exactly what the mixed-down average would hide.
+	if got.Channels[1].PeakDBFS[1] <= got.Channels[0].PeakDBFS[1] {
+		t.Errorf("Channels[1].PeakDBFS[1] = %v, want above channel 0's %v",
+			float64(got.Channels[1].PeakDBFS[1]), float64(got.Channels[0].PeakDBFS[1]))
+	}
+}
+
+func TestSummariseSpectrumPeakNeverBelowMean(t *testing.T) {
+	grid := &measure.Grid{
+		Power:      [][]float32{{1, 0.5}},
+		Bins:       2,
+		SampleRate: 4000,
+		FFTSize:    4,
+		Channels: []measure.ChannelSpectrum{
+			{Mean: []float64{0.1, 0.5}, Peak: []float64{0.9, 0.5}},
+		},
+	}
+
+	for bin, ch := 0, summariseSpectrum(grid).Channels[0]; bin < grid.Bins; bin++ {
+		if ch.PeakDBFS[bin] < ch.MeanDBFS[bin] {
+			t.Errorf("bin %d peak %v is below mean %v",
+				bin, float64(ch.PeakDBFS[bin]), float64(ch.MeanDBFS[bin]))
+		}
+	}
+}
+
+func TestSummariseSpectrumPadsShortChannels(t *testing.T) {
+	// A channel summary shorter than the grid's bin count must still line up
+	// with AverageDBFS, so that the two can be indexed together.
+	grid := &measure.Grid{
+		Power:      [][]float32{{1, 0, 0}},
+		Bins:       3,
+		SampleRate: 6000,
+		FFTSize:    4,
+		Channels:   []measure.ChannelSpectrum{{Mean: []float64{1}, Peak: []float64{1}}},
+	}
+
+	got := summariseSpectrum(grid)
+	ch := got.Channels[0]
+	if len(ch.MeanDBFS) != 3 || len(ch.PeakDBFS) != 3 {
+		t.Fatalf("got %d mean and %d peak bins, want 3 each", len(ch.MeanDBFS), len(ch.PeakDBFS))
+	}
+	if !math.IsInf(float64(ch.MeanDBFS[2]), -1) {
+		t.Errorf("MeanDBFS[2] = %v, want -Inf", float64(ch.MeanDBFS[2]))
+	}
+}
+
+func TestSummariseSpectrumWithoutChannels(t *testing.T) {
+	grid := &measure.Grid{
+		Power:      [][]float32{{1}},
+		Bins:       1,
+		SampleRate: 4000,
+		FFTSize:    2,
+	}
+
+	if got := summariseSpectrum(grid); len(got.Channels) != 0 {
+		t.Errorf("len(Channels) = %d, want 0", len(got.Channels))
 	}
 }
 
@@ -358,9 +457,155 @@ func TestNewFillsEmptySlicesRatherThanNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Marshal() error = %v", err)
 	}
-	for _, want := range []string{`"comments": []`, `"foreign_tags": []`} {
+	for _, want := range []string{`"comments":[]`, `"foreign_tags":[]`} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("report does not contain %s", want)
+		}
+	}
+}
+
+func TestNewRecordsACleanDecode(t *testing.T) {
+	r := newTestReport(t, Input{})
+	if !r.Decode.Complete {
+		t.Error("decode.complete = false with no error")
+	}
+	if r.Decode.Error != "" || r.Decode.Stage != "" {
+		t.Errorf("decode = %+v, want it empty", r.Decode)
+	}
+}
+
+// TestNewRecordsADecodeFault covers what makes a partial report usable later:
+// the reason the audio stopped has to be in the file, or a reader mining a
+// library of reports cannot tell a short file from an odd one.
+func TestNewRecordsADecodeFault(t *testing.T) {
+	want := errors.New("frame 1696: invalid sync-code")
+	r := newTestReport(t, Input{DecodeErr: want, DecodeStage: "decode"})
+
+	if r.Decode.Complete {
+		t.Error("decode.complete = true despite an error")
+	}
+	if r.Decode.Error != want.Error() {
+		t.Errorf("decode.error = %q, want %q", r.Decode.Error, want.Error())
+	}
+	if r.Decode.Stage != "decode" {
+		t.Errorf("decode.stage = %q, want %q", r.Decode.Stage, "decode")
+	}
+}
+
+func TestDecodeSectionRoundTrips(t *testing.T) {
+	r := newTestReport(t, Input{DecodeErr: errors.New("unexpected EOF"), DecodeStage: "decode"})
+
+	data, err := Marshal(r)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	var got Report
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if got.Decode != r.Decode {
+		t.Errorf("decode = %+v, want %+v", got.Decode, r.Decode)
+	}
+}
+
+func TestErrorText(t *testing.T) {
+	if got := errorText(nil, "/a/t.flac"); got != "" {
+		t.Errorf("errorText(nil) = %q, want empty", got)
+	}
+	if got := errorText(errors.New("broken"), "/a/t.flac"); got != "broken" {
+		t.Errorf("errorText() = %q, want %q", got, "broken")
+	}
+}
+
+// newTestReport builds a report from the standard input with the given fields
+// overridden, so a test can state only what it is about.
+func newTestReport(t *testing.T, overrides Input) *Report {
+	t.Helper()
+
+	in := testInput(t)
+	if overrides.DecodeErr != nil {
+		in.DecodeErr = overrides.DecodeErr
+	}
+	if overrides.DecodeStage != "" {
+		in.DecodeStage = overrides.DecodeStage
+	}
+
+	r, err := New(in)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	return r
+}
+
+// TestErrorTextDropsTheFilesOwnPath keeps the error strings comparable across
+// a library: with the path left in, two copies of the same fault would look
+// like two different faults.
+func TestErrorTextDropsTheFilesOwnPath(t *testing.T) {
+	path := "/music/Artist/Album/01 Track.flac"
+	err := fmt.Errorf("decode %s: frame 1696: invalid sync-code", path)
+
+	if got, want := errorText(err, path), "frame 1696: invalid sync-code"; got != want {
+		t.Errorf("errorText() = %q, want %q", got, want)
+	}
+}
+
+func TestErrorTextWithoutAPath(t *testing.T) {
+	err := errors.New("frame 1: unexpected EOF")
+	if got := errorText(err, ""); got != err.Error() {
+		t.Errorf("errorText() = %q, want it unchanged", got)
+	}
+}
+
+func TestRoundDB(t *testing.T) {
+	cases := []struct {
+		in   float64
+		want float64
+	}{
+		{-94.64743041992188, -94.65},
+		{-3.010299956639812, -3.01},
+		{0, 0},
+		{-0.004, -0},
+		{-120.005, -120.01},
+		{12.344, 12.34},
+		{12.345, 12.35},
+	}
+	for _, c := range cases {
+		if got := roundDB(c.in); float64(got) != c.want {
+			t.Errorf("roundDB(%v) = %v, want %v", c.in, float64(got), c.want)
+		}
+	}
+}
+
+func TestRoundDBKeepsSilence(t *testing.T) {
+	// A silent bin measures as negative infinity and has to stay that way, so
+	// that it still marshals as null rather than becoming a real level.
+	if got := roundDB(math.Inf(-1)); !math.IsInf(float64(got), -1) {
+		t.Errorf("roundDB(-Inf) = %v, want -Inf", float64(got))
+	}
+	if got := roundDB(math.NaN()); !math.IsNaN(float64(got)) {
+		t.Errorf("roundDB(NaN) = %v, want NaN", float64(got))
+	}
+}
+
+func TestRoundedSpectrumMarshalsShort(t *testing.T) {
+	// The point of rounding is the size of the written file, so check the text
+	// rather than the value.
+	grid := &measure.Grid{
+		Power:      [][]float32{{0.34567891, 0}},
+		Bins:       2,
+		SampleRate: 4000,
+		FFTSize:    4,
+		Channels:   []measure.ChannelSpectrum{{Mean: []float64{0.34567891, 0}, Peak: []float64{1, 0}}},
+	}
+
+	data, err := json.Marshal(summariseSpectrum(grid))
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	for _, want := range []string{`"average_dbfs":[-4.61,null]`, `"mean_dbfs":[-4.61,null]`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("marshalled spectrum missing %s\ngot %s", want, data)
 		}
 	}
 }
