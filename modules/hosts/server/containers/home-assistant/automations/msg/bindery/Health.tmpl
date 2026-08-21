@@ -1,0 +1,6 @@
+{% set p = trigger.payload_json %}🩺 <b>Bindery · health</b>
+<b>{{ p.title | default('Health') }}</b>
+<ul>
+<li><b>Detail:</b> {{ p.message | default('—') }}</li>
+<li><b>Status:</b> <code>{{ p.status | default('—') }}</code></li>
+</ul>

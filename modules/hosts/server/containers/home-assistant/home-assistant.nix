@@ -154,7 +154,9 @@
                 "#cleanuparr:matrix.services.internal"
                 "#seasonpackarr:matrix.services.internal"
                 "#soulseek:matrix.services.internal"
-                "#lazylibrarian:matrix.services.internal"
+                "#bindery:matrix.services.internal"
+                "#komga:matrix.services.internal"
+                "#audiobookshelf:matrix.services.internal"
                 "#automations:matrix.services.internal"
                 "#home-assistant:matrix.services.internal"
                 "#alerts:matrix.services.internal"
@@ -192,9 +194,9 @@
               (import ./automations/_prowlarr-webhook.nix { })
               (import ./automations/_autobrr-webhook.nix { })
               (import ./automations/_mousetrap-webhook.nix { })
+              (import ./automations/_bindery-webhook.nix { })
               (import ./automations/_qbittorrent_webhook.nix { })
               (import ./automations/_bazarr-webhook.nix { })
-              (import ./automations/_lazylibrarian-webhook.nix { })
               (import ./automations/_automations-relay.nix { })
               (import ./automations/_ha-startup.nix { })
               (import ./automations/_ha-updates.nix { })

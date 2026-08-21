@@ -59,7 +59,9 @@
       den.aspects.infra._.clients._.container-home-assistant
       den.aspects.infra._.clients._.container-jellyfin
       den.aspects.infra._.clients._.container-kiwix
-      den.aspects.infra._.clients._.container-lazylibrarian
+      den.aspects.infra._.clients._.container-bindery
+      den.aspects.infra._.clients._.container-komga
+      den.aspects.infra._.clients._.container-audiobookshelf
       den.aspects.infra._.clients._.container-lidarr
       den.aspects.infra._.clients._.container-lldap
       den.aspects.infra._.clients._.container-loki

@@ -274,7 +274,7 @@
               # ArrClientFactory); for these four it is the *arr API version.
               # readarr is deliberately absent: it is the one *arr with no
               # configuratarr config of its own, and the packaged 0.4.18 is from
-              # the archived upstream. Books go through lazylibrarian.
+              # the archived upstream. Books go through Bindery.
               sonarr_instances = [ (arr "sonarr" 3) ];
               radarr_instances = [ (arr "radarr" 3) ];
               lidarr_instances = [ (arr "lidarr" 1) ];

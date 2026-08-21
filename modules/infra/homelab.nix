@@ -90,8 +90,10 @@
       den.aspects.infra._.clients._.container-lidarr
       den.aspects.infra._.clients._.container-beets
       den.aspects.infra._.clients._.container-readarr
-      den.aspects.infra._.clients._.container-lazylibrarian
       den.aspects.infra._.clients._.container-calibre-web
+      den.aspects.infra._.clients._.container-bindery
+      den.aspects.infra._.clients._.container-komga
+      den.aspects.infra._.clients._.container-audiobookshelf
       den.aspects.infra._.clients._.container-sonarr
       den.aspects.infra._.clients._.container-bazarr
       den.aspects.infra._.clients._.container-prowlarr

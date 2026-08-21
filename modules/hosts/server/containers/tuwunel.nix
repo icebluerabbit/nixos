@@ -107,7 +107,13 @@
               (room "soulseek" "Soulseek" "media" "soulseek")
               (room "jellyfin" "Jellyfin" "media" "jellyfin")
               (room "youtarr" "Youtarr" "media" "youtube")
-              (room "lazylibrarian" "LazyLibrarian" "media" "calibre")
+              (room "bindery" "Bindery" "media" "calibre")
+              # Komga and Audiobookshelf have no webhook/notify surface (Komga has
+              # none at all; ABS only fires podcast/backup/RSS events through an
+              # Apprise server we don't run). These rooms stay quiet until Grafana
+              # alerts route here.
+              (room "komga" "Komga" "media" "calibre")
+              (room "audiobookshelf" "Audiobookshelf" "media" "rhythmbox")
 
               # Home.
               (room "home-assistant" "Home Assistant" "home" "preferences-system")

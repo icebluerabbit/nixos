@@ -183,7 +183,15 @@ _: {
                       inherit (cfg) jwtSecretFile storageEncryptionKeyFile;
                       inherit (cfg) oidcHmacSecretFile oidcIssuerPrivateKeyFile;
                     };
-                    environmentVariables.AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE = cfg.ldapPasswordFile;
+                    environmentVariables = {
+                      AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE = cfg.ldapPasswordFile;
+                      # Enables Authelia's Go-template config filter so OIDC
+                      # client secrets can be pulled from files with
+                      # `{{ secret "/run/secrets/…" }}` at start-up. Without it
+                      # the literal value would have to sit in the generated
+                      # config — i.e. world-readable in the nix store.
+                      X_AUTHELIA_CONFIG_FILTERS = "template";
+                    };
                   };
                 };
             };

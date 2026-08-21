@@ -14,7 +14,6 @@ let
       radarr = "10.10.120.4";
       lidarr = "10.10.120.5";
       readarr = "10.10.120.6";
-      lazylibrarian = "10.10.120.3";
       calibre-web = "10.10.120.17";
       sonarr = "10.10.120.7";
       prowlarr = "10.10.120.8";
@@ -31,6 +30,9 @@ let
       mousetrap = "10.10.120.20";
       cleanuparr = "10.10.120.21";
       seasonpackarr = "10.10.120.22";
+      bindery = "10.10.120.23";
+      komga = "10.10.120.24";
+      audiobookshelf = "10.10.120.25";
     };
   };
 in

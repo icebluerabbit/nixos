@@ -58,8 +58,10 @@
       den.aspects.hosts._.server._.containers._.lidarr
       den.aspects.hosts._.server._.containers._.beets
       den.aspects.hosts._.server._.containers._.readarr
-      den.aspects.hosts._.server._.containers._.lazylibrarian
       den.aspects.hosts._.server._.containers._.calibre-web
+      den.aspects.hosts._.server._.containers._.bindery
+      den.aspects.hosts._.server._.containers._.komga
+      den.aspects.hosts._.server._.containers._.audiobookshelf
       den.aspects.hosts._.server._.containers._.sonarr
       den.aspects.hosts._.server._.containers._.bazarr
       den.aspects.hosts._.server._.containers._.prowlarr

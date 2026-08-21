@@ -64,10 +64,6 @@
       };
     };
     import-tree.url = "github:vic/import-tree";
-    lazylibrarian-flake = {
-      url = "github:icebluerabbit/lazylibrarian-flake/dev";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     matt-pocock-skills = {
       url = "github:mattpocock/skills";
       flake = false;

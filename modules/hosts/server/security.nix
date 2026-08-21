@@ -22,7 +22,6 @@ _: {
             # addic7ed-password = { };
             lidarr-apikey = { };
             readarr-apikey = { };
-            lazylibrarian-apikey = { };
             prowlarr-apikey = { };
             mam-username = {
               mode = "0444";
@@ -168,6 +167,30 @@ _: {
             # setup and only serves it from the API, so the password is needed on
             # every boot to log in and re-read the key — not just once.
             cleanuparr-admin-password = { };
+            # Komga and Audiobookshelf both mint their API keys against an admin
+            # account and only return the plaintext on create, so the password is
+            # needed on every boot to log in and remint — not just once. Same
+            # shape as cleanuparr-admin-password above.
+            komga-admin-password = { };
+            audiobookshelf-admin-password = { };
+            # OIDC client secrets. Each is consumed twice: as a file by Authelia
+            # (via its `{{ secret }}` config template filter, so the value never
+            # lands in the nix store) and as an env var by the app itself.
+            # 0444 like every other authelia-* secret above: Authelia's config
+            # template filter reads these at start-up as its own non-root service
+            # user, and the default 0400/root mode makes the whole config fail to
+            # load ("error calling secret: … permission denied"), which takes
+            # forward-auth — and therefore every vhost — down with it.
+            audiobookshelf-oidc-client-secret = {
+              mode = "0444";
+            };
+            komga-oidc-client-secret = {
+              mode = "0444";
+            };
+            # Seeds Bindery's initial API key on first launch (BINDERY_API_KEY is
+            # seed-only upstream); afterwards the key lives in Bindery's database
+            # and this value is what configuratarr authenticates with.
+            bindery-apikey = { };
             # gitea token for the forgejo-vscode extension in code-server (browse/clone
             # in the IDE); pushes go over SSH. Host-decryptable copy of the same value
             # the user-secret holds for Terraform. 0400 → read via LoadCredential.
@@ -215,6 +238,10 @@ _: {
               HOMEPAGE_VAR_LIDARR_KEY=${config.sops.placeholder.lidarr-apikey}
               HOMEPAGE_VAR_READARR_KEY=${config.sops.placeholder.readarr-apikey}
               HOMEPAGE_VAR_PROWLARR_KEY=${config.sops.placeholder.prowlarr-apikey}
+              # Komga's Homepage widget authenticates as the admin user, not with
+              # an API key — the minted key lives inside the Komga container.
+              HOMEPAGE_VAR_KOMGA_USERNAME=admin@media.internal
+              HOMEPAGE_VAR_KOMGA_PASSWORD=${config.sops.placeholder.komga-admin-password}
               HOMEPAGE_VAR_CROSSSEED_KEY=${config.sops.placeholder.cross-seed-apikey}
               HOMEPAGE_VAR_AUTOBRR_KEY=${config.sops.placeholder.autobrr-api-token}
               HOMEPAGE_VAR_LATITUDE=${config.sops.placeholder.home-latitude}
@@ -275,10 +302,6 @@ _: {
               READARR__AUTH__APIKEY=${config.sops.placeholder.readarr-apikey}
               READARR__AUTH__METHOD=External
             '';
-            "lazylibrarian-env".content = ''
-              LAZYLIBRARIAN_API_KEY=${config.sops.placeholder.lazylibrarian-apikey}
-              PROWLARR_API_KEY=${config.sops.placeholder.prowlarr-apikey}
-            '';
             "autobrr-env".content = ''
               AUTOBRR_API_TOKEN=${config.sops.placeholder.autobrr-api-token}
               CROSS_SEED_APIKEY=${config.sops.placeholder.cross-seed-apikey}
@@ -312,6 +335,19 @@ _: {
             # after the config file, so this is what supplies apiToken.
             "seasonpackarr-env".content = ''
               SEASONPACKARR__API_TOKEN=${config.sops.placeholder.seasonpackarr-api-token}
+            '';
+            "komga-env".content = ''
+              KOMGA_ADMIN_USER=admin@media.internal
+              KOMGA_ADMIN_PASSWORD=${config.sops.placeholder.komga-admin-password}
+              KOMGA_OIDC_CLIENT_SECRET=${config.sops.placeholder.komga-oidc-client-secret}
+            '';
+            "audiobookshelf-env".content = ''
+              AUDIOBOOKSHELF_ADMIN_USER=admin
+              AUDIOBOOKSHELF_ADMIN_PASSWORD=${config.sops.placeholder.audiobookshelf-admin-password}
+              AUDIOBOOKSHELF_OIDC_CLIENT_SECRET=${config.sops.placeholder.audiobookshelf-oidc-client-secret}
+            '';
+            "bindery-env".content = ''
+              BINDERY_API_KEY=${config.sops.placeholder.bindery-apikey}
             '';
             "cleanuparr-env".content = ''
               CLEANUPARR_ADMIN_USER=admin

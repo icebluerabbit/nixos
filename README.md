@@ -93,7 +93,7 @@ flowchart TD
 
 | VLAN | id | subnet | host | containers | devices |
 |:---|---:|:---|:---|---:|---:|
-| media | 120 | 10.10.120.0/24 | 10.10.120.2 | 19 | — |
+| media | 120 | 10.10.120.0/24 | 10.10.120.2 | 21 | — |
 | services | 140 | 10.10.140.0/24 | 10.10.140.2 | 14 | — |
 | apps | 110 | 10.10.110.0/24 | 10.10.110.2 | 9 | — |
 | iot | 30 | 10.10.30.0/24 | 10.10.30.2 | 5 | 6 |
@@ -109,15 +109,17 @@ flowchart TD
 
 | container | address |
 |:---|:---|
+| audiobookshelf | 10.10.120.25 |
 | autobrr | 10.10.120.14 |
 | bazarr | 10.10.120.16 |
 | beets | 10.10.120.18 |
+| bindery | 10.10.120.23 |
 | calibre-web | 10.10.120.17 |
 | cleanuparr | 10.10.120.21 |
 | cross-seed | 10.10.120.15 |
 | flaresolverr | 10.10.120.13 |
 | jellyfin | 10.10.120.10 |
-| lazylibrarian | 10.10.120.3 |
+| komga | 10.10.120.24 |
 | lidarr | 10.10.120.5 |
 | mousetrap | 10.10.120.20 |
 | prowlarr | 10.10.120.8 |

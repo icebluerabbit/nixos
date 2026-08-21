@@ -1,0 +1,8 @@
+{% set p = trigger.payload_json %}📥 <b>Bindery · grabbed</b>
+<b>{{ p.item | default(p.message) | default('—') }}</b>
+<ul>
+<li><b>Author:</b> {{ p.author | default('—') }}</li>
+<li><b>Format:</b> <code>{{ p.mediaFormat | default(p.format) | default('—') }}</code></li>
+<li><b>Size:</b> {% if p.size %}{{ (p.size / 1073741824) | round(2) }} GiB{% else %}—{% endif %}</li>
+<li><b>Indexer:</b> {{ p.indexer | default('—') }}</li>
+</ul>
