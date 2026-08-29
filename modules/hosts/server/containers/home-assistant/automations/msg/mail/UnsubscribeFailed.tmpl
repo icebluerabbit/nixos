@@ -1,0 +1,2 @@
+⚠️ <b>Unsubscribe failed</b> · <code>{{ (unsub_url | regex_findall('https://([^/]+)') | first) | default('?', true) }}</code> · HTTP {{ resp.status | default('—') }}
+<br><i>message left in place</i>

@@ -64,6 +64,19 @@
                 allow_hevc_encoding = true;
                 allow_av1_encoding = true;
                 enable_vpp_tonemapping = true;
+                # Browsers cannot direct-play mkv, so every play spawns ffmpeg
+                # writing HLS segments. The default cache lives on the container's
+                # ephemeral tmpfs root (23G of RAM); a 4K remux direct-streams at
+                # ~46x realtime and fills it in minutes, after which every segment
+                # is written 0-byte and the client reports a fatal HLS error.
+                # Park the segments on the appdata nvme instead (excluded from the
+                # restic job in hosts/server/backups.nix), and bound how far ffmpeg
+                # may run ahead of playback so no single stream can run away again.
+                transcoding_temp_path = "/var/lib/jellyfin/transcodes";
+                enable_throttling = true;
+                throttle_delay_seconds = 180;
+                enable_segment_deletion = true;
+                segment_keep_seconds = 720;
                 hardware_decoding_codecs = [
                   "h264"
                   "hevc"

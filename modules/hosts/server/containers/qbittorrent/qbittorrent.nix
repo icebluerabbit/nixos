@@ -38,6 +38,11 @@
           audiobooks = "/mnt/media/complete/audiobooks";
           music = "/mnt/media/complete/music";
           misc = "/mnt/media/complete/misc";
+          # MAM sorted Manga and Comic Book / Graphic Novel under Ebooks before
+          # promoting them to media types of their own, so mousetrap filed them
+          # as `books`. Split out so a comics library manager can own them
+          # without Bindery's ebook importer walking the same tree.
+          comics = "/mnt/media/complete/comics";
           # seasonpackarr's preImportPath — packs it assembles from episodes
           # already held here are added under this category by autobrr, so the
           # save path must match what seasonpackarr hardlinked into. Kept out of

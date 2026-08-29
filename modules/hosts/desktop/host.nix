@@ -14,6 +14,7 @@
       den.aspects.hosts._.desktop._.networking
       den.aspects.hosts._.desktop._.platform
       den.aspects.hosts._.desktop._.time
+      den.aspects.hosts._.desktop._.vault
       den.aspects.hw._.amd-9800-x3d
       den.aspects.hw._.logitech-mouse
       den.aspects.hw._.samsung-ssd

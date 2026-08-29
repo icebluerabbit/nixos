@@ -64,8 +64,9 @@
                   ${btrfs} subvolume snapshot -r ${source} ${snap}
                 '';
                 # exclude reconstructible caches/churn: metrics/log/trace stores,
-                # esphome toolchains, jellyfin metadata images, *arr MediaCover,
-                # and youtarr's hoarded yt-dlp .info.json sidecars (9G of scrape cruft)
+                # esphome toolchains, jellyfin metadata images and HLS segments,
+                # *arr MediaCover, and youtarr's hoarded yt-dlp .info.json sidecars
+                # (9G of scrape cruft)
                 ExecStart = lib.escapeShellArgs (
                   [
                     backup
@@ -85,6 +86,7 @@
                         "${snap}/esphome/.cache"
                         "${snap}/jellyfin/metadata"
                         "${snap}/jellyfin/log"
+                        "${snap}/jellyfin/transcodes"
                         "${snap}/youtarr/config/jobs/info"
                         "${snap}/youtarr/.cache"
                         "**/MediaCover"

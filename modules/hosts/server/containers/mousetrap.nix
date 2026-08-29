@@ -57,12 +57,13 @@
               url = "http://${config.infra.clients.container-qbittorrent.ip}:${toString config.infra.clients.container-qbittorrent.ports.webui}";
               # Keyed by MAM media type. Manga and Comic Book were the "Ebooks -
               # Comics/Graphic novels" subcategory before MAM promoted them to media
-              # types of their own, so they keep landing in the books category.
+              # types of their own; they route to their own `comics` category so a
+              # comics library manager can own that tree independently of Bindery.
               categories = {
                 "Ebook" = "books";
                 "Periodical Ebook" = "books";
-                "Manga" = "books";
-                "Comic Book / Graphic Novel" = "books";
+                "Manga" = "comics";
+                "Comic Book / Graphic Novel" = "comics";
                 "Audiobook" = "audiobooks";
               };
               addPaused = false;

@@ -73,9 +73,13 @@
               download_clients = [
                 (import ./download-clients/_qbittorrent.nix { inherit config; })
               ];
-              indexers = [
-                (import ./indexers/_mousetrap.nix { inherit config; })
-              ];
+              # Disabled: Bindery's own auto-grab against MAM is off for now.
+              # NOTE: configuratarr runs without --prune, so removing this entry
+              # does NOT delete the indexer row already in bindery.db — set
+              # `enabled = false` in _mousetrap.nix if the live indexer must stop.
+              # indexers = [
+              #   (import ./indexers/_mousetrap.nix { inherit config; })
+              # ];
               # Notify → local Vector sidecar (loopback :9001) → MQTT
               # homelab/notify/bindery → HA mqtt trigger → #bindery. Same chain as
               # the *arr containers. Bindery has exactly one delivery
@@ -116,6 +120,7 @@
               # Same rule Radarr enforces via media_management.copy_using_hardlinks.
               setting = {
                 import_mode = "hardlink";
+                hardcover_api_token = "\${env.HARDCOVER_API_KEY}";
               };
               # Trust Caddy's Authelia-populated Remote-User header instead of
               # showing Bindery's own login form. One login (Authelia), no second

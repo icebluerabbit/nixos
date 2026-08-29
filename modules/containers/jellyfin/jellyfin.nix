@@ -168,6 +168,23 @@
                     serviceConfig.EnvironmentFile = lib.mkIf (cfg.envFile != null) "/run/secrets/jellyfin-env";
                   };
 
+                  # Jellyfin validates TranscodingTempPath server-side and rejects a
+                  # path that does not already exist ("<path> does not exist", surfaced
+                  # as HTTP 404), so a configuratarr sync that relocates the transcode
+                  # cache fails unless the directory is pre-created. tmpfiles runs from
+                  # sysinit.target, well before configuratarr.service.
+                  systemd.tmpfiles.rules =
+                    let
+                      transcodePath = lib.attrByPath [
+                        "jellyfin"
+                        "encoding_options"
+                        "transcoding_temp_path"
+                      ] null cfg.configuratarr.settings;
+                    in
+                    lib.optional (
+                      cfg.configuratarr.enable && transcodePath != null
+                    ) "d ${transcodePath} 0700 jellyfin jellyfin - -";
+
                   users = {
                     users.jellyfin = {
                       uid = lib.mkForce cfg.uid;

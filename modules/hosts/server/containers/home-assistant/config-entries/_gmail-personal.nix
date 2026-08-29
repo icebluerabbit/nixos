@@ -20,11 +20,16 @@ _: {
     # Gmail files spam under [Gmail]/Spam, so INBOX already excludes it.
     folder = "INBOX";
     search = "UnSeen UnDeleted";
-    # Keep body and headers out of the event bus. The coordinator drops any
-    # imap_content event over 32168 bytes outright, and HTML mail blows past
-    # that with the text included.
-    event_message_data = [ ];
+    # Body stays out of the event bus — HTML mail blows past the coordinator's
+    # 32168-byte event cap on its own, and an oversized event is dropped whole
+    # (the message is then never relayed at all). Headers are in, because they
+    # are only in scope for custom_event_data_template when listed here, and
+    # List-Unsubscribe lives there. Header blocks run a few KB, so the cap is
+    # still the thing to watch: a skip logs "Custom imap_content event skipped".
+    event_message_data = [ "headers" ];
     max_message_size = 2048;
+    # unsub URL + body preview, both computed at the source. See the template.
+    custom_event_data_template = import ./_mail-custom-template.nix;
     # IMAP IDLE; false falls back to a 10s poll.
     enable_push = true;
   };

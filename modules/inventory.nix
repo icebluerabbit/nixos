@@ -21,6 +21,12 @@
               den.aspects.apps._.firefox
               den.aspects.apps._.neovide
               den.aspects.apps._.kitty
+              den.aspects.apps._.lm-studio
+              den.aspects.apps._.mpv
+              den.aspects.apps._.obs-studio
+              den.aspects.apps._.pcmanfm-qt
+              den.aspects.apps._.qimgv
+              den.aspects.apps._.vesktop
               den.aspects.apps._.walker
               den.aspects.apps._.zed
               den.aspects.apps._.picard

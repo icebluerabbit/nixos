@@ -66,6 +66,7 @@
                   (import ./indexers/_retrotoon.nix { inherit config; })
                   (import ./indexers/_darkpeers.nix { inherit config; })
                   (import ./indexers/_yuscene.nix { inherit config; })
+                  (import ./indexers/_seedpool.nix { inherit config; })
                 ];
                 download_clients = [
                   (import ./download-clients/_qbittorrent.nix { inherit config; })

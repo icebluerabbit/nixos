@@ -34,9 +34,9 @@
               "rsize=1048576"
               "wsize=1048576"
               # nconnect is PER client↔server TRANSPORT, fixed by the first mount to the
-              # server. All three shares below hit 10.10.50.222, so they share ONE
-              # transport — every mount must agree on nconnect or the first-mounted wins
-              # (kernel silently ignores later differing values). Keep all at 16.
+              # server. Both shares below hit 10.10.50.222, so they share ONE transport
+              # — every mount must agree on nconnect or the first-mounted wins (kernel
+              # silently ignores later differing values). Keep both at 16.
               "nconnect=16"
               "noatime"
               "nodiratime"
@@ -71,26 +71,6 @@
               "noatime"
               "nodiratime"
               "actimeo=30"
-              "hard"
-              "timeo=150"
-              "retrans=3"
-            ];
-          };
-          "/mnt/projects" = {
-            device = "${config.infra.clients.unas-pro.ip}:/var/nfs/shared/Projects";
-            fsType = "nfs";
-            options = [
-              "x-systemd.requires=network-addresses-br-storage.service" # see /mnt/media
-              "x-systemd.after=network-addresses-br-storage.service"
-              "x-systemd.automount"
-              "noauto"
-              "nfsvers=3"
-              "rsize=131072"
-              "wsize=131072"
-              "nconnect=16" # shared transport w/ /mnt/media — must match (see above)
-              "noatime"
-              "nodiratime"
-              "actimeo=10"
               "hard"
               "timeo=150"
               "retrans=3"

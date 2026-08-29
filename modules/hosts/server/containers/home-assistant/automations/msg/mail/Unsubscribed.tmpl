@@ -1,0 +1,1 @@
+✅ <b>Unsubscribed</b> · <code>{{ (unsub_url | regex_findall('https://([^/]+)') | first) | default('?', true) }}</code> · HTTP {{ resp.status | default('—') }}

@@ -39,6 +39,10 @@ in
     { id = "\${ref.indexer.DarkPeers}"; }
     { id = "\${ref.indexer.RetroToon}"; }
     { id = "\${ref.indexer.YU-Scene}"; }
+    # SeedPool announces season packs under its own 【 BoxSet 】 category, which
+    # _seedpool-tv.nix also matches — this filter's priority 100 is what keeps
+    # the pack from reaching that one first.
+    { id = "\${ref.indexer.SeedPool}"; }
   ];
   # Match gate only: no filesystem writes, nothing added to the client. 250 is
   # seasonpackarr's own "matched" status, not an HTTP convention.

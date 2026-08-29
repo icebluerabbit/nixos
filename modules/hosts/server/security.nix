@@ -130,6 +130,8 @@ _: {
             darkpeers-rsskey = { };
             yuscene-apikey = { };
             yuscene-rsskey = { };
+            seedpool-apikey = { };
+            seedpool-rsskey = { };
             digitalcore-username = {
               mode = "0444";
             };
@@ -155,6 +157,16 @@ _: {
               mode = "0444";
             };
             yuscene-irckey = {
+              mode = "0444";
+            };
+            # SeedPool authenticates IRC with the site passkey as the server
+            # PASS — there is no separate IRC key — so the passkey is 0444 like
+            # every other secret thelounge reads as its own user, not just the
+            # username.
+            seedpool-username = {
+              mode = "0444";
+            };
+            seedpool-passkey = {
               mode = "0444";
             };
             autobrr-session-secret = { };
@@ -191,6 +203,10 @@ _: {
             # seed-only upstream); afterwards the key lives in Bindery's database
             # and this value is what configuratarr authenticates with.
             bindery-apikey = { };
+            # Hardcover metadata provider token. Bindery has no env var for it —
+            # the value lives in bindery.db, so it reaches the DB via
+            # configuratarr's hardcover_api_token setting, not the process env.
+            hardcover-apikey = { };
             # gitea token for the forgejo-vscode extension in code-server (browse/clone
             # in the IDE); pushes go over SSH. Host-decryptable copy of the same value
             # the user-secret holds for Terraform. 0400 → read via LoadCredential.
@@ -328,6 +344,9 @@ _: {
               YUSCENE_RSSKEY=${config.sops.placeholder.yuscene-rsskey}
               YUSCENE_NICK=${config.sops.placeholder.yuscene-username}
               YUSCENE_IRCKEY=${config.sops.placeholder.yuscene-irckey}
+              SEEDPOOL_RSSKEY=${config.sops.placeholder.seedpool-rsskey}
+              SEEDPOOL_NICK=${config.sops.placeholder.seedpool-username}
+              SEEDPOOL_PASSKEY=${config.sops.placeholder.seedpool-passkey}
               SEASONPACKARR_API_TOKEN=${config.sops.placeholder.seasonpackarr-api-token}
             '';
             # Every other seasonpackarr setting is a typed option generated into
@@ -348,6 +367,7 @@ _: {
             '';
             "bindery-env".content = ''
               BINDERY_API_KEY=${config.sops.placeholder.bindery-apikey}
+              HARDCOVER_API_KEY=${config.sops.placeholder.hardcover-apikey}
             '';
             "cleanuparr-env".content = ''
               CLEANUPARR_ADMIN_USER=admin
@@ -369,6 +389,7 @@ _: {
               RETROTOON_PASSKEY=${config.sops.placeholder.retrotoon-passkey}
               DARKPEERS_APIKEY=${config.sops.placeholder.darkpeers-apikey}
               YUSCENE_APIKEY=${config.sops.placeholder.yuscene-apikey}
+              SEEDPOOL_APIKEY=${config.sops.placeholder.seedpool-apikey}
               RADARR__AUTH__APIKEY=${config.sops.placeholder.radarr-apikey}
               SONARR__AUTH__APIKEY=${config.sops.placeholder.sonarr-apikey}
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}

@@ -28,6 +28,17 @@ _: {
           #   xray = true;
           # };
         }
+        {
+          # Steam games run through XWayland and their fullscreen requests
+          # land as plain toplevels, so niri tiles them like any other window.
+          # Force fullscreen and opt them out of the inactive-window dimming.
+          matches = [
+            { app-id = "^steam_app_[0-9]+$"; }
+          ];
+          open-fullscreen = true;
+          opacity = 1.0;
+          clip-to-geometry = false;
+        }
       ];
     };
   };

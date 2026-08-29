@@ -55,6 +55,7 @@
                 (import ./networks/_retrotoon.nix)
                 (import ./networks/_darkpeers.nix)
                 (import ./networks/_yuscene.nix)
+                (import ./networks/_seedpool.nix)
               ];
               # Enforced into users/admin.json clientSettings every boot (merged —
               # declared keys win, other UI tweaks preserved). Theme CSS is read
@@ -130,6 +131,14 @@
             };
             "/run/secrets/yuscene-irckey" = {
               hostPath = config.sops.secrets."yuscene-irckey".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/seedpool-username" = {
+              hostPath = config.sops.secrets."seedpool-username".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/seedpool-passkey" = {
+              hostPath = config.sops.secrets."seedpool-passkey".path;
               isReadOnly = true;
             };
           };

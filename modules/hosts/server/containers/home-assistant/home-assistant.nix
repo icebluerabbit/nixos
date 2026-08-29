@@ -173,14 +173,18 @@
                 "#commits:matrix.services.internal"
                 "#stars:matrix.services.internal"
               ];
-              commands = [ (import ./matrix-commands/_autobrr-grab.nix) ];
+              commands = [
+                (import ./matrix-commands/_autobrr-grab.nix)
+                (import ./matrix-commands/_mail-unsub.nix)
+              ];
             };
             rest_command =
               (import ./rest-commands/_matrix-login.nix { inherit config; })
               // (import ./rest-commands/_matrix-get-event.nix { inherit config; })
               // (import ./rest-commands/_qbt-add.nix { inherit config; })
               // (import ./rest-commands/_vpn-rotate.nix { inherit config; })
-              // (import ./rest-commands/_prometheus-query.nix { inherit config; });
+              // (import ./rest-commands/_prometheus-query.nix { inherit config; })
+              // (import ./rest-commands/_mail-unsubscribe.nix { });
             automation = [
               (import ./automations/_moes-button-1-living-33.nix { })
               (import ./automations/_moes-button-2-living-66.nix { })
@@ -214,6 +218,7 @@
               (import ./automations/_away-motion-alert.nix { })
               (import ./automations/_living-room-auto-light.nix { })
               (import ./automations/_mail-relay.nix { })
+              (import ./automations/_mail-unsubscribe.nix { })
               (import ./automations/_github-releases.nix { inherit lib; })
               (import ./automations/_github-pull-requests.nix { inherit lib; })
               (import ./automations/_github-issues.nix { inherit lib; })
