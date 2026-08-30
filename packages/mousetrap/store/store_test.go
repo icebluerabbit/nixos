@@ -161,6 +161,17 @@ func TestGrabDedupAndInFlight(t *testing.T) {
 	if _, err := s.InsertSpend(ctx, Spend{TS: now, Type: types.SpendWedge, Reason: types.SpendReasonGrab}); err != nil {
 		t.Fatal(err)
 	}
+	// Point spends are summed by amount, not counted like wedges.
+	if _, err := s.InsertSpend(ctx, Spend{TS: now, Type: types.SpendPoints, Amount: 16071, Reason: types.SpendReasonShopVIP}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.InsertSpend(ctx, Spend{TS: now, Type: types.SpendPoints, Amount: 25000, Reason: types.SpendReasonShopUpload}); err != nil {
+		t.Fatal(err)
+	}
+	// Outside the window: must not appear in any tally.
+	if _, err := s.InsertSpend(ctx, Spend{TS: now - 5000, Type: types.SpendPoints, Amount: 999, Reason: types.SpendReasonShopVIP}); err != nil {
+		t.Fatal(err)
+	}
 
 	if seen, _ := s.GrabSeen(ctx, 1); !seen {
 		t.Error("real grab should be seen")
@@ -173,8 +184,39 @@ func TestGrabDedupAndInFlight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.Count != 1 || f.RatioBytes != 1000 || f.Wedges != 1 {
-		t.Errorf("in-flight = %+v, want {1,1000,1} (dry-run excluded)", f)
+	if f.Count != 1 || f.RatioBytes != 1000 || f.Wedges != 1 || f.Points != 41071 {
+		t.Errorf("in-flight = %+v, want {1,1000,1,41071} (dry-run and out-of-window excluded)", f)
+	}
+}
+
+// TestSkippedWedgeBytes pins the wedge_unavailable byte tally. It reads announces
+// rather than grabs because a skip never writes a grab row, and it must key on the
+// exact reason string the policy emits — a drifted enum would silently report zero.
+func TestSkippedWedgeBytes(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+
+	add := func(tid, size int64, decision, reason string) {
+		id, err := s.InsertAnnounce(ctx, Announce{TID: tid, Size: size, MediaType: "Audiobook",
+			AcceptDecision: "accept", AcceptReason: "ok"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.UpdateAnnounceGrab(ctx, id, decision, reason); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add(1, 500_000_000, string(types.Skip), string(types.GrabWedgeUnavailable))
+	add(2, 700_000_000, string(types.Skip), string(types.GrabWedgeUnavailable))
+	add(3, 900_000_000, string(types.Skip), string(types.GrabVIPRequired)) // other skip reason
+	add(4, 100_000_000, string(types.Grab), string(types.GrabOK))          // grabbed, not skipped
+
+	n, err := s.SkippedWedgeBytes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1_200_000_000 {
+		t.Errorf("SkippedWedgeBytes = %d, want 1200000000 (only wedge_unavailable skips)", n)
 	}
 }
 

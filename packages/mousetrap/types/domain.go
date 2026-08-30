@@ -48,9 +48,15 @@ func (a AccountState) VIP() bool {
 
 // InFlight is the optimistic aggregate of recent grabs within the reconciliation
 // window: how many count against the unsat ceiling, how many ratio-costing bytes
-// against the buffer, and how many wedges spent.
+// against the buffer, how many wedges spent, and how many bonus points spent.
+//
+// Every field is deliberately a *usage* tally, never an entitlement: an overcount
+// only ever makes the policy do less. Nothing that would let us grab or buy MORE
+// than MAM's own snapshot allows belongs here — VIP status in particular is read
+// from ClassName on refresh and never inferred from a purchase we believe we made.
 type InFlight struct {
 	Count      int
 	RatioBytes int64
 	Wedges     int
+	Points     int64
 }

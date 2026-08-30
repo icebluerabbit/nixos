@@ -242,6 +242,11 @@ _: {
                           default = 0;
                           description = "B: only proactively wedge grabs ≥ this size";
                         };
+                        requireWedge = lib.mkOption {
+                          type = lib.types.bool;
+                          default = false;
+                          description = "B: skip a proactive match when no wedge is spendable, instead of grabbing it at full ratio (small/non-proactive releases unaffected)";
+                        };
                         rescueEnable = lib.mkOption {
                           type = lib.types.bool;
                           default = false;
@@ -515,6 +520,7 @@ _: {
                   ++ f.int "wedge-reserve" s.wedge.reserve
                   ++ f.list "wedge-proactive-media-type" s.wedge.proactiveMediaTypes
                   ++ f.int "wedge-proactive-min-size" s.wedge.proactiveMinSizeBytes
+                  ++ f.boolE "wedge-require" s.wedge.requireWedge
                   ++ f.boolE "wedge-rescue" s.wedge.rescueEnable
                   ++ f.int "wedge-rescue-min-size" s.wedge.rescueMinSizeBytes
                   # shop

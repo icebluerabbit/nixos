@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"mousetrap/app"
 	"mousetrap/mam"
@@ -25,7 +26,9 @@ func Shop(a *app.App) http.HandlerFunc {
 			return
 		}
 		acct := a.State.Account()
-		action, plan := a.Policy.Shop(acct)
+		since := time.Now().Add(-a.Cfg.Grab.InFlightWindow).Unix()
+		inflight, _ := a.Store.InFlightSince(ctx, since)
+		action, plan := a.Policy.Shop(acct, inflight)
 
 		executed := false
 		if action != types.ShopHold && !a.Cfg.Shop.DryRun {

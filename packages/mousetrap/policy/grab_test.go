@@ -109,13 +109,121 @@ func TestGrabGate(t *testing.T) {
 			name:  "wedge_wanted_but_none_left",
 			rel:   types.Release{MediaType: "Audiobook", Size: 500_000_000},
 			acct:  func() types.AccountState { a := base; a.Wedges = 2; return a }(),     // == reserve, not > → unavailable
-			wantD: types.Grab, wantR: types.GrabOK, wantPlan: GrabPlan{CostsRatio: true}, // buffer healthy → ratio grab
+			wantD: types.Grab, wantR: types.GrabOK, wantPlan: GrabPlan{CostsRatio: true}, // RequireWedge off → ratio grab
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			d, r, plan := gateEngine(t).Grab(tc.rel, tc.acct, tc.inflight)
+			if d != tc.wantD || r != tc.wantR {
+				t.Errorf("Grab = %s/%s, want %s/%s", d, r, tc.wantD, tc.wantR)
+			}
+			if plan != tc.wantPlan {
+				t.Errorf("plan = %+v, want %+v", plan, tc.wantPlan)
+			}
+		})
+	}
+}
+
+func requireWedgeEngine(t *testing.T) *Engine {
+	t.Helper()
+	e, err := New(
+		types.AcceptConfig{},
+		types.GrabConfig{UnsatMargin: 5, BufferMinBytes: 2 * gib},
+		types.WedgeConfig{
+			Enable:                true,
+			Reserve:               2,
+			ProactiveMediaTypes:   []string{"Audiobook"},
+			ProactiveMinSizeBytes: 400_000_000,
+			RequireWedge:          true,
+			RescueEnable:          true,
+			RescueMinSizeBytes:    100_000_000,
+		},
+		types.ShopConfig{},
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return e
+}
+
+// TestGrabGateRequireWedge pins the strict proactive rule. The point of the rule is
+// asymmetric: a release big enough to have been flagged wedge-worthy is skipped when
+// no wedge is spendable, but everything the proactive threshold does NOT cover keeps
+// grabbing at ratio exactly as before. Small cheap releases are the intended survivors.
+func TestGrabGateRequireWedge(t *testing.T) {
+	base := types.AccountState{
+		UnsatCount: 5, UnsatLimit: 20,
+		UploadedBytes: 10 * gib, DownloadedBytes: 1 * gib,
+		Wedges: 10, ClassName: "User",
+	}
+	dry := func() types.AccountState { a := base; a.Wedges = 2; return a }() // == reserve
+
+	cases := []struct {
+		name     string
+		rel      types.Release
+		acct     types.AccountState
+		inflight types.InFlight
+		wantD    types.GrabDecision
+		wantR    types.GrabReason
+		wantPlan GrabPlan
+	}{
+		{
+			name: "big_audiobook_no_wedge_skips",
+			rel:  types.Release{MediaType: "Audiobook", Size: 500_000_000},
+			acct: dry,
+			// the whole point: don't pay full ratio for something we meant to wedge
+			wantD: types.Skip, wantR: types.GrabWedgeUnavailable,
+		},
+		{
+			name:  "big_audiobook_wedge_available_wedges",
+			rel:   types.Release{MediaType: "Audiobook", Size: 500_000_000},
+			acct:  base,
+			wantD: types.Grab, wantR: types.GrabOKWedge, wantPlan: GrabPlan{UseWedge: true},
+		},
+		{
+			name: "big_audiobook_wedges_consumed_by_inflight_skips",
+			rel:  types.Release{MediaType: "Audiobook", Size: 500_000_000},
+			acct: func() types.AccountState { a := base; a.Wedges = 3; return a }(),
+			// 3 - 1 in flight == reserve, so nothing spendable
+			inflight: types.InFlight{Wedges: 1},
+			wantD:    types.Skip, wantR: types.GrabWedgeUnavailable,
+		},
+		{
+			name:  "small_audiobook_under_threshold_still_grabs",
+			rel:   types.Release{MediaType: "Audiobook", Size: 300_000_000},
+			acct:  dry,
+			wantD: types.Grab, wantR: types.GrabOK, wantPlan: GrabPlan{CostsRatio: true},
+		},
+		{
+			name:  "non_proactive_media_type_still_grabs",
+			rel:   types.Release{MediaType: "Ebook", Size: 5_000_000},
+			acct:  dry,
+			wantD: types.Grab, wantR: types.GrabOK, wantPlan: GrabPlan{CostsRatio: true},
+		},
+		{
+			name:  "freeleech_big_audiobook_unaffected",
+			rel:   types.Release{MediaType: "Audiobook", Size: 500_000_000, Freeleech: true},
+			acct:  dry,
+			wantD: types.Grab, wantR: types.GrabOK, // free short-circuits above the wedge block
+		},
+		{
+			name: "rescue_candidate_no_wedge_holds_not_skips",
+			rel:  types.Release{MediaType: "Ebook", Size: 200_000_000}, // >= rescue min, not proactive
+			acct: func() types.AccountState {
+				a := dry
+				a.UploadedBytes, a.DownloadedBytes = 1*gib, 0
+				return a
+			}(),
+			// RequireWedge is scoped to the proactive arm; rescue falls through as before
+			wantD: types.Hold, wantR: types.GrabBuffer,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d, r, plan := requireWedgeEngine(t).Grab(tc.rel, tc.acct, tc.inflight)
 			if d != tc.wantD || r != tc.wantR {
 				t.Errorf("Grab = %s/%s, want %s/%s", d, r, tc.wantD, tc.wantR)
 			}

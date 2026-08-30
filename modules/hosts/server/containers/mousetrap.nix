@@ -88,13 +88,23 @@
               };
             };
             shop = {
-              dryRun = true; # log "would buy", spend nothing until armed
+              dryRun = false; # ARM SWITCH — true = decide and log only; false = real buys
               reserved = 1000;
               vip = {
                 enable = true;
-                cost = 5000;
-                reserveMultiple = 2;
-                buyableClasses = [ ]; # add your class (Power User+) to arm VIP buys
+                # The store prices VIP at 5000 points per 4 weeks, but the API only
+                # accepts duration=max, which fills to the 90-day cap. The gate below
+                # buys only at 0 days remaining, so a purchase is always the full
+                # 90 days ≈ 12.86 weeks ≈ 16071 points — a constant, not a function of
+                # account state. Still an estimate: the API returns no price and
+                # userBonusHistory carries no purchase row, so the only ground truth is
+                # the mam_seedbonus step across a buy. Correct this from that.
+                cost = 16071;
+                # One renewal, not two: MAM refuses a buy that would exceed 90 days
+                # remaining, so a second stacked renewal is unbuyable by rule and
+                # reserving for it only strands points.
+                reserveMultiple = 1;
+                buyableClasses = [ "Power User" ];
               };
               upload = {
                 enable = true;
@@ -219,6 +229,13 @@
               # B — proactive: always wedge big audiobooks (400 MB ≈ median; ratio-first)
               proactiveMediaTypes = [ "Audiobook" ];
               proactiveMinSizeBytes = 400000000; # 400 MB
+              # Strict: a big audiobook with no wedge spendable is skipped, not bought
+              # at full ratio. Wedge income arrives ~10 per 4.75 days and demand runs
+              # ~4x that, so the stock sits at the reserve for most of each cycle —
+              # this is the brake for that stretch, not a permanent exclusion.
+              # Deliberately scoped by proactiveMinSizeBytes: anything under 400 MB
+              # (and every non-Audiobook type) keeps grabbing at ratio as before.
+              requireWedge = true;
               # A — rescue: wedge a would-be buffer hold on anything ≥ 100 MB
               rescueEnable = true;
               rescueMinSizeBytes = 100000000; # 100 MB

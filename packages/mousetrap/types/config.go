@@ -110,8 +110,13 @@ type WedgeConfig struct {
 	Reserve               int      // keep at least this many wedges unspent
 	ProactiveMediaTypes   []string // always wedge these media types above the proactive size
 	ProactiveMinSizeBytes int64    // proactive wedge size threshold
-	RescueEnable          bool     // wedge a grab that would otherwise be a buffer hold
-	RescueMinSizeBytes    int64    // rescue wedge size threshold
+	// RequireWedge makes the proactive rule strict: a release big enough to deserve
+	// a wedge is skipped outright when none is spendable, rather than falling through
+	// to a full-ratio grab. Releases under the proactive threshold are unaffected and
+	// still grab normally.
+	RequireWedge       bool
+	RescueEnable       bool  // wedge a grab that would otherwise be a buffer hold
+	RescueMinSizeBytes int64 // rescue wedge size threshold
 }
 
 // ShopConfig is the bonus-point spend policy: renew VIP or buy upload credit from

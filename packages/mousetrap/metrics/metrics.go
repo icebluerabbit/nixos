@@ -91,6 +91,7 @@ var (
 	descInflightCount  = prometheus.NewDesc("mousetrap_inflight_count", "in-flight grabs (unsat)", nil, nil)
 	descInflightRatio  = prometheus.NewDesc("mousetrap_inflight_ratio_bytes", "in-flight ratio-costing bytes", nil, nil)
 	descInflightWedges = prometheus.NewDesc("mousetrap_inflight_wedges", "in-flight wedges", nil, nil)
+	descInflightPoints = prometheus.NewDesc("mousetrap_inflight_points", "in-flight bonus points spent", nil, nil)
 )
 
 // ledger-derived counters
@@ -111,6 +112,7 @@ var (
 	descGrabSource = prometheus.NewDesc("mousetrap_grabs_by_source_total", "grabs by origin", []string{"source"}, nil)
 	descGrabBytes  = prometheus.NewDesc("mousetrap_grab_bytes_total", "bytes of successfully-added grabs", nil, nil)
 	descWedgeSaved = prometheus.NewDesc("mousetrap_wedge_saved_bytes_total", "ratio bytes saved via wedges", nil, nil)
+	descWedgeSkip  = prometheus.NewDesc("mousetrap_wedge_skipped_bytes_total", "ratio bytes avoided by skipping proactive-wedge releases with no wedge available", nil, nil)
 	descSpends     = prometheus.NewDesc("mousetrap_spends_total", "outgoing spends by reason", []string{"reason"}, nil)
 	descSpendType  = prometheus.NewDesc("mousetrap_spends_by_type_total", "outgoing spends by type", []string{"type"}, nil)
 	descSpendSum   = prometheus.NewDesc("mousetrap_spend_amount_total", "spent amount by type", []string{"type"}, nil)
@@ -182,6 +184,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		gauge(descInflightCount, float64(f.Count))
 		gauge(descInflightRatio, float64(f.RatioBytes))
 		gauge(descInflightWedges, float64(f.Wedges))
+		gauge(descInflightPoints, float64(f.Points))
 	}
 	if n, err := c.store.BonusTotal(ctx); err == nil {
 		gauge(descBonusCount, float64(n))
@@ -227,6 +230,9 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	}
 	if n, err := c.store.WedgeSavedBytes(ctx); err == nil {
 		counter(descWedgeSaved, float64(n))
+	}
+	if n, err := c.store.SkippedWedgeBytes(ctx); err == nil {
+		counter(descWedgeSkip, float64(n))
 	}
 
 	// ── spends ledger ──

@@ -106,7 +106,8 @@ func (e *Engine) Accept(rel types.Release) (types.AcceptDecision, types.AcceptRe
 
 // Grab applies the Layer-2 grab-gate to a Layer-1 survivor, given the current
 // account snapshot and optimistic in-flight tally. Order: no-account → unsat ceiling
-// → freeleech-for-us (VIP-aware) → wedge (proactive/rescue) → buffer floor → grab.
+// → freeleech-for-us (VIP-aware) → wedge (proactive/rescue) → wedge-required skip →
+// buffer floor → grab.
 func (e *Engine) Grab(rel types.Release, acct types.AccountState, inflight types.InFlight) (types.GrabDecision, types.GrabReason, GrabPlan) {
 	// No snapshot yet (zero-value account) → don't act until the first refresh.
 	if acct.UnsatLimit <= 0 {
@@ -140,11 +141,19 @@ func (e *Engine) Grab(rel types.Release, acct types.AccountState, inflight types
 	// Wedge decision: proactive (a configured kind above a size) or rescue (a grab
 	// that would otherwise be a buffer hold), gated on the wedge reserve.
 	w := e.wedge
-	wantWedge := w.Enable &&
-		((containsFold(w.ProactiveMediaTypes, rel.MediaType) && rel.Size >= w.ProactiveMinSizeBytes) ||
-			(bufferHold && w.RescueEnable && rel.Size >= w.RescueMinSizeBytes))
-	if wantWedge && acct.Wedges-inflight.Wedges > w.Reserve {
+	proactive := containsFold(w.ProactiveMediaTypes, rel.MediaType) && rel.Size >= w.ProactiveMinSizeBytes
+	rescue := bufferHold && w.RescueEnable && rel.Size >= w.RescueMinSizeBytes
+	if w.Enable && (proactive || rescue) && acct.Wedges-inflight.Wedges > w.Reserve {
 		return types.Grab, types.GrabOKWedge, GrabPlan{UseWedge: true}
+	}
+
+	// Big enough to deserve a wedge, but none spendable. Paying full ratio here
+	// contradicts the rule that flagged it, so skip instead. Wedge income is
+	// periodic, so this is a drought brake, not a permanent exclusion. Scoped to the
+	// proactive arm: a rescue candidate still falls through to the buffer hold below,
+	// and anything under the proactive size threshold grabs normally, wedges or not.
+	if w.Enable && w.RequireWedge && proactive {
+		return types.Skip, types.GrabWedgeUnavailable, GrabPlan{}
 	}
 
 	if bufferHold {
@@ -161,10 +170,17 @@ type ShopPlan struct {
 
 // Shop decides how to spend surplus bonus points: renew VIP (if permitted and
 // affordable above the reserve), else buy an upload chunk from surplus above the
-// reserve plus the VIP renewal reserve, else hold. Pure over (account, config).
-func (e *Engine) Shop(acct types.AccountState) (types.ShopAction, ShopPlan) {
+// reserve plus the VIP renewal reserve, else hold. Pure over (account, in-flight,
+// config).
+//
+// Note what inflight is NOT used for: the VIP branch still tests acct.VIP(), which
+// reads MAM's own ClassName. A purchase we believe succeeded never marks us VIP —
+// that would turn every VIP-flagged release freeleech-for-us in the grab gate and
+// grab the stream at full ratio cost if the buy had actually failed.
+func (e *Engine) Shop(acct types.AccountState, inflight types.InFlight) (types.ShopAction, ShopPlan) {
 	p := e.shop
-	points := acct.SeedBonus
+	// Subtract spends MAM's seedbonus may not have caught up to yet.
+	points := acct.SeedBonus - inflight.Points
 
 	if p.VIPEnable && !acct.VIP() && contains(p.VIPBuyableClasses, acct.ClassName) &&
 		points-p.VIPCost >= p.Reserved {

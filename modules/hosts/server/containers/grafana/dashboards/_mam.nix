@@ -24,6 +24,11 @@ let
       mappings ? [ ],
       legendFormat ? null,
       textMode ? "value",
+      # [ { value = null; color = "green"; } { value = 5; color = "red"; } ] — first
+      # step must be null (the base). Grafana's implicit default is green→red at 80,
+      # which is meaningless for every metric here, so any panel that colours itself
+      # must say what the colours mean.
+      thresholds ? null,
     }:
     {
       inherit id title;
@@ -47,7 +52,20 @@ let
         colorMode = color;
         inherit textMode;
       };
-      fieldConfig.defaults = { inherit unit decimals mappings; };
+      fieldConfig.defaults = {
+        inherit unit decimals mappings;
+      }
+      // (
+        if thresholds == null then
+          { }
+        else
+          {
+            thresholds = {
+              mode = "absolute";
+              steps = thresholds;
+            };
+          }
+      );
     };
 
   # horizontal bar-gauge: one bar per series, labelled by legendFormat. Ideal for
@@ -295,6 +313,21 @@ in
       x = 0;
       decimals = 2;
       color = "background";
+      # inverted: low ratio is the danger. MAM's floor for most classes is 1.0.
+      thresholds = [
+        {
+          value = null;
+          color = "red";
+        }
+        {
+          value = 1.0;
+          color = "orange";
+        }
+        {
+          value = 2.0;
+          color = "green";
+        }
+      ];
       mappings = [
         {
           type = "value";
@@ -323,6 +356,14 @@ in
       textMode = "name";
       color = "background";
       x = 12;
+      # the series value is always 1 (the class is the label), so there is nothing to
+      # threshold — a flat base keeps it from inheriting the green→red-at-80 default.
+      thresholds = [
+        {
+          value = null;
+          color = "blue";
+        }
+      ];
     })
     (stat {
       id = 5;
@@ -330,6 +371,22 @@ in
       expr = "mam_wedges{${h}}";
       x = 16;
       color = "background";
+      # red at/below the reserve (2): the gate needs strictly more than the reserve,
+      # so at 2 the wedge policy is frozen and big audiobooks are being skipped.
+      thresholds = [
+        {
+          value = null;
+          color = "red";
+        }
+        {
+          value = 3;
+          color = "orange";
+        }
+        {
+          value = 5;
+          color = "green";
+        }
+      ];
     })
     (stat {
       id = 6;
@@ -346,6 +403,23 @@ in
       x = 0;
       y = 4;
       color = "background";
+      # absolute steps sized to the current VIP limit of 150 (gate stops at
+      # limit − grab.unsatMargin = 148). Revisit if the class — and so the limit —
+      # changes; the headroom timeseries below is the limit-relative view.
+      thresholds = [
+        {
+          value = null;
+          color = "green";
+        }
+        {
+          value = 110;
+          color = "orange";
+        }
+        {
+          value = 140;
+          color = "red";
+        }
+      ];
     })
     (stat {
       id = 11;
@@ -375,6 +449,17 @@ in
       x = 16;
       y = 4;
       color = "background";
+      # any HnR at all is a problem; this is the one number that can cost the account.
+      thresholds = [
+        {
+          value = null;
+          color = "green";
+        }
+        {
+          value = 1;
+          color = "red";
+        }
+      ];
     })
     (stat {
       id = 15;
@@ -384,6 +469,22 @@ in
       y = 4;
       unit = "s";
       color = "background";
+      # refresh.account runs every 60s, so one missed cycle is noise and several are
+      # not: the whole grab gate reads a stale snapshot until this recovers.
+      thresholds = [
+        {
+          value = null;
+          color = "green";
+        }
+        {
+          value = 180;
+          color = "orange";
+        }
+        {
+          value = 600;
+          color = "red";
+        }
+      ];
     })
 
     # ══ Traffic + account detail (y=8) ═══════════════════════════════════════
@@ -437,6 +538,22 @@ in
       id = 30;
       title = "In-flight grabs";
       expr = "mousetrap_inflight_count{${h}}";
+      # counts straight against the unsat ceiling alongside mam_unsat_count, so a
+      # large burst inside the reconciliation window is worth seeing.
+      thresholds = [
+        {
+          value = null;
+          color = "green";
+        }
+        {
+          value = 20;
+          color = "orange";
+        }
+        {
+          value = 40;
+          color = "red";
+        }
+      ];
       x = 0;
       y = 12;
       color = "background";
@@ -480,7 +597,89 @@ in
       y = 12;
     })
 
-    # ══ ANNOUNCE MIX — the Layer-1 tuning surface (y=16) ═════════════════════
+    # ══ Binding constraints — unsat slots + wedge stock (y=16) ═══════════════
+    # The two resources that actually gate throughput. Ratio and points are abundant;
+    # these are not, and both were previously only visible as bare current-value
+    # stats with no history.
+    (ts {
+      id = 130;
+      title = "Unsat headroom (grabs until the gate stops)";
+      x = 0;
+      y = 16;
+      w = 8;
+      targets = [
+        {
+          # mirrors policy.Grab exactly: it holds once
+          # unsat_count + inflight >= unsat_limit − grab.unsatMargin.
+          # The 2 is grab.unsatMargin from the host config; keep them in step.
+          expr = "mam_unsat_limit{${h}} - 2 - mam_unsat_count{${h}} - mousetrap_inflight_count{${h}}";
+          legendFormat = "headroom";
+          refId = "A";
+        }
+        {
+          expr = "0";
+          legendFormat = "stall";
+          refId = "B";
+        }
+      ];
+    })
+    (ts {
+      id = 131;
+      title = "Wedge stock vs reserve";
+      x = 8;
+      y = 16;
+      w = 8;
+      targets = [
+        {
+          expr = "mam_wedges{${h}}";
+          legendFormat = "wedges";
+          refId = "A";
+        }
+        {
+          # the gate needs strictly MORE than the reserve, so touching this line is
+          # the wedge policy going dormant until the next refill.
+          expr = "2";
+          legendFormat = "reserve";
+          refId = "B";
+        }
+      ];
+    })
+    (stat {
+      id = 132;
+      title = "In-flight points";
+      expr = "mousetrap_inflight_points{${h}}";
+      x = 16;
+      y = 16;
+      # subtracted from seedbonus in policy.Shop, so a non-zero value here explains a
+      # hold the raw Bonus Points stat would not.
+      thresholds = [
+        {
+          value = null;
+          color = "blue";
+        }
+      ];
+      color = "background";
+    })
+    (stat {
+      id = 133;
+      title = "Ratio avoided by skips";
+      expr = "sum(increase(mousetrap_wedge_skipped_bytes_total{${h}}[$__range]))";
+      x = 20;
+      y = 16;
+      unit = "bytes";
+    })
+    (bar {
+      id = 134;
+      title = "By fiction flag";
+      expr = "round(sum by (fiction) (increase(mousetrap_announces_by_fiction_total{${h}}[$__range])))";
+      legendFormat = "{{fiction}}";
+      x = 16;
+      y = 20;
+      w = 8;
+      h = 4;
+    })
+
+    # ══ ANNOUNCE MIX — the Layer-1 tuning surface (y=24) ═════════════════════
     (table {
       id = 40;
       # Categories and filetypes are multi-valued per release since MAM's 2026-08-11
@@ -491,7 +690,7 @@ in
       # across process restarts (in-memory counters reset to 0 on restart); round → ints.
       expr = "round(sum by (category) (increase(mousetrap_announces_by_category_total{${h}}[$__range])))";
       x = 0;
-      y = 16;
+      y = 24;
       w = 12;
       h = 10;
     })
@@ -501,7 +700,7 @@ in
       expr = "sort_desc(round(sum by (filetype) (increase(mousetrap_announces_by_filetype_total{${h}}[$__range]))))";
       legendFormat = "{{filetype}}";
       x = 12;
-      y = 16;
+      y = 24;
       w = 6;
       h = 10;
     })
@@ -511,12 +710,12 @@ in
       expr = "sort_desc(round(sum by (language) (increase(mousetrap_announces_by_language_total{${h}}[$__range]))))";
       legendFormat = "{{language}}";
       x = 18;
-      y = 16;
+      y = 24;
       w = 6;
       h = 10;
     })
 
-    # ══ Type / VIP / freeleech split + bytes (y=26) ══════════════════════════
+    # ══ Type / VIP / freeleech split + bytes (y=34) ══════════════════════════
     (pie {
       id = 50;
       # The `type` label is MAM's media type verbatim ("Ebook", "Audiobook", "Manga",
@@ -526,7 +725,7 @@ in
       expr = "round(sum by (type) (increase(mousetrap_announces_by_type_total{${h}}[$__range])))";
       label = "type";
       x = 0;
-      y = 26;
+      y = 34;
       w = 6;
       h = 8;
     })
@@ -536,7 +735,7 @@ in
       expr = "round(sum by (vip) (increase(mousetrap_announces_vip_total{${h}}[$__range])))";
       label = "vip";
       x = 6;
-      y = 26;
+      y = 34;
       w = 6;
       h = 8;
     })
@@ -546,7 +745,7 @@ in
       expr = "round(sum by (freeleech) (increase(mousetrap_announces_freeleech_total{${h}}[$__range])))";
       label = "freeleech";
       x = 12;
-      y = 26;
+      y = 34;
       w = 6;
       h = 8;
     })
@@ -556,20 +755,20 @@ in
       expr = "sort_desc(sum by (type) (increase(mousetrap_announce_bytes_total{${h}}[$__range])))";
       legendFormat = "{{type}}";
       x = 18;
-      y = 26;
+      y = 34;
       w = 6;
       h = 8;
       unit = "bytes";
     })
 
-    # ══ Size distribution (y=34) ═════════════════════════════════════════════
+    # ══ Size distribution (y=42) ═════════════════════════════════════════════
     (bar {
       id = 60;
       title = "Avg announce size by type";
       expr = "sort_desc(sum by (type) (increase(mousetrap_announce_size_bytes_sum{${h}}[$__range])) / sum by (type) (increase(mousetrap_announce_size_bytes_count{${h}}[$__range])))";
       legendFormat = "{{type}}";
       x = 0;
-      y = 34;
+      y = 42;
       w = 8;
       h = 8;
       unit = "bytes";
@@ -582,7 +781,7 @@ in
       expr = "round(sum by (le) (increase(mousetrap_announce_size_bytes_bucket{${h}}[$__range])))";
       legendFormat = "≤ {{le}}";
       x = 8;
-      y = 34;
+      y = 42;
       w = 8;
       h = 8;
     })
@@ -590,7 +789,7 @@ in
       id = 62;
       title = "Announces per hour by type";
       x = 16;
-      y = 34;
+      y = 42;
       w = 8;
       drawStyle = "bars";
       targets = [
@@ -602,14 +801,14 @@ in
       ];
     })
 
-    # ══ Layer-1 accept decisions (y=42) ══════════════════════════════════════
+    # ══ Layer-1 accept decisions (y=50) ══════════════════════════════════════
     (pie {
       id = 70;
       title = "Accept decisions";
       expr = "round(sum by (decision) (increase(mousetrap_would_accept_total{${h}}[$__range])))";
       label = "decision";
       x = 0;
-      y = 42;
+      y = 50;
       w = 8;
       h = 8;
     })
@@ -618,7 +817,7 @@ in
       title = "Reject reasons";
       expr = ''round(sum by (reason) (increase(mousetrap_would_accept_total{${h},decision="reject"}[$__range])))'';
       x = 8;
-      y = 42;
+      y = 50;
       w = 8;
       h = 8;
     })
@@ -626,7 +825,7 @@ in
       id = 72;
       title = "Accept decisions per hour";
       x = 16;
-      y = 42;
+      y = 50;
       w = 8;
       drawStyle = "bars";
       targets = [
@@ -638,23 +837,27 @@ in
       ];
     })
 
-    # ══ Layer-2 grab gate (y=50) — evaluated on Layer-1 survivors ════════════
+    # ══ Layer-2 grab gate (y=58) — evaluated on Layer-1 survivors ════════════
     (pie {
       id = 80;
       title = "Grab decisions";
       expr = "round(sum by (decision) (increase(mousetrap_would_grab_total{${h}}[$__range])))";
       label = "decision";
       x = 0;
-      y = 50;
+      y = 58;
       w = 8;
       h = 8;
     })
+    # Both non-grab decisions, not just holds: skip/wedge_unavailable and
+    # skip/vip_required are gate outcomes worth the same attention as a hold, and a
+    # hold-only filter hid them. layer1_reject is dropped — every Layer-1 reject
+    # emits one, and the "Reject reasons" panel above already breaks those out.
     (table {
       id = 81;
-      title = "Hold reasons";
-      expr = ''round(sum by (reason) (increase(mousetrap_would_grab_total{${h},decision="hold"}[$__range])))'';
+      title = "Hold / skip reasons";
+      expr = ''round(sum by (decision, reason) (increase(mousetrap_would_grab_total{${h},decision=~"hold|skip",reason!="layer1_reject"}[$__range])))'';
       x = 8;
-      y = 50;
+      y = 58;
       w = 8;
       h = 8;
     })
@@ -664,19 +867,19 @@ in
       title = "Grab results";
       expr = "round(sum by (result) (increase(mousetrap_grab_action_total{${h}}[$__range])))";
       x = 16;
-      y = 50;
+      y = 58;
       w = 8;
       h = 8;
     })
 
-    # ══ Grabs — source, cadence, latency (y=58) ══════════════════════════════
+    # ══ Grabs — source, cadence, latency (y=66) ══════════════════════════════
     (pie {
       id = 90;
       title = "Grabs by source";
       expr = "round(sum by (source) (increase(mousetrap_grabs_by_source_total{${h}}[$__range])))";
       label = "source";
       x = 0;
-      y = 58;
+      y = 66;
       w = 8;
       h = 8;
     })
@@ -684,7 +887,7 @@ in
       id = 91;
       title = "Grabs per hour by result";
       x = 8;
-      y = 58;
+      y = 66;
       w = 8;
       drawStyle = "bars";
       targets = [
@@ -699,7 +902,7 @@ in
       id = 92;
       title = "Grab duration";
       x = 16;
-      y = 58;
+      y = 66;
       w = 8;
       unit = "s";
       targets = [
@@ -716,13 +919,13 @@ in
       ];
     })
 
-    # ══ Spends + bonus ledger (y=66) ═════════════════════════════════════════
+    # ══ Spends + bonus ledger (y=74) ═════════════════════════════════════════
     (table {
       id = 100;
       title = "Spend events by reason";
       expr = "round(sum by (reason) (increase(mousetrap_spends_total{${h}}[$__range])))";
       x = 0;
-      y = 66;
+      y = 74;
       w = 8;
       h = 8;
     })
@@ -732,7 +935,7 @@ in
       expr = "round(sum by (type) (increase(mousetrap_spends_by_type_total{${h}}[$__range])))";
       label = "type";
       x = 8;
-      y = 66;
+      y = 74;
       w = 8;
       h = 8;
     })
@@ -740,7 +943,7 @@ in
       id = 102;
       title = "Bonus events per hour by type";
       x = 16;
-      y = 66;
+      y = 74;
       w = 8;
       h = 8;
       drawStyle = "bars";
@@ -753,14 +956,14 @@ in
       ];
     })
 
-    # ══ Spend/bonus amounts + errors (y=74) ══════════════════════════════════
+    # ══ Spend/bonus amounts + errors (y=82) ══════════════════════════════════
     (bar {
       id = 110;
       title = "Spent amount by type";
       expr = "round(sum by (type) (increase(mousetrap_spend_amount_total{${h}}[$__range])))";
       legendFormat = "{{type}}";
       x = 0;
-      y = 74;
+      y = 82;
       w = 8;
       h = 8;
     })
@@ -770,7 +973,7 @@ in
       expr = "round(sum by (type) (increase(mousetrap_bonus_amount_total{${h}}[$__range])))";
       legendFormat = "{{type}}";
       x = 8;
-      y = 74;
+      y = 82;
       w = 8;
       h = 8;
     })
@@ -779,12 +982,12 @@ in
       title = "MAM API errors by op";
       expr = "round(sum by (op) (increase(mousetrap_mam_errors_total{${h}}[$__range])))";
       x = 16;
-      y = 74;
+      y = 82;
       w = 8;
       h = 8;
     })
 
-    # ══ Logs (y=82) — aligned to the Go slog fields (msg=, flat keys) ════════
+    # ══ Logs (y=90) — aligned to the Go slog fields (msg=, flat keys) ════════
     (logs {
       id = 120;
       title = "Recent announces";
@@ -796,7 +999,7 @@ in
       # fetch/add failure=red, plain layer-1 reject=grey.
       expr = ''${applog} | msg="announce" | label_format level=`{{if or (eq .grab_result "fetch_failed") (eq .grab_result "add_failed") (eq .grab_result "add_rejected")}}error{{else if or (eq .grab_result "added") (eq .grab_result "added_wedge")}}info{{else if eq .grab_decision "hold"}}warn{{else}}debug{{end}}` | line_format "{{.decision}}/{{.reason}}  {{.grab_decision}}/{{.grab_reason}}  {{.grab_result}}  [{{.media_type}}/{{.fiction}}: {{.categories}}]  {{.name}}"'';
       x = 0;
-      y = 82;
+      y = 90;
       w = 24;
       h = 10;
     })
@@ -805,7 +1008,7 @@ in
       title = "Recent errors (grab / refresh / MAM)";
       expr = ''${applog} | level="ERROR" | line_format "{{.msg}}  tid={{.tid}}  {{.endpoint}}{{.stage}}  code={{.code}}  {{.err}}"'';
       x = 0;
-      y = 92;
+      y = 100;
       w = 24;
       h = 8;
     })

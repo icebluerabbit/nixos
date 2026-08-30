@@ -92,6 +92,10 @@ const (
 	GrabBuffer       GrabReason = "buffer"
 	GrabVIPRequired  GrabReason = "vip_required"
 	GrabLayer1Reject GrabReason = "layer1_reject"
+
+	// GrabWedgeUnavailable: the proactive wedge rule matched but the wedge stock is
+	// at or below the reserve, so the grab would have cost full ratio.
+	GrabWedgeUnavailable GrabReason = "wedge_unavailable"
 )
 
 // Webhook event types (the {{.Type}} a notification template branches on).

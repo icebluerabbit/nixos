@@ -189,6 +189,18 @@ func (s *Store) WedgeSavedBytes(ctx context.Context) (int64, error) {
 	return n, err
 }
 
+// SkippedWedgeBytes sums the size of announces the strict proactive wedge rule
+// skipped — ratio bytes not spent because no wedge was available. Read alongside
+// WedgeSavedBytes: that one is ratio avoided by spending a wedge, this one is ratio
+// avoided by declining the grab. Sourced from announces, not grabs, because a skip
+// never produces a grab row.
+func (s *Store) SkippedWedgeBytes(ctx context.Context) (int64, error) {
+	var n int64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(size), 0) FROM announces WHERE grab_decision = 'skip' AND grab_reason = 'wedge_unavailable'`).Scan(&n)
+	return n, err
+}
+
 // BonusesByType groups the received bonus ledger by type.
 func (s *Store) BonusesByType(ctx context.Context) ([]Count1, error) {
 	return s.scan1(ctx, `SELECT type, COUNT(*) FROM bonuses GROUP BY type`)
