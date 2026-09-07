@@ -9,7 +9,11 @@
     python    ruff-format + ruff-check (config: ../ruff.toml, line-length 79 —
               packages/* build with writers.writePython3Bin, whose flake8 pass
               enforces the same 79 columns with no ignores)
-    go        gofmt (packages/mousetrap, packages/sys-mcp)
+    go        gofmt (packages/go and the not-yet-migrated packages/mousetrap,
+              packages/sys-mcp, packages/flac-util). Linting is separate:
+              golangci-lint runs through `just go-lint`, configured in
+              packages/go/.golangci.yml, because it needs the module graph
+              rather than a file list.
     shell     shfmt + shellcheck
     markdown  prettier, restricted to *.md — it is the only markdown formatter
               here that preserves YAML frontmatter, which the skills under

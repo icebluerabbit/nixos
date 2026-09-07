@@ -63,6 +63,13 @@
                 enable_hardware_encoding = true;
                 allow_hevc_encoding = true;
                 allow_av1_encoding = true;
+                # VPP tonemapping is HDR10-only and cannot reshape Dolby Vision.
+                # Without OpenCL tonemapping Jellyfin falls back to tagging DV
+                # Profile 5 frames as bt709 via setparams and encoding the raw
+                # IPT-PQ-c2 data unconverted — the browser reads IPT as YCbCr
+                # and renders a purple/green tint. OpenCL tonemapping handles
+                # DV; VA-API<->OpenCL sharing is zero-copy on this Arc GPU.
+                enable_tonemapping = true;
                 enable_vpp_tonemapping = true;
                 # Browsers cannot direct-play mkv, so every play spawns ffmpeg
                 # writing HLS segments. The default cache lives on the container's

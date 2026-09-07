@@ -11,7 +11,26 @@
 let
   pkgsDir = ../packages;
   names = lib.filterAttrs (_: type: type == "directory") (builtins.readDir pkgsDir);
-  callAll = pkgs: lib.mapAttrs (name: _: pkgs.callPackage (pkgsDir + "/${name}") { }) names;
+
+  # A package directory normally evaluates to a single derivation, registered
+  # under the directory's own name. packages/go is the exception: it holds a Go
+  # workspace of several modules and evaluates to an attribute set of
+  # derivations instead. Those merge into the namespace flat rather than
+  # nesting, so a binary that moves into the workspace is still reachable as
+  # pkgs.homelab.<name> and no callsite has to know where it lives.
+  # callPackage runs its result through lib.makeOverridable, which decorates a
+  # returned attribute set with `override` and `overrideDerivation`. Those are
+  # meaningful on a single package but are not packages themselves, so the
+  # multi-derivation case keeps only the derivations and drops the machinery.
+  callOne = pkgs: name: pkgs.callPackage (pkgsDir + "/${name}") { };
+  expand =
+    name: value:
+    if lib.isDerivation value then
+      { ${name} = value; }
+    else
+      lib.filterAttrs (_: lib.isDerivation) value;
+  callAll =
+    pkgs: lib.foldl' (acc: name: acc // expand name (callOne pkgs name)) { } (lib.attrNames names);
   overlay = _final: prev: { homelab = callAll prev; };
 in
 {

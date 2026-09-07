@@ -143,6 +143,7 @@
           envFile = config.sops.templates."cleanuparr-env".path;
           configuratarr = {
             enable = true;
+            adminPasswordFile = config.sops.secrets."cleanuparr-admin-password".path;
             waitForHealthy = true;
             settings.cleanuparr = {
               type = "cleanuparr-v1";

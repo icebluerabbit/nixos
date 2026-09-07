@@ -369,9 +369,11 @@ _: {
               BINDERY_API_KEY=${config.sops.placeholder.bindery-apikey}
               HARDCOVER_API_KEY=${config.sops.placeholder.hardcover-apikey}
             '';
+            # The admin credentials are not here: cleanuparr-setup takes the
+            # username on argv and the password as an nspawn credential from
+            # sops.secrets.cleanuparr-admin-password. What remains is what
+            # configuratarr reads.
             "cleanuparr-env".content = ''
-              CLEANUPARR_ADMIN_USER=admin
-              CLEANUPARR_ADMIN_PASSWORD=${config.sops.placeholder.cleanuparr-admin-password}
               SONARR_APIKEY=${config.sops.placeholder.sonarr-apikey}
               RADARR_APIKEY=${config.sops.placeholder.radarr-apikey}
               LIDARR_APIKEY=${config.sops.placeholder.lidarr-apikey}

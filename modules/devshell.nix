@@ -21,6 +21,9 @@ _: {
 
           pkgs.go
           pkgs.gopls
+          # Not part of treefmt: golangci-lint needs the module graph, not a
+          # file list, so it runs per module via `just go-lint`.
+          pkgs.golangci-lint
           pkgs.ruff
           pkgs.shfmt
           pkgs.shellcheck

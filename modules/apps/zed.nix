@@ -11,6 +11,7 @@
       den.aspects.dev._.nixd
       den.aspects.dev._.lua-language-server
       den.aspects.dev._.yaml-language-server
+      den.aspects.dev._.gopls
     ];
 
     homeManager =
@@ -68,6 +69,11 @@
                 path = lib.getExe pkgs.yaml-language-server;
                 arguments = [ "--stdio" ];
               };
+              # Pinned so Zed uses the toolchain from dev.gopls rather than
+              # downloading its own copy into ~/.local/share/zed, outside Nix.
+              # Go needs no extension entry — unlike nix, lua, toml and yaml,
+              # its support is built into Zed itself.
+              gopls.binary.path = lib.getExe pkgs.gopls;
             };
 
             languages = {

@@ -37,6 +37,13 @@ jobs:
           nix fmt
           git diff --exit-code
 
+      # golangci-lint needs the module graph rather than a file list, so it
+      # cannot ride along in treefmt above. The race detector needs cgo, which
+      # buildGoModule disables, so `go test -race` runs here rather than in the
+      # derivation's checkPhase.
+      - name: Lint, test and cover the Go workspace
+        run: nix develop --command just go
+
       # Checked rather than committed: regenerating needs a full eval of the
       # server config, which is too slow for a pre-commit hook, and committing
       # from CI needs write access and races with concurrent pushes. `nix flake

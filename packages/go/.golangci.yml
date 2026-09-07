@@ -1,0 +1,63 @@
+# golangci-lint configuration for the packages/go workspace.
+#
+# Kept at the workspace root and applied to every module, so lib/, clients/ and
+# tools/ are held to one standard. `just go-lint` runs it per module with
+# GOWORK=off, matching how Nix builds them.
+#
+# Formatting is deliberately not configured here: gofmt runs through treefmt
+# (see modules/formatter.nix) alongside every other language in the repo, and
+# having two tools own it would let the pre-commit hook and this linter
+# disagree.
+version: "2"
+
+linters:
+  # standard = errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  enable:
+    # Response bodies that are never closed leak connections in the
+    # long-running tools, which is the failure mode that motivated a shared
+    # HTTP client in the first place.
+    - bodyclose
+    # Enforces errors.Is/As over == and type assertions, which the
+    # httpx.StatusError contract depends on.
+    - errorlint
+    # stdout belongs to a tool's product — rendered markdown, JSON lines for
+    # Vector's exec source — and progress belongs in the logger. A stray
+    # fmt.Println corrupts the output the day someone pipes it.
+    - forbidigo
+    - gocritic
+    - gosec
+    - misspell
+    - revive
+
+  settings:
+    forbidigo:
+      forbid:
+        - pattern: ^fmt\.Print.*$
+          msg: write to Env.Stdout for output, or Env.Logger for diagnostics
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: error-strings
+        - name: context-as-argument
+        - name: indent-error-flow
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+      disabled-checks:
+        # Both fire on the early-return style used throughout this repo.
+        - ifElseChain
+        - singleCaseSwitch
+
+  exclusions:
+    generated: lax
+    rules:
+      # Test code asserts on failures directly and builds throwaway requests;
+      # the security and error-handling linters produce only noise there.
+      - path: _test\.go$
+        linters:
+          - bodyclose
+          - errcheck
+          - gosec

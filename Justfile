@@ -153,6 +153,79 @@ topology-watch file="README.md":
       -w modules/infra -w packages/topology -e nix,go \
       -- just topology {{file}}
 
+# Every Go module under packages/go, innermost dependency first. GOWORK is off
+# throughout so these behave exactly as the Nix build does, which vendors each
+# module separately and would be confused by the workspace file.
+go_modules := "lib clients tools"
+
+# Modules whose coverage is enforced. tools/ is exempt: its cmd/<name>/main.go
+# files hold no logic by design, so covering them would measure nothing.
+go_covered := "lib clients"
+
+go-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd packages/go
+    for m in {{ go_modules }}; do
+        if [ -z "$(cd "$m" && GOWORK=off go list ./... 2>/dev/null)" ]; then
+            echo "==> $m: no packages yet"
+            continue
+        fi
+        echo "==> $m"
+        (cd "$m" && GOWORK=off go test -race ./...)
+    done
+
+go-lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd packages/go
+    for m in {{ go_modules }}; do
+        if [ -z "$(cd "$m" && GOWORK=off go list ./... 2>/dev/null)" ]; then
+            continue
+        fi
+        echo "==> $m"
+        (cd "$m" && GOWORK=off golangci-lint run --config ../.golangci.yml ./...)
+    done
+
+go-cover threshold="80":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd packages/go
+    status=0
+    for m in {{ go_covered }}; do
+        if [ -z "$(cd "$m" && GOWORK=off go list ./... 2>/dev/null)" ]; then
+            echo "==> $m: no packages yet"
+            continue
+        fi
+        profile=$(mktemp)
+        trap 'rm -f "$profile"' EXIT
+        (cd "$m" && GOWORK=off go test -covermode=atomic -coverprofile="$profile" ./... >/dev/null)
+        pct=$(cd "$m" && GOWORK=off go tool cover -func="$profile" | awk '/^total:/ {print $3}' | tr -d '%')
+        echo "==> $m: ${pct}% (minimum {{ threshold }}%)"
+        if awk -v p="$pct" -v t="{{ threshold }}" 'BEGIN { exit !(p + 0 < t + 0) }'; then
+            echo "    below threshold"
+            status=1
+        fi
+    done
+    exit "$status"
+
+# Bump Go dependencies. The vendorHash values in packages/go/default.nix go
+# stale afterwards; rebuild and copy the hash each failure reports.
+go-update:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd packages/go
+    for m in {{ go_modules }}; do
+        if [ -z "$(cd "$m" && GOWORK=off go list ./... 2>/dev/null)" ]; then
+            continue
+        fi
+        echo "==> $m"
+        (cd "$m" && GOWORK=off go get -u ./... && GOWORK=off go mod tidy)
+    done
+    echo "Dependencies bumped — update vendorHash in packages/go/default.nix."
+
+go: go-lint go-test go-cover
+
 flake: _track
     nix run .#write-flake
 

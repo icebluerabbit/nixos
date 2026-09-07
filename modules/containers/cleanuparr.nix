@@ -71,6 +71,32 @@
               type = lib.types.submodule {
                 options = {
                   enable = lib.mkEnableOption "configuratarr declarative sync";
+                  adminUser = lib.mkOption {
+                    type = lib.types.str;
+                    default = "admin";
+                    description = ''
+                      Cleanuparr admin account name.
+
+                      A plain string, not a path, because this value is not a
+                      secret: Cleanuparr has no external identity and the name
+                      is committed in plaintext here. Services whose username
+                      *is* a secret — most of this homelab's are — take a
+                      file path instead; cleanuparr-setup accepts either.
+                    '';
+                  };
+                  adminPasswordFile = lib.mkOption {
+                    type = lib.types.nullOr lib.types.path;
+                    default = null;
+                    description = ''
+                      Host path to a file holding the admin password, normally
+                      a sops secret.
+
+                      Delivered with `--load-credential` rather than through
+                      the environment file: a credential is scoped to the
+                      container, is not inherited by child processes, and
+                      never appears in any process environment.
+                    '';
+                  };
                   settings = lib.mkOption {
                     type = lib.types.attrs;
                     default = { };
@@ -108,14 +134,20 @@
               cfg = config.containerConfigs.cleanuparr;
               cleanuparrModule = inputs.cleanuparr-flake.nixosModules.default;
               # Resolved from host pkgs (the homelab overlay is not in the
-              # container's nixpkgs). Only the URL and the key path are argv —
-              # the admin credentials still arrive via EnvironmentFile.
+              # container's nixpkgs). The password arrives as an nspawn
+              # credential, so only its in-container path is argv — the secret
+              # itself never enters the command line or the environment.
+              credentialPath = "/run/host/credentials/cleanuparr-admin-password";
               setupCmd = lib.escapeShellArgs [
                 (lib.getExe pkgs.homelab.cleanuparr-setup)
                 "--base"
                 "http://127.0.0.1:${toString cfg.port}"
                 "--key-file"
                 "/run/cleanuparr/api-key.env"
+                "--admin-user"
+                cfg.configuratarr.adminUser
+                "--admin-password-file"
+                credentialPath
               ];
             in
             {
@@ -126,6 +158,14 @@
               inherit (cfg) hostBridge;
               localMacAddress = cfg.macAddress;
               inherit (cfg) localAddress;
+
+              # Same shape pgadmin uses: nspawn reads the host path at start
+              # and exposes it inside at /run/host/credentials/<id>, on a
+              # tmpfs, so the ephemeral rootfs is irrelevant.
+              extraFlags = lib.optional (
+                cfg.configuratarr.adminPasswordFile != null
+              ) "--load-credential=cleanuparr-admin-password:${cfg.configuratarr.adminPasswordFile}";
+
               bindMounts =
                 cfg.bindMounts
                 // (lib.optionalAttrs (cfg.envFile != null) {
@@ -210,7 +250,8 @@
                       requires = [ "cleanuparr.service" ];
                       before = [ "configuratarr.service" ];
                       wantedBy = [ "multi-user.target" ];
-                      # No `path` — cleanuparr-setup pins its own curl and jq.
+                      # No `path` — cleanuparr-setup is a static Go binary
+                      # with no runtime dependencies.
                       serviceConfig = {
                         Type = "oneshot";
                         RemainAfterExit = true;
@@ -219,7 +260,9 @@
                         # configuratarr.service reads the key file, so it has to
                         # outlive this oneshot.
                         RuntimeDirectoryPreserve = "yes";
-                        EnvironmentFile = lib.mkIf (cfg.envFile != null) "/run/secrets/cleanuparr-env";
+                        # No EnvironmentFile: the admin password comes in as an
+                        # nspawn credential and everything else is argv, so this
+                        # unit needs nothing from the environment.
                         ExecStart = setupCmd;
                       };
                     };

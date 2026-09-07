@@ -29,7 +29,36 @@
     includes = [ den.aspects.dev._.nodejs ];
 
     nixos = {
-      nixpkgs.overlays = [ inputs.claude-code.overlays.default ];
+      nixpkgs.overlays = [
+        inputs.claude-code.overlays.default
+        # OpenSpec — spec-driven development CLI paired with this agent.
+        # nixpkgs lags upstream by several minor releases, so the version and
+        # both fixed-output hashes are pinned here instead of waiting on the
+        # nixpkgs bump. Refresh all three together.
+        # https://github.com/Fission-AI/OpenSpec
+        (final: prev: {
+          openspec =
+            let
+              version = "1.11.0";
+              src = final.fetchFromGitHub {
+                owner = "Fission-AI";
+                repo = "OpenSpec";
+                tag = "v${version}";
+                hash = "sha256-efy/YUkr95S44N26FCRQ2/F+ciaaMRvzh/cI1Z0huzU=";
+              };
+            in
+            prev.openspec.overrideAttrs (old: {
+              inherit version src;
+              pnpmDeps = final.fetchPnpmDeps {
+                inherit (old) pname;
+                inherit version src;
+                pnpm = final.pnpm_10;
+                fetcherVersion = 3;
+                hash = "sha256-P50JVvLbTWl66/aOiEZgpAD8z/AAJmn1AoKiNCZbvi4=";
+              };
+            });
+        })
+      ];
 
       nix.settings = {
         substituters = [ "https://claude-code.cachix.org" ];
@@ -91,6 +120,8 @@
         kittyTab = kittyTabFor "";
       in
       {
+        home.packages = [ pkgs.openspec ];
+
         programs.claude-code = {
           enable = true;
           enableMcpIntegration = true;

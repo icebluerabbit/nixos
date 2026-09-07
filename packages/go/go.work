@@ -1,0 +1,13 @@
+// go.work joins every module under packages/go into one workspace so gopls,
+// `go test ./...` and cross-module refactors see them together.
+//
+// It is a development-time file only. Nix builds each module independently
+// with its own vendored dependencies and set GOWORK=off, because nixpkgs'
+// buildGoModule vendors per module and a workspace would override -mod=vendor.
+go 1.26
+
+use (
+	./clients
+	./lib
+	./tools
+)
