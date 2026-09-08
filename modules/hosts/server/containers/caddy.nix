@@ -52,6 +52,8 @@
       den.aspects.infra._.clients._.container-bazarr
       den.aspects.containers._.prowlarr
       den.aspects.infra._.clients._.container-prowlarr
+      den.aspects.containers._.stash
+      den.aspects.infra._.clients._.container-stash
       den.aspects.containers._.homepage
       den.aspects.infra._.clients._.container-homepage
       den.aspects.containers._.youtarr

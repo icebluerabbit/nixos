@@ -85,6 +85,7 @@
       den.aspects.infra._.clients._.container-tuwunel
       den.aspects.infra._.clients._.container-unifi-exporter
       den.aspects.infra._.clients._.container-unpackerr
+      den.aspects.infra._.clients._.container-stash
       den.aspects.infra._.clients._.container-vpn-gw
       den.aspects.infra._.clients._.container-youtarr
       den.aspects.infra._.clients._.container-zigbee2mqtt

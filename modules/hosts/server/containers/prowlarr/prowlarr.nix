@@ -52,6 +52,10 @@
                   { label = "movies"; }
                   { label = "tv"; }
                   { label = "music"; }
+                  # Carried by BitPorn only. No application syncs it, which is
+                  # what keeps XXX releases out of Radarr/Sonarr/Lidarr —
+                  # acquisition for this tracker runs through autobrr instead.
+                  { label = "xxx"; }
                 ];
                 notifications = [
                   (import ./notifications/_home-assistant.nix { inherit config; })
@@ -67,6 +71,7 @@
                   (import ./indexers/_darkpeers.nix { inherit config; })
                   (import ./indexers/_yuscene.nix { inherit config; })
                   (import ./indexers/_seedpool.nix { inherit config; })
+                  (import ./indexers/_bitporn.nix { inherit config; })
                 ];
                 download_clients = [
                   (import ./download-clients/_qbittorrent.nix { inherit config; })

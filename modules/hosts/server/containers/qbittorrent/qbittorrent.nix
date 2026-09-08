@@ -50,6 +50,9 @@
           # packs and reject them as "not an upgrade", which turns into strikes
           # once cleanuparr's failed_import rule leaves phase 0.
           seasonpacks = "/mnt/media/complete/seasonpacks";
+          # Adult category. Own tree so nothing else's importer walks
+          # it and so the library split stays clean.
+          xxx = "/mnt/media/complete/xxx";
         };
         categoriesJson = pkgs.writeText "categories.json" (
           builtins.toJSON (lib.mapAttrs (_: sp: { save_path = sp; }) categories)

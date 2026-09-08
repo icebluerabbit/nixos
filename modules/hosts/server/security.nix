@@ -23,6 +23,15 @@ _: {
             lidarr-apikey = { };
             readarr-apikey = { };
             prowlarr-apikey = { };
+            bitporn-apikey = { };
+            # Read directly by the stash container's service user, which is why
+            # these are plain secrets rather than a rendered env template. No
+            # password secret: Stash runs without its own login, gated by Caddy.
+            stash-jwt-secret.mode = "0444";
+            stash-session-key.mode = "0444";
+            # Stash's stash-box connection authenticates with this.
+
+            stashdb-apikey.mode = "0444";
             mam-username = {
               mode = "0444";
             };
@@ -321,6 +330,9 @@ _: {
             "autobrr-env".content = ''
               AUTOBRR_API_TOKEN=${config.sops.placeholder.autobrr-api-token}
               CROSS_SEED_APIKEY=${config.sops.placeholder.cross-seed-apikey}
+              # BitPorn is polled through Prowlarr's Torznab feed, not IRC, so
+              # autobrr authenticates to Prowlarr rather than to the tracker.
+              PROWLARR_APIKEY=${config.sops.placeholder.prowlarr-apikey}
               TORRENTLEECH_RSS_KEY=${config.sops.placeholder.torrentleech-rss-key}
               TORRENTLEECH_NICK=${config.sops.placeholder.torrentleech-username}
               PRETOME_RSS_KEY=${config.sops.placeholder.pretome-rss-key}
@@ -392,6 +404,7 @@ _: {
               DARKPEERS_APIKEY=${config.sops.placeholder.darkpeers-apikey}
               YUSCENE_APIKEY=${config.sops.placeholder.yuscene-apikey}
               SEEDPOOL_APIKEY=${config.sops.placeholder.seedpool-apikey}
+              BITPORN_APIKEY=${config.sops.placeholder.bitporn-apikey}
               RADARR__AUTH__APIKEY=${config.sops.placeholder.radarr-apikey}
               SONARR__AUTH__APIKEY=${config.sops.placeholder.sonarr-apikey}
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}

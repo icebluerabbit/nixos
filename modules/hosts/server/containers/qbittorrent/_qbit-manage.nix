@@ -42,6 +42,10 @@
       "retrotoon".tag = "tracker-RTW";
       "darkpeers".tag = "tracker-DP";
       "yu-scene".tag = "tracker-YS";
+      "seedpool".tag = "tracker-SP";
+      # No torrents yet, so the announce host is unconfirmed; the bare site name
+      # substring covers bitporn.eu and any tracker./announce. prefix it uses.
+      "bitporn".tag = "tracker-BP";
     };
     # Categories scanned for no-hardlink tagging. ignore_root_dir=false is REQUIRED
     # here: root_dir (/mnt/media/) contains the library (/mnt/media/library), so the

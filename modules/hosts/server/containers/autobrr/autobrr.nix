@@ -65,6 +65,12 @@
                 (import ./indexers/_darkpeers.nix { inherit config; })
                 (import ./indexers/_yuscene.nix { inherit config; })
                 (import ./indexers/_seedpool.nix { inherit config; })
+                (import ./indexers/_bitporn.nix { inherit config; })
+              ];
+              # Poll-only trackers. Everything above announces over IRC; BitPorn
+              # has no announce network, so it is fetched from Prowlarr instead.
+              feeds = [
+                (import ./feeds/_bitporn.nix { inherit config; })
               ];
               irc_networks = [
                 (import ./irc-networks/_pretome.nix { inherit config; })
@@ -97,6 +103,7 @@
                 (import ./filters/_yuscene-music.nix { inherit config; })
                 (import ./filters/_seedpool-tv.nix { inherit config; })
                 (import ./filters/_seedpool-movies.nix { inherit config; })
+                (import ./filters/_bitporn.nix { inherit config; })
               ];
               notifications = [
                 (import ./notifications/_home-assistant.nix { inherit config; })
