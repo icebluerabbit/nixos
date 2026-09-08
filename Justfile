@@ -150,27 +150,28 @@ topology file="README.md": _track
 # Same, on every save under modules/infra or packages/topology.
 topology-watch file="README.md":
     nix run nixpkgs#watchexec -- \
-      -w modules/infra -w packages/topology -e nix,go \
+      -w modules/infra -w packages/go -e nix,go \
       -- just topology {{file}}
 
-# Every Go module under packages/go, innermost dependency first. GOWORK is off
-# throughout so these behave exactly as the Nix build does, which vendors each
-# module separately and would be confused by the workspace file.
-go_modules := "lib clients tools"
+# go.work is the registry: a module listed there is linted, tested and covered,
+# and one that is not is invisible to the whole gate. Read through `go work
+# edit -json` rather than parsed by hand so formatting changes cannot break it.
+_go-modules:
+    @cd packages/go && go work edit -json | jq -r '.Use[].DiskPath' | sed 's|^\./||'
 
-# Modules whose coverage is enforced. tools/ is exempt: its cmd/<name>/main.go
-# files hold no logic by design, so covering them would measure nothing.
-go_covered := "lib clients"
+# The flake attribute that builds a module. Every project is named after its
+# binary; lib is the one module producing none, so it carries a prefix that
+# would not read like nixpkgs' own `lib`.
+_go-attr module:
+    @if [ "{{ module }}" = "lib" ]; then echo homelab-go-lib; else echo "{{ module }}"; fi
 
+# GOWORK is off throughout so these behave exactly as the Nix build does, which
+# vendors each module separately and would be confused by the workspace file.
 go-test:
     #!/usr/bin/env bash
     set -euo pipefail
     cd packages/go
-    for m in {{ go_modules }}; do
-        if [ -z "$(cd "$m" && GOWORK=off go list ./... 2>/dev/null)" ]; then
-            echo "==> $m: no packages yet"
-            continue
-        fi
+    for m in $(just _go-modules); do
         echo "==> $m"
         (cd "$m" && GOWORK=off go test -race ./...)
     done
@@ -179,28 +180,31 @@ go-lint:
     #!/usr/bin/env bash
     set -euo pipefail
     cd packages/go
-    for m in {{ go_modules }}; do
-        if [ -z "$(cd "$m" && GOWORK=off go list ./... 2>/dev/null)" ]; then
-            continue
-        fi
+    for m in $(just _go-modules); do
         echo "==> $m"
         (cd "$m" && GOWORK=off golangci-lint run --config ../.golangci.yml ./...)
     done
 
+# Coverage floors every package except the `main` ones. A cmd/<name>/main.go
+# holds no logic by construction, so covering it would measure nothing — but
+# everything it delegates to is gated.
 go-cover threshold="80":
     #!/usr/bin/env bash
     set -euo pipefail
     cd packages/go
     status=0
-    for m in {{ go_covered }}; do
-        if [ -z "$(cd "$m" && GOWORK=off go list ./... 2>/dev/null)" ]; then
-            echo "==> $m: no packages yet"
+    for m in $(just _go-modules); do
+        # go list -json rather than -f: just would eat a Go template's braces.
+        pkgs=$(cd "$m" && GOWORK=off go list -json ./... | jq -r 'select(.Name != "main") | .ImportPath')
+        if [ -z "$pkgs" ]; then
+            echo "==> $m: no non-main packages"
             continue
         fi
         profile=$(mktemp)
-        trap 'rm -f "$profile"' EXIT
-        (cd "$m" && GOWORK=off go test -covermode=atomic -coverprofile="$profile" ./... >/dev/null)
+        # shellcheck disable=SC2086
+        (cd "$m" && GOWORK=off go test -covermode=atomic -coverprofile="$profile" $pkgs >/dev/null)
         pct=$(cd "$m" && GOWORK=off go tool cover -func="$profile" | awk '/^total:/ {print $3}' | tr -d '%')
+        rm -f "$profile"
         echo "==> $m: ${pct}% (minimum {{ threshold }}%)"
         if awk -v p="$pct" -v t="{{ threshold }}" 'BEGIN { exit !(p + 0 < t + 0) }'; then
             echo "    below threshold"
@@ -209,20 +213,45 @@ go-cover threshold="80":
     done
     exit "$status"
 
-# Bump Go dependencies. The vendorHash values in packages/go/default.nix go
-# stale afterwards; rebuild and copy the hash each failure reports.
-go-update:
+# Rewrite packages/go/vendor-hashes.nix from what Nix actually computes.
+#
+# Nix will only report a vendor hash when the one on record is wrong, so each
+# entry is set to a known-wrong value first and the correct hash is read out of
+# the resulting mismatch. A module with no external dependencies reports none,
+# and is recorded as null.
+go-hashes: _track
+    #!/usr/bin/env bash
+    set -euo pipefail
+    wrong="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    hashes=packages/go/vendor-hashes.nix
+    for m in $(just _go-modules); do
+        attr=$(just _go-attr "$m")
+        # Neutralise this module's entry so the build is forced to disagree.
+        sed -i -E "s|^(  ${m} = ).*;|\\1\"${wrong}\";|" "$hashes"
+        # The build is *expected* to fail — that failure is where the hash
+        # comes from — so its status is discarded rather than tripping set -e.
+        out=$(nix build ".#${attr}" --no-link 2>&1 || true)
+        got=$(printf '%s\n' "$out" | awk '/got:/ {print $2; exit}')
+        if [ -z "$got" ]; then
+            echo "==> $m: no external dependencies"
+            sed -i -E "s|^(  ${m} = ).*;|\\1null;|" "$hashes"
+            continue
+        fi
+        echo "==> $m: $got"
+        sed -i -E "s|^(  ${m} = ).*;|\\1\"${got}\";|" "$hashes"
+    done
+    nix fmt >/dev/null
+
+# Bump Go dependencies across every module, then refresh the vendor hashes so
+# the tree is buildable again in one step.
+go-update: && go-hashes
     #!/usr/bin/env bash
     set -euo pipefail
     cd packages/go
-    for m in {{ go_modules }}; do
-        if [ -z "$(cd "$m" && GOWORK=off go list ./... 2>/dev/null)" ]; then
-            continue
-        fi
+    for m in $(just _go-modules); do
         echo "==> $m"
         (cd "$m" && GOWORK=off go get -u ./... && GOWORK=off go mod tidy)
     done
-    echo "Dependencies bumped — update vendorHash in packages/go/default.nix."
 
 go: go-lint go-test go-cover
 

@@ -1,4 +1,4 @@
-package cleanuparrsetup_test
+package setup_test
 
 import (
 	"bytes"
@@ -13,10 +13,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"homelab/app"
+	"homelab/cleanuparr-setup/internal/setup"
 	"homelab/secret"
-	"homelab/tools/internal/cleanuparrsetup"
 )
 
 const adminPassword = "hunter2"
@@ -78,10 +79,10 @@ func testEnv(t *testing.T) (*app.Env, *bytes.Buffer) {
 // config wires the tool the way the container does: the username as a literal
 // because it is already public in this repo, the password by path because it
 // lives in sops.
-func config(t *testing.T, baseURL string) cleanuparrsetup.Config {
+func config(t *testing.T, baseURL string) setup.Config {
 	t.Helper()
 
-	cfg := cleanuparrsetup.Defaults()
+	cfg := setup.Defaults()
 	cfg.Base = baseURL
 	cfg.KeyFile = filepath.Join(t.TempDir(), "api-key.env")
 	cfg.AdminUser = "admin"
@@ -96,7 +97,7 @@ func TestRunOnAFreshInstance(t *testing.T) {
 	env, _ := testEnv(t)
 	cfg := config(t, f.server(t))
 
-	if err := cleanuparrsetup.Run(context.Background(), env, cfg); err != nil {
+	if err := setup.Run(context.Background(), env, cfg); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	if !f.accountCreated {
@@ -117,7 +118,7 @@ func TestRunIsIdempotent(t *testing.T) {
 	env, _ := testEnv(t)
 	cfg := config(t, f.server(t))
 
-	if err := cleanuparrsetup.Run(context.Background(), env, cfg); err != nil {
+	if err := setup.Run(context.Background(), env, cfg); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	if f.accountCreated {
@@ -137,7 +138,7 @@ func TestKeyFileIsOwnerOnly(t *testing.T) {
 	env, _ := testEnv(t)
 	cfg := config(t, f.server(t))
 
-	if err := cleanuparrsetup.Run(context.Background(), env, cfg); err != nil {
+	if err := setup.Run(context.Background(), env, cfg); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
@@ -155,22 +156,22 @@ func TestKeyFileIsOwnerOnly(t *testing.T) {
 func TestCredentialsAcceptEitherForm(t *testing.T) {
 	t.Parallel()
 
-	base := cleanuparrsetup.Defaults()
+	base := setup.Defaults()
 
-	tests := map[string]func(*testing.T) cleanuparrsetup.Config{
-		"both literal": func(*testing.T) cleanuparrsetup.Config {
+	tests := map[string]func(*testing.T) setup.Config{
+		"both literal": func(*testing.T) setup.Config {
 			cfg := base
 			cfg.AdminUser = "admin"
 			cfg.AdminPassword = adminPassword
 			return cfg
 		},
-		"both by file": func(t *testing.T) cleanuparrsetup.Config {
+		"both by file": func(t *testing.T) setup.Config {
 			cfg := base
 			cfg.AdminUserFile = writeTemp(t, "admin\n")
 			cfg.AdminPasswordFile = writeTemp(t, adminPassword+"\n")
 			return cfg
 		},
-		"mixed": func(t *testing.T) cleanuparrsetup.Config {
+		"mixed": func(t *testing.T) setup.Config {
 			cfg := base
 			cfg.AdminUser = "admin"
 			cfg.AdminPasswordFile = writeTemp(t, adminPassword+"\n")
@@ -199,18 +200,18 @@ func TestCredentialsAcceptEitherForm(t *testing.T) {
 func TestCredentialsRejectBadFlagCombinations(t *testing.T) {
 	t.Parallel()
 
-	base := cleanuparrsetup.Defaults()
+	base := setup.Defaults()
 
 	tests := map[string]struct {
-		build func(*testing.T) cleanuparrsetup.Config
+		build func(*testing.T) setup.Config
 		want  error
 	}{
 		"nothing at all": {
-			build: func(*testing.T) cleanuparrsetup.Config { return base },
+			build: func(*testing.T) setup.Config { return base },
 			want:  secret.ErrMissing,
 		},
 		"password only": {
-			build: func(*testing.T) cleanuparrsetup.Config {
+			build: func(*testing.T) setup.Config {
 				cfg := base
 				cfg.AdminPassword = adminPassword
 				return cfg
@@ -218,7 +219,7 @@ func TestCredentialsRejectBadFlagCombinations(t *testing.T) {
 			want: secret.ErrMissing,
 		},
 		"user given twice": {
-			build: func(t *testing.T) cleanuparrsetup.Config {
+			build: func(t *testing.T) setup.Config {
 				cfg := base
 				cfg.AdminUser = "admin"
 				cfg.AdminUserFile = writeTemp(t, "other\n")
@@ -228,7 +229,7 @@ func TestCredentialsRejectBadFlagCombinations(t *testing.T) {
 			want: secret.ErrAmbiguous,
 		},
 		"empty password file": {
-			build: func(t *testing.T) cleanuparrsetup.Config {
+			build: func(t *testing.T) setup.Config {
 				cfg := base
 				cfg.AdminUser = "admin"
 				cfg.AdminPasswordFile = writeTemp(t, "")
@@ -259,7 +260,7 @@ func TestBadCredentialsWriteNothing(t *testing.T) {
 	cfg.AdminUser = ""
 	cfg.AdminUserFile = ""
 
-	err := cleanuparrsetup.Run(context.Background(), env, cfg)
+	err := setup.Run(context.Background(), env, cfg)
 	if !errors.Is(err, secret.ErrMissing) {
 		t.Fatalf("Run() error = %v, want %v", err, secret.ErrMissing)
 	}
@@ -279,7 +280,7 @@ func TestDryRunTouchesNothing(t *testing.T) {
 	env.DryRun = true
 	cfg := config(t, f.server(t))
 
-	if err := cleanuparrsetup.Run(context.Background(), env, cfg); err != nil {
+	if err := setup.Run(context.Background(), env, cfg); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 	if f.accountCreated {
@@ -299,7 +300,7 @@ func TestCredentialsNeverReachTheLogs(t *testing.T) {
 	env, logs := testEnv(t)
 	cfg := config(t, f.server(t))
 
-	if err := cleanuparrsetup.Run(context.Background(), env, cfg); err != nil {
+	if err := setup.Run(context.Background(), env, cfg); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 
@@ -317,7 +318,7 @@ func TestWriteKeyFile(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "api-key.env")
-		if err := cleanuparrsetup.WriteKeyFile(path, secret.Value{}); err == nil {
+		if err := setup.WriteKeyFile(path, secret.Value{}); err == nil {
 			t.Fatal("WriteKeyFile() error = nil, want a refusal")
 		}
 		if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
@@ -332,7 +333,7 @@ func TestWriteKeyFile(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "api-key.env")
-		if err := cleanuparrsetup.WriteKeyFile(path, secret.New("key-abc")); err != nil {
+		if err := setup.WriteKeyFile(path, secret.New("key-abc")); err != nil {
 			t.Fatalf("WriteKeyFile() error = %v", err)
 		}
 		got := readFile(t, path)
@@ -351,7 +352,7 @@ func TestWriteKeyFile(t *testing.T) {
 		if err := os.WriteFile(path, []byte("CLEANUPARR_API_KEY=stale\n"), 0o600); err != nil {
 			t.Fatalf("seed key file: %v", err)
 		}
-		if err := cleanuparrsetup.WriteKeyFile(path, secret.New("fresh")); err != nil {
+		if err := setup.WriteKeyFile(path, secret.New("fresh")); err != nil {
 			t.Fatalf("WriteKeyFile() error = %v", err)
 		}
 		if got, want := readFile(t, path), "CLEANUPARR_API_KEY=fresh\n"; got != want {
@@ -365,7 +366,7 @@ func TestWriteKeyFile(t *testing.T) {
 		t.Parallel()
 
 		path := filepath.Join(t.TempDir(), "absent", "api-key.env")
-		if err := cleanuparrsetup.WriteKeyFile(path, secret.New("key")); err == nil {
+		if err := setup.WriteKeyFile(path, secret.New("key")); err == nil {
 			t.Fatal("WriteKeyFile() error = nil, want a failure")
 		}
 	})
@@ -377,7 +378,7 @@ func TestWriteKeyFile(t *testing.T) {
 
 		dir := t.TempDir()
 		path := filepath.Join(dir, "api-key.env")
-		if err := cleanuparrsetup.WriteKeyFile(path, secret.New("key")); err != nil {
+		if err := setup.WriteKeyFile(path, secret.New("key")); err != nil {
 			t.Fatalf("WriteKeyFile() error = %v", err)
 		}
 
@@ -421,5 +422,84 @@ func writeJSON(t *testing.T, w http.ResponseWriter, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		t.Fatalf("encode response: %v", err)
+	}
+}
+
+// The failure paths matter more than the happy one here: this unit gates
+// configuratarr, so anything that goes wrong must stop before a key file
+// exists rather than leave a stale or empty one behind.
+func TestRunFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		fake    *fake
+		mutate  func(*setup.Config)
+		wantErr error
+	}{
+		"unusable base url": {
+			fake:   &fake{token: "tok-123", apiKey: "key-abc"},
+			mutate: func(c *setup.Config) { c.Base = "not-a-url" },
+		},
+		"login returns no token": {
+			fake: &fake{setupCompleted: true, token: "", apiKey: "key-abc"},
+		},
+		"api key fetch is unauthorised": {
+			// The fake only serves the key to its own token, so a login
+			// that hands back a different one fails the fetch.
+			fake: &fake{setupCompleted: true, token: "tok-123", apiKey: ""},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			env, _ := testEnv(t)
+			cfg := config(t, tc.fake.server(t))
+			if tc.mutate != nil {
+				tc.mutate(&cfg)
+			}
+
+			if err := setup.Run(context.Background(), env, cfg); err == nil {
+				t.Fatal("Run() error = nil, want a failure")
+			}
+			if _, err := os.Stat(cfg.KeyFile); !errors.Is(err, fs.ErrNotExist) {
+				t.Error("a key file was written despite the failure")
+			}
+		})
+	}
+}
+
+// A cancelled context must abort the readiness wait rather than spin until
+// systemd's TimeoutStartSec kills the unit.
+func TestRunStopsOnCancellation(t *testing.T) {
+	t.Parallel()
+
+	f := &fake{token: "tok-123", apiKey: "key-abc"}
+	env, _ := testEnv(t)
+	cfg := config(t, f.server(t))
+	cfg.Base = "http://127.0.0.1:1" // nothing listening
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	if err := setup.Run(ctx, env, cfg); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run() error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+// The rename is what makes the write atomic; if it cannot happen the whole
+// call must fail rather than report success with nothing installed.
+func TestWriteKeyFileReportsAFailedInstall(t *testing.T) {
+	t.Parallel()
+
+	// A directory at the target path: os.Rename onto it cannot succeed.
+	path := filepath.Join(t.TempDir(), "api-key.env")
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatalf("seed directory: %v", err)
+	}
+
+	if err := setup.WriteKeyFile(path, secret.New("key-abc")); err == nil {
+		t.Fatal("WriteKeyFile() error = nil, want an install failure")
 	}
 }

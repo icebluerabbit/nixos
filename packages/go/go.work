@@ -1,13 +1,16 @@
 // go.work joins every module under packages/go into one workspace so gopls,
 // `go test ./...` and cross-module refactors see them together.
 //
-// It is a development-time file only. Nix builds each module independently
-// with its own vendored dependencies and set GOWORK=off, because nixpkgs'
-// buildGoModule vendors per module and a workspace would override -mod=vendor.
+// It is also the registry: `just _go-modules` reads it with `go work edit
+// -json`, so a module that is listed here is linted, tested and covered, and
+// one that is not is invisible to the whole gate.
+//
+// Development-time only. Nix builds each module independently with its own
+// vendored dependencies and set GOWORK=off, because nixpkgs' buildGoModule
+// vendors per module and a workspace would override -mod=vendor.
 go 1.26
 
 use (
-	./clients
+	./cleanuparr-setup
 	./lib
-	./tools
 )

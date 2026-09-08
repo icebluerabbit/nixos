@@ -1,11 +1,10 @@
-module homelab/tools
+module homelab/cleanuparr-setup
 
 go 1.26
 
 require (
 	github.com/spf13/pflag v1.0.10
 	homelab v0.0.0
-	homelab/clients v0.0.0
 )
 
 require (
@@ -52,5 +51,3 @@ require (
 )
 
 replace homelab => ../lib
-
-replace homelab/clients => ../clients

@@ -1,10 +1,10 @@
-// Package cleanuparrsetup completes Cleanuparr's first-run setup and exports
+// Package setup completes Cleanuparr's first-run setup and exports
 // its API key for downstream consumers (configuratarr).
 //
 // Idempotent by design: /api/auth/status is unauthenticated and the admin
 // account lives in PostgreSQL rather than the container's ephemeral rootfs, so
 // a reboot re-runs this harmlessly.
-package cleanuparrsetup
+package setup
 
 import (
 	"context"

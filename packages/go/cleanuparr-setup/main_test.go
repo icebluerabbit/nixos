@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"homelab/app"
-	"homelab/tools/internal/cleanuparrsetup"
+	"homelab/cleanuparr-setup/internal/setup"
 )
 
 // run drives the command with args, replacing the work so the test asserts on
 // configuration alone — the setup path itself is covered in the internal
 // package.
-func run(t *testing.T, cfg *cleanuparrsetup.Config, args ...string) {
+func run(t *testing.T, cfg *setup.Config, args ...string) {
 	t.Helper()
 
 	a := newApp(cfg)
@@ -38,7 +38,7 @@ func TestFileFlagsReachConfig(t *testing.T) {
 	userFile := writeTemp(t, "admin\n")
 	passwordFile := writeTemp(t, "hunter2\n")
 
-	cfg := cleanuparrsetup.Defaults()
+	cfg := setup.Defaults()
 	run(t, &cfg,
 		"--base", "http://cleanuparr.test:11011",
 		"--key-file", "/run/cleanuparr/elsewhere.env",
@@ -46,7 +46,7 @@ func TestFileFlagsReachConfig(t *testing.T) {
 		"--admin-password-file", passwordFile,
 	)
 
-	want := cleanuparrsetup.Config{
+	want := setup.Config{
 		Base:              "http://cleanuparr.test:11011",
 		KeyFile:           "/run/cleanuparr/elsewhere.env",
 		AdminUserFile:     userFile,
@@ -61,7 +61,7 @@ func TestFileFlagsReachConfig(t *testing.T) {
 func TestLiteralFlagsReachConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg := cleanuparrsetup.Defaults()
+	cfg := setup.Defaults()
 	run(t, &cfg, "--admin-user", "admin", "--admin-password", "hunter2")
 
 	if cfg.AdminUser != "admin" {
@@ -77,8 +77,8 @@ func TestLiteralFlagsReachConfig(t *testing.T) {
 func TestUnsetFlagsKeepDefaults(t *testing.T) {
 	t.Parallel()
 
-	cfg := cleanuparrsetup.Defaults()
-	defaults := cleanuparrsetup.Defaults()
+	cfg := setup.Defaults()
+	defaults := setup.Defaults()
 
 	run(t, &cfg, "--admin-user", "admin", "--admin-password", "hunter2")
 
@@ -97,7 +97,7 @@ func TestFlagsResolveToCredentials(t *testing.T) {
 
 	passwordFile := writeTemp(t, "hunter2\n")
 
-	cfg := cleanuparrsetup.Defaults()
+	cfg := setup.Defaults()
 	run(t, &cfg, "--admin-user", "admin", "--admin-password-file", passwordFile)
 
 	creds, err := cfg.Credentials()

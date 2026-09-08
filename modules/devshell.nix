@@ -24,6 +24,9 @@ _: {
           # Not part of treefmt: golangci-lint needs the module graph, not a
           # file list, so it runs per module via `just go-lint`.
           pkgs.golangci-lint
+          # `just _go-modules` reads the Go workspace through `go work edit
+          # -json`, which is the only supported way to enumerate its modules.
+          pkgs.jq
           pkgs.ruff
           pkgs.shfmt
           pkgs.shellcheck

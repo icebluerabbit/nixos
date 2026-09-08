@@ -76,6 +76,8 @@ secrets/        # SOPS-encrypted YAML (never commit plaintext)
 
 **packages/** — every `packages/<name>/` is auto-`callPackage`d by `modules/overlays.nix` into `pkgs.homelab.<name>` and exposed as a flake output (`nix build .#<name>`). A new package is just a new directory; git-add it before Nix can see it. **`modules/` holds no `.py` or `.go`** — scripts that used to sit beside a container aspect are packages now, referenced as `lib.getExe pkgs.homelab.<name>`. Config still travels by argv/env/JSON: packages are fixed, hosts vary the flags. Referencing `pkgs.homelab.*` from inside a container body fails — see skill `nixos-container-conventions`.
 
+**`packages/go/` is the exception to one-directory-one-package**: it is a Go workspace of several modules whose `default.nix` returns an _attribute set_, which the overlay merges into `pkgs.homelab.*` flat — so each binary is still `pkgs.homelab.<name>`. Every Go binary this repo authors lives there, one top-level directory per project, with shared code in `lib/`. Layout rules, the `go.work` registry, generated `vendor-hashes.nix` and the `just go-*` recipes: **`packages/go/README.md`**. Read it before adding or moving anything under `packages/go/`.
+
 ---
 
 ## den Aspects (the core idiom)
