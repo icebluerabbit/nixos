@@ -34,6 +34,7 @@ let
       komga = "10.10.120.24";
       audiobookshelf = "10.10.120.25";
       stash = "10.10.120.27";
+      stashtrap = "10.10.120.28";
     };
   };
 in

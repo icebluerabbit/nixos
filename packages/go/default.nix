@@ -23,14 +23,23 @@
   the build: nixpkgs vendors each module separately and a workspace would
   override -mod=vendor.
 */
-{ buildGoModule }:
+{ lib, buildGoModule }:
 let
   version = "0.1.0";
   hashes = import ./vendor-hashes.nix;
 
   # mkProject builds one module out of the shared workspace source. modRoot
-  # selects the module; src stays the workspace root so the relative `replace`
-  # directives pointing at ../lib resolve.
+  # selects the module; src keeps the workspace root as its root so the
+  # relative `replace` directives pointing at ../lib resolve.
+  #
+  # The fileset is what keeps projects independent. `src = ./.` would put every
+  # file under packages/go into every project's source hash, so editing one
+  # binary would rebuild all of them at new store paths — and every container
+  # embedding those store paths would restart on the next switch, for a binary
+  # whose behaviour did not change. Narrowing src to lib plus the project's own
+  # directory is what makes the isolation the vendor split promises actually
+  # hold: a lib change still rebuilds everything, which is correct, and a
+  # project change rebuilds only itself.
   mkProject =
     {
       module,
@@ -42,7 +51,10 @@ let
     }:
     buildGoModule {
       inherit pname version;
-      src = ./.;
+      src = lib.fileset.toSource {
+        root = ./.;
+        fileset = lib.fileset.unions ([ ./lib ] ++ lib.optional (module != "lib") (./. + "/${module}"));
+      };
       modRoot = module;
       vendorHash = hashes.${module};
 
@@ -67,6 +79,16 @@ in
   cleanuparr-setup = mkProject {
     module = "cleanuparr-setup";
     description = "Complete Cleanuparr first-run setup and export its API key";
+  };
+
+  slskd-prune = mkProject {
+    module = "slskd-prune";
+    description = "Delete slskd searches older than a retention window";
+  };
+
+  stashtrap = mkProject {
+    module = "stashtrap";
+    description = "Record autobrr announces and decide whether to grab them";
   };
 
   # lib ships no binaries; it is built so that `nix flake check` and every

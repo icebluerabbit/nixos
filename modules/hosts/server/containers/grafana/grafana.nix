@@ -147,6 +147,7 @@
               (import ./dashboards/_smart.nix)
               (import ./dashboards/_sonarr.nix)
               (import ./dashboards/_soularr.nix)
+              (import ./dashboards/_stashtrap.nix)
               (import ./dashboards/_soulseek.nix)
               (import ./dashboards/_unpackerr.nix)
               (import ./dashboards/_vpn_gw.nix)

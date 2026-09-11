@@ -10,6 +10,7 @@
       den.aspects.infra._.clients._.container-mousetrap
       den.aspects.infra._.clients._.container-qbittorrent
       den.aspects.infra._.clients._.container-seasonpackarr
+      den.aspects.infra._.clients._.container-stashtrap
       den.aspects.infra._.clients._.container-sonarr
       den.aspects.infra._.clients._.container-radarr
       den.aspects.infra._.clients._.container-lidarr

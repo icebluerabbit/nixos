@@ -7,6 +7,8 @@
 #
 # A module with no external dependencies uses null rather than a hash.
 {
-  lib = "sha256-Rfb3GREwtnzo/mdkiu6UklcprBB6fUTV1r2LmKwD1Yg=";
+  lib = "sha256-IwqVh9UAN8GcFDWGhSdIUpOvp3/qw6VHWJIn+bcMeDY=";
   cleanuparr-setup = "sha256-S6w4p2a5cZQfBjnMy7ZRB3ZZCcuTws2uVO8bmscorZU=";
+  slskd-prune = "sha256-KUTeg03TNrKG70VkqpNNBObpDiocTXJTHv+J3SLB2/Q=";
+  stashtrap = "sha256-t+Luzv1csjyGy7EBLmCVozb5awDN57k8pgRLnkKKQXM=";
 }

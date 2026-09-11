@@ -58,6 +58,13 @@ _: {
               default = 21;
               description = "Age (mtime, days) a failed_imports/ entry must reach before deletion. soularr denylists what it moves there, so nothing ever retries it.";
             };
+
+            # ── search history pruning (slskd-search-prune) ──
+            searchRetentionDays = lib.mkOption {
+              type = lib.types.int;
+              default = 7;
+              description = "Age (startedAt, days) a stored search must reach before deletion. slskd has retention for transfers/files/logs/share-cache but none for searches, so search.db grows without bound.";
+            };
             listenPortSeed = lib.mkOption {
               type = lib.types.port;
               default = 50300;
@@ -198,6 +205,7 @@ _: {
             # Resolved from host pkgs so the homelab overlay is in scope; the
             # store path pulls into the container closure via ExecStart.
             brokerClient = lib.getExe pkgs.homelab.vpn-broker-client-slskd;
+            pruneClient = lib.getExe pkgs.homelab.slskd-prune;
           in
           {
             inherit (cfg) autoStart;
@@ -430,6 +438,21 @@ _: {
                         IOSchedulingClass = "idle";
                       };
                     };
+
+                    # ── search history pruning ──────────────────────────────────────────────
+                    # slskd has no search retention of its own and soularr searches
+                    # continuously, so search.db only grows — and the UI's search view loads
+                    # every record in one response, so it stalls long before the API does.
+                    slskd-search-prune = {
+                      description = "Delete slskd searches older than ${toString cfg.searchRetentionDays} days";
+                      after = [ "slskd.service" ];
+                      serviceConfig = {
+                        Type = "oneshot";
+                        ExecStart = "${pruneClient} --base http://127.0.0.1:${toString cfg.port} --retention-days ${toString cfg.searchRetentionDays}";
+                        Nice = 19;
+                        IOSchedulingClass = "idle";
+                      };
+                    };
                   };
 
                   timers = {
@@ -457,6 +480,16 @@ _: {
                       wantedBy = [ "timers.target" ];
                       timerConfig = {
                         OnCalendar = "05:00";
+                        Persistent = true;
+                      };
+                    };
+
+                    # 30min behind soulseek-reap so the two housekeeping jobs don't contend
+                    # for slskd's SQLite and the NFS share at the same moment.
+                    slskd-search-prune = {
+                      wantedBy = [ "timers.target" ];
+                      timerConfig = {
+                        OnCalendar = "05:30";
                         Persistent = true;
                       };
                     };

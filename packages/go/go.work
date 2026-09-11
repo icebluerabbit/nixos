@@ -13,4 +13,6 @@ go 1.26
 use (
 	./cleanuparr-setup
 	./lib
+	./slskd-prune
+	./stashtrap
 )
