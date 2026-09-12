@@ -30,7 +30,8 @@ func newApp(cfg *server.Config) app.App {
 		Short: "Record autobrr announces and decide whether to grab them",
 		Long: "Runs as autobrr's external filter: it answers 250 to accept a " +
 			"release and 200 to reject it, and records every announce it " +
-			"was asked about. Nothing is accepted yet.",
+			"was asked about. A release is accepted when it names a followed " +
+			"performer or studio, or comes from a platform given to --platforms.",
 		Config: cfg,
 		Flags: func(f *pflag.FlagSet) {
 			f.String("addr", cfg.Addr, "listen address for the announce endpoint")
@@ -40,6 +41,7 @@ func newApp(cfg *server.Config) app.App {
 			f.String("stashbox-key", "", "stash-box API key (prefer --stashbox-key-file)")
 			f.String("stashbox-key-file", "", "file holding the stash-box API key")
 			f.Duration("stashbox-min-interval", cfg.StashboxMinInterval, "floor between stash-box requests")
+			f.StringSlice("platforms", cfg.Platforms, "platforms to accept wholesale, which the catalogue cannot recognise (e.g. onlyfans)")
 		},
 		Run: func(ctx context.Context, env *app.Env) error {
 			return run(ctx, env, *cfg)
@@ -86,7 +88,7 @@ func run(ctx context.Context, env *app.Env, cfg server.Config) error {
 
 	srv, err := server.New(server.Deps{
 		Store:    st,
-		Decider:  policy.New(),
+		Decider:  policy.New(cfg.Platforms...),
 		Logger:   env.Logger,
 		Syncer:   syncer,
 		Endpoint: cfg.StashboxEndpoint,

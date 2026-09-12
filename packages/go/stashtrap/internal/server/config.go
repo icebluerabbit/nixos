@@ -36,6 +36,16 @@ type Config struct {
 	// StashboxMinInterval is the floor between stash-box requests, so a bulk
 	// crawl paces itself instead of discovering the service's limit.
 	StashboxMinInterval time.Duration `json:"stashbox_min_interval"`
+
+	// Platforms are taken wholesale, on top of the followed performers and
+	// studios.
+	//
+	// A platform is not a studio: "OnlyFans" is an alias of seventy-five
+	// studios and identifies none of them, and the performer is a handle
+	// nobody follows, so these releases can never match on merit. Whether
+	// they are worth the disk is a judgement about disk, which is why it is
+	// a flag and not a rule.
+	Platforms []string `json:"platforms"`
 }
 
 // Defaults are what a unit that passes no flags gets.

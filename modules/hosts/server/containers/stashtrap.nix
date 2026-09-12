@@ -35,6 +35,12 @@
           # Favourites change rarely; the scene crawl behind them is the
           # expensive part, so nightly rather than hourly.
           syncInterval = "daily";
+          # OnlyFans rips can never match the catalogue — the platform is an
+          # alias of seventy-five studios and the performer is a handle — so
+          # they are taken on the platform alone. 5.8% of BitPorn's output,
+          # roughly 40 releases a day, which is worth having while downloads
+          # are free and worth reconsidering when they are not.
+          platforms = [ "onlyfans" ];
           bindMounts = {
             # SQLite on local disk. NFS would be a locking hazard, and the
             # corpus is small enough that it never wants the array.

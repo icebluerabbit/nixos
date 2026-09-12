@@ -57,6 +57,22 @@ _: {
               default = null;
               description = "systemd OnCalendar for the catalogue sync timer; null disables it";
             };
+            platforms = lib.mkOption {
+              type = lib.types.listOf (lib.types.enum [ "onlyfans" ]);
+              default = [ ];
+              example = [ "onlyfans" ];
+              description = ''
+                Platforms whose releases are taken wholesale, on top of the
+                followed performers and studios.
+
+                A platform is not a studio and can never match the catalogue:
+                "OnlyFans" is an alias of seventy-five studios, so it
+                identifies none of them, and the performer is a handle nobody
+                follows. Whether every such release is worth the disk is a
+                judgement about disk, not about matching, which is why it is
+                configuration.
+              '';
+            };
           };
 
         config = {
@@ -112,6 +128,7 @@ _: {
                             "--stashbox-endpoint ${cfg.stashboxEndpoint}"
                             "--stashbox-key-file /run/secrets/stashbox-key"
                           ]
+                          ++ lib.optional (cfg.platforms != [ ]) "--platforms ${lib.concatStringsSep "," cfg.platforms}"
                         );
                         Restart = "on-failure";
                         RestartSec = 5;

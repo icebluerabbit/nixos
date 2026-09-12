@@ -7,6 +7,12 @@ import (
 	"homelab/stashtrap/internal/types"
 )
 
+// announce builds the release under test. Only the name matters to these
+// rules; the rest is what autobrr always sends.
+func announce(name string) types.Announce {
+	return types.Announce{Name: name, Indexer: "bitporn"}
+}
+
 func TestDecide(t *testing.T) {
 	t.Parallel()
 
@@ -56,7 +62,7 @@ func TestDecide(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := d.Decide(types.Announce{Name: "release", Indexer: "bitporn"}, nil, tc.match)
+			got := d.Decide(announce("release"), nil, tc.match)
 			if got.Accept != tc.accept || got.Reason != tc.reason {
 				t.Fatalf("Decide = %+v, want accept %v reason %q", got, tc.accept, tc.reason)
 			}

@@ -18,6 +18,9 @@ const (
 	ReasonFavouritePerformer = "favourite-performer"
 	// ReasonFavouriteStudio is a release naming a followed studio.
 	ReasonFavouriteStudio = "favourite-studio"
+	// ReasonPlatform is a release from a platform taken wholesale, because
+	// the catalogue cannot have an opinion about one.
+	ReasonPlatform = "platform"
 	// ReasonNoFavourite is everything else: recognised or not, it features
 	// nobody followed.
 	ReasonNoFavourite = "no-favourite"
@@ -47,17 +50,30 @@ type Decision struct {
 }
 
 // Decider evaluates announces.
-type Decider struct{}
+type Decider struct {
+	platforms map[string]bool
+}
 
-// New builds a Decider.
-func New() *Decider { return &Decider{} }
+// New builds a Decider that takes releases from these platforms wholesale, on
+// top of the followed performers and studios.
+//
+// A platform is configuration rather than a rule in the code: whether every
+// OnlyFans rip is worth the disk is a judgement about disk, and it changes
+// when freeleech ends.
+func New(platforms ...string) *Decider {
+	d := &Decider{platforms: make(map[string]bool, len(platforms))}
+	for _, p := range platforms {
+		d.platforms[p] = true
+	}
+	return d
+}
 
 // Decide returns the outcome for one announce. meta may be nil.
 //
-// Followed performers and studios only. A release is worth a grab because
-// somebody wanted it, and nothing else in the name — not the studio being
-// recognised, not the scene being identified — is evidence of that.
-func (d *Decider) Decide(_ types.Announce, _ *torrent.Meta, m Match) Decision {
+// Followed performers and studios, plus the platforms in Platforms. Being
+// recognised is not itself a reason to grab: a studio the catalogue knows but
+// the account does not follow is somebody else's interest.
+func (d *Decider) Decide(a types.Announce, _ *torrent.Meta, m Match) Decision {
 	switch {
 	case m.CatalogueEmpty:
 		return Decision{Accept: false, Reason: ReasonRecordOnly}
@@ -65,7 +81,11 @@ func (d *Decider) Decide(_ types.Announce, _ *torrent.Meta, m Match) Decision {
 		return Decision{Accept: true, Reason: ReasonFavouritePerformer}
 	case len(m.Studios) > 0:
 		return Decision{Accept: true, Reason: ReasonFavouriteStudio}
-	default:
-		return Decision{Accept: false, Reason: ReasonNoFavourite}
 	}
+	// Checked after the favourites so a release that is both is attributed
+	// to the person or studio followed, which is the more useful reason.
+	if d.platforms[Platform(a.Name)] {
+		return Decision{Accept: true, Reason: ReasonPlatform}
+	}
+	return Decision{Accept: false, Reason: ReasonNoFavourite}
 }
