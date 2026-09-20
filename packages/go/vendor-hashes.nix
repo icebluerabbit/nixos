@@ -7,8 +7,21 @@
 #
 # A module with no external dependencies uses null rather than a hash.
 {
-  lib = "sha256-IwqVh9UAN8GcFDWGhSdIUpOvp3/qw6VHWJIn+bcMeDY=";
-  cleanuparr-setup = "sha256-S6w4p2a5cZQfBjnMy7ZRB3ZZCcuTws2uVO8bmscorZU=";
-  slskd-prune = "sha256-KUTeg03TNrKG70VkqpNNBObpDiocTXJTHv+J3SLB2/Q=";
-  stashtrap = "sha256-t+Luzv1csjyGy7EBLmCVozb5awDN57k8pgRLnkKKQXM=";
+  lib = "sha256-QoDnrjl6wZAyaFxJb/f3/AwaxjzGf2f/O82YLy3eNG8=";
+  managarr-crossseed = "sha256-8Amk4GqRINo4dWWcExCCdjnviLvPEP23Z8QkZh1za6w=";
+  managarr-lidarr = "sha256-MwQqGbb6mYovPuw5RRZVcFdPXLbk7kuHUqD2QzfNBQc=";
+  managarr-prowlarr = "sha256-Pb4pXSK45hmAV1E0dl931sYw1fTNHDUJO3AdFXY3H38=";
+  managarr-radarr = "sha256-MwQqGbb6mYovPuw5RRZVcFdPXLbk7kuHUqD2QzfNBQc=";
+  managarr-sonarr = "sha256-MwQqGbb6mYovPuw5RRZVcFdPXLbk7kuHUqD2QzfNBQc=";
+  managarr-autobrr = "sha256-IxLl9GyaQLVKYRyV1v7roPoNXUJxrvf6603YO+hIVFM=";
+  managarr-bazarr = "sha256-KixuQcssM6AV0Y6fRtsRXDfo8yur1NEKExbcX7WEXVk=";
+  managarr-beets = "sha256-T5h80jP2VwS1wQ7UDL9k+PlW/0mM7KFZypvhK3c1Sdw=";
+  managarr-qbittorrent = "sha256-ssoJoUygVMKYq0AQr3NofyID5O5KrG2mZzY1Waii03c=";
+  managarr-seasonpackarr = "sha256-fekADesJbaWpfCU5WMcR55P67MJq9rOSWi4970yu3+Y=";
+  managarr-slskd = "sha256-Wbee4MeHGNJH5KAOXZuFP3cRGYzdThPzne0gzkAnni8=";
+  managarr-soularr = "sha256-fekADesJbaWpfCU5WMcR55P67MJq9rOSWi4970yu3+Y=";
+  managarr-unpackerr = "sha256-fekADesJbaWpfCU5WMcR55P67MJq9rOSWi4970yu3+Y=";
+  managarr = "sha256-oTavRptRfMkbEbcgagMmxrXUXueyIzyAKhcbZeQmo3U=";
+  slskd-prune = "sha256-3ytzSjsWUrIpsqUWLZqNFGSgSJO5xpFMcT89ItiKdrw=";
+  stashtrap = "sha256-Xwvhc2R57N1t0PA1Q/W9K5t2H3GCWZSDvTxJAdEsUo0=";
 }

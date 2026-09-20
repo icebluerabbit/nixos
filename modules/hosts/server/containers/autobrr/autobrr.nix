@@ -17,6 +17,7 @@
       den.aspects.infra._.clients._.container-home-assistant
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.networks._.media
       den.aspects.hosts._.server._.security
       den.aspects.hosts._.server._.networking._.vlans._.media
@@ -33,6 +34,10 @@
       in
       {
         containerConfigs.autobrr = {
+          # Where managarr-autobrr relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
           lldpd.enable = true;
           hostBridge = "br-media";
           macAddress = config.infra.clients.container-autobrr.mac;
@@ -136,6 +141,7 @@
             prometheusInputs = [
               "autobrr_release_stats_metrics"
               "autobrr_irc_metrics"
+              "managarr_autobrr"
             ];
             extraSettings =
               lib.recursiveUpdate
@@ -143,6 +149,17 @@
                   inherit port;
                 })
                 {
+                  # The managarr-autobrr sidecar in this container. Its
+                  # collectors sit on the loopback: the framework serves
+                  # /metrics on a separate address from the contract routes, so
+                  # the sidecar's own port answers /healthz and /changes but
+                  # never this.
+                  sources.managarr_autobrr = {
+                    type = "prometheus_scrape";
+                    endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                    scrape_interval_secs = 30;
+                  };
+
                   # autobrr's WEBHOOK notification POSTs here on loopback; the sidecar
                   # republishes verbatim to MQTT so HA consumes via an mqtt trigger
                   # instead of a direct webhook — no notify-time dependency on HA.

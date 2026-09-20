@@ -184,14 +184,9 @@ _: {
             # is the only caller; it passes the token as ?apikey= on both, so the
             # value is needed in autobrr-env as well as seasonpackarr's config.
             seasonpackarr-api-token = { };
-            # Cleanuparr mints its API key with the admin account during first-run
-            # setup and only serves it from the API, so the password is needed on
-            # every boot to log in and re-read the key — not just once.
-            cleanuparr-admin-password = { };
             # Komga and Audiobookshelf both mint their API keys against an admin
             # account and only return the plaintext on create, so the password is
-            # needed on every boot to log in and remint — not just once. Same
-            # shape as cleanuparr-admin-password above.
+            # needed on every boot to log in and remint — not just once.
             komga-admin-password = { };
             audiobookshelf-admin-password = { };
             # OIDC client secrets. Each is consumed twice: as a file by Authelia
@@ -381,14 +376,23 @@ _: {
               BINDERY_API_KEY=${config.sops.placeholder.bindery-apikey}
               HARDCOVER_API_KEY=${config.sops.placeholder.hardcover-apikey}
             '';
-            # The admin credentials are not here: cleanuparr-setup takes the
-            # username on argv and the password as an nspawn credential from
-            # sops.secrets.cleanuparr-admin-password. What remains is what
-            # configuratarr reads.
-            "cleanuparr-env".content = ''
+            # managarr reads the *arr histories to backfill the library side of
+            # its model. Keys only — the URLs are plain config, and there is no
+            # database credential because pg_hba grants it trust by IP.
+            #
+            # autobrr's token is the same one the UI and Homepage use: it is the
+            # only source of announcements and of the per-action rejections that
+            # say why an approved release never reached an *arr. managarr fails
+            # to start if --autobrr-url is set without it, deliberately — a
+            # silently skipped source leaves those tables empty with nothing to
+            # explain it.
+            "managarr-env".content = ''
               SONARR_APIKEY=${config.sops.placeholder.sonarr-apikey}
               RADARR_APIKEY=${config.sops.placeholder.radarr-apikey}
               LIDARR_APIKEY=${config.sops.placeholder.lidarr-apikey}
+              BAZARR_APIKEY=${config.sops.placeholder.bazarr-apikey}
+              AUTOBRR_APIKEY=${config.sops.placeholder.autobrr-api-token}
+              PROWLARR_APIKEY=${config.sops.placeholder.prowlarr-apikey}
             '';
             "prowlarr-env".content = ''
               PROWLARR__AUTH__APIKEY=${config.sops.placeholder.prowlarr-apikey}

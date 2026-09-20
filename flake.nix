@@ -17,10 +17,6 @@
       url = "github:anthropics/claude-plugins-official";
       flake = false;
     };
-    cleanuparr-flake = {
-      url = "github:icebluerabbit/cleanuparr-flake/dev";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     configuratarr = {
       url = "github:icebluerabbit/configuratarr/dev";
       inputs.nixpkgs.follows = "nixpkgs";

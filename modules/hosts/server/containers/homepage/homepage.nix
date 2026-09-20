@@ -50,7 +50,6 @@
       den.aspects.infra._.clients._.container-cinny
       den.aspects.infra._.clients._.container-code-server
       den.aspects.infra._.clients._.container-cross-seed
-      den.aspects.infra._.clients._.container-cleanuparr
       den.aspects.infra._.clients._.container-dns
       den.aspects.infra._.clients._.container-flaresolverr
       den.aspects.infra._.clients._.container-gitea

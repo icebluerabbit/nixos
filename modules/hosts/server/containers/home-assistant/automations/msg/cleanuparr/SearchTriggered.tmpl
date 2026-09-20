@@ -1,3 +1,0 @@
-{% set n = trigger.payload_json -%}
-🔍 <b>Cleanuparr · {{ n.title | default('search triggered') | lower }}</b>
-{% if n.message %}{{ n.message }}{% endif %}

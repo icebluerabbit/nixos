@@ -28,13 +28,13 @@ let
       beets = "10.10.120.18";
       # ⚠ Do NOT assign 10.10.120.12 to any container — reserved.
       mousetrap = "10.10.120.20";
-      cleanuparr = "10.10.120.21";
       seasonpackarr = "10.10.120.22";
       bindery = "10.10.120.23";
       komga = "10.10.120.24";
       audiobookshelf = "10.10.120.25";
       stash = "10.10.120.27";
       stashtrap = "10.10.120.28";
+      managarr = "10.10.120.29";
     };
   };
 in

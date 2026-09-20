@@ -151,7 +151,6 @@
                 "#myanonamouse:matrix.services.internal"
                 "#qbittorrent:matrix.services.internal"
                 "#cross-seed:matrix.services.internal"
-                "#cleanuparr:matrix.services.internal"
                 "#seasonpackarr:matrix.services.internal"
                 "#soulseek:matrix.services.internal"
                 "#bindery:matrix.services.internal"
@@ -210,7 +209,6 @@
               (import ./automations/_dns-events-webhook.nix { })
               (import ./automations/_dns-digest.nix { })
               (import ./automations/_cross-seed-webhook.nix { })
-              (import ./automations/_cleanuparr-webhook.nix { })
               (import ./automations/_seasonpackarr-webhook.nix { })
               (import ./automations/_presence.nix { })
               (import ./automations/_new-client.nix { })

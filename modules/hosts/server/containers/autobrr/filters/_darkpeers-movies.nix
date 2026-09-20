@@ -20,5 +20,6 @@
       client_id = "\${ref.download_client.Radarr}";
     }
     (import ./_cross-seed-action.nix { inherit config; })
+    (import ./_managarr-action.nix { inherit config; })
   ];
 }

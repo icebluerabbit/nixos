@@ -242,8 +242,21 @@ func (c *Client) HTTP() *http.Client { return c.http }
 func (c *Client) BaseURL() string { return strings.TrimSuffix(c.base.String(), "/") }
 
 // URL resolves a request path against the base URL.
+//
+// A "?" splits path from query. Without this the whole string lands in
+// url.URL.Path, which escapes the "?" to %3F and turns a perfectly good query
+// into a nonexistent path — a 404 that reads as if the endpoint were wrong.
+//
+// The path half is still assigned to Path rather than RawPath, so a path
+// segment carrying reserved characters is encoded exactly once. The query half
+// goes to RawQuery verbatim: callers build it with url.Values.Encode, which has
+// already escaped it, and re-escaping would double-encode.
 func (c *Client) URL(path string) string {
-	return c.base.ResolveReference(&url.URL{Path: strings.TrimPrefix(path, "/")}).String()
+	raw, query, _ := strings.Cut(path, "?")
+	return c.base.ResolveReference(&url.URL{
+		Path:     strings.TrimPrefix(raw, "/"),
+		RawQuery: query,
+	}).String()
 }
 
 // Do issues a request and decodes a JSON response.

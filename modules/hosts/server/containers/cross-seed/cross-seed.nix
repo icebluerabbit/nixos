@@ -12,6 +12,7 @@
       den.aspects.infra._.clients._.container-qbittorrent
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.networks._.media
       den.aspects.infra._.networks._.download
       den.aspects.hosts._.server._.security
@@ -147,8 +148,13 @@
             outputDir = null;
             # cross-seed POSTs its own result/inject notifications ({title,body,extra})
             # here → HA webhook → #cross-seed. Distinct from autobrr's announce POST-ack.
+            # The second URL records the same notifications with managarr. A
+            # cross-seed inject is the one way a torrent enters the client with
+            # no *arr grab behind it, so without this leg those appear in the
+            # corpus as an unexplained qBittorrent add.
             notificationWebhookUrls = [
               "http://127.0.0.1:9001/"
+              "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}/hook/cross-seed"
             ];
           };
           bindMounts = {

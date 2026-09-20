@@ -67,9 +67,9 @@
       den.aspects.hosts._.server._.containers._.prowlarr
       den.aspects.hosts._.server._.containers._.stash
       den.aspects.hosts._.server._.containers._.stashtrap
+      den.aspects.hosts._.server._.containers._.managarr
       den.aspects.hosts._.server._.containers._.flaresolverr
       den.aspects.hosts._.server._.containers._.cross-seed
-      den.aspects.hosts._.server._.containers._.cleanuparr
       den.aspects.hosts._.server._.containers._.seasonpackarr
       den.aspects.hosts._.server._.containers._.autobrr
       den.aspects.hosts._.server._.containers._.mousetrap

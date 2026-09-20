@@ -12,6 +12,10 @@ let
       exporter = 8090;
       webui = 8080;
     };
+    # managarr-qbittorrent, the sidecar serving this service's records to managarr.
+    # 9910 on every managarr-* sidecar: each container has its own IP, so one
+    # number carries across all of them with no per-service arithmetic.
+    ports.api = 9910;
     proxy.port = "webui";
   };
 in

@@ -197,10 +197,35 @@ _: {
               default = [ ];
               description = "VPN tunnel pool wiring (decoupled from vpn-gw); the broker selects among these";
             };
+            apiPort = lib.mkOption {
+              type = lib.types.port;
+              default = 9910;
+              description = ''
+                Port for managarr-slskd, the sidecar serving this service's
+                records to managarr.
+
+                9910 on every managarr-* sidecar. Each container has its own
+                IP, so one number is unambiguous everywhere and there is no
+                per-service arithmetic to get wrong.
+              '';
+            };
+            managarrUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                managarr base URL the sidecar relays events to; empty disables
+                relaying and leaves the read half working.
+              '';
+            };
           };
 
         config.containers.slskd =
           let
+            # Resolved in the HOST's package set. pkgs inside a container
+            # body is the container's own and carries no overlays, so
+            # pkgs.homelab there fails with "attribute 'homelab' missing".
+            # The store path is what crosses the boundary.
+            managarrSidecarExe = lib.getExe pkgs.homelab.managarr-slskd;
             cfg = config.containerConfigs.slskd;
             # Resolved from host pkgs so the homelab overlay is in scope; the
             # store path pulls into the container closure via ExecStart.
@@ -257,7 +282,47 @@ _: {
                 inherit brokerClient;
               in
               {
-                imports = [ (import ../_base.nix { inherit lib cfg; }) ]; # opens cfg.port (web) on LAN
+                imports = [
+                  {
+                    networking.firewall.allowedTCPPorts = [ cfg.apiPort ];
+
+                    systemd.services.managarr-slskd = {
+                      description = "Serve slskd's event log to managarr";
+                      after = [ "slskd.service" ];
+                      wantedBy = [ "multi-user.target" ];
+                      wants = [ "slskd.service" ];
+
+                      script =
+                        "exec "
+                        + lib.concatStringsSep " " (
+                          [
+                            managarrSidecarExe
+                            "--addr :${toString cfg.apiPort}"
+                            "--metrics.addr 127.0.0.1:9909"
+                          ]
+                          ++ lib.optional (cfg.managarrUrl != "") "--managarr-url ${cfg.managarrUrl}"
+                          ++ [ "--upstream-url http://127.0.0.1:5030" ]
+                        );
+
+                      serviceConfig = {
+                        User = "slskd";
+                        Group = "slskd";
+                        Restart = "on-failure";
+                        RestartSec = 5;
+                        ProtectSystem = "strict";
+                        ProtectHome = true;
+                        PrivateDevices = true;
+                        PrivateTmp = true;
+                        NoNewPrivileges = true;
+                        RestrictAddressFamilies = [
+                          "AF_INET"
+                          "AF_INET6"
+                        ];
+                      };
+                    };
+                  }
+                  (import ../_base.nix { inherit lib cfg; })
+                ]; # opens cfg.port (web) on LAN
 
                 # asymmetric-ish paths (inbound via DNAT'd veth, egress via default veth) — like
                 # vpn-gw/qbt, disable strict reverse-path filtering.

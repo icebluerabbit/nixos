@@ -27,7 +27,7 @@ layer and no shared-vendor bucket.
 or a library alongside one; every project here ships exactly one binary, so it
 would never disambiguate anything. The name is already supplied: a `main`
 package at the module root installs as the last element of the module path, so
-`module homelab/cleanuparr-setup` builds `cleanuparr-setup`. Add `cmd/` to a
+`module homelab/slskd-prune` builds `slskd-prune`. Add `cmd/` to a
 project the day it grows a second binary, and nothing else changes.
 
 **`internal/` needs a named package inside it.** `package internal` is legal but
@@ -51,8 +51,8 @@ are not reinvented:
   signature with no branch.
 - **Grouping by domain** (`media/`, `torrent/`, `infra/`) reintroduces a
   classification decision per binary, and about a third of the inventory pulls
-  two ways — `soularr-reclaim` is slskd and Lidarr, `cleanuparr-setup` is
-  download cleanup and \*arr, `vpn-broker` is networking and torrenting. If it
+  two ways — `soularr-reclaim` is slskd and Lidarr, `stashtrap` is autobrr
+  and stash, `vpn-broker` is networking and torrenting. If it
   is ever wanted, put the group in the _directory_ only and leave the module
   path flat, so reclassifying costs one `go.work` line instead of an import
   rewrite across every consumer.

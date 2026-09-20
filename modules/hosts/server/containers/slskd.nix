@@ -8,6 +8,7 @@
       den.aspects.infra._.clients._.container-slskd
       den.aspects.infra._.clients._.container-vpn-gw # broker addr
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.networks._.download
       den.aspects.hosts._.server._.security
@@ -51,6 +52,10 @@
       in
       {
         containerConfigs.slskd = {
+          # Where managarr-slskd relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
           lldpd.enable = true;
           hostBridge = "br-download";
           macAddress = config.infra.clients.container-slskd.mac;
@@ -111,8 +116,21 @@
             lokiAddress = "http://${config.infra.clients.container-loki.ip}:${toString config.infra.clients.container-loki.ports.default}";
             prometheusAddress = "http://${config.infra.clients.container-prometheus.ip}:${toString config.infra.clients.container-prometheus.ports.default}/api/v1/write";
             tempoAddress = "http://${config.infra.clients.container-tempo.ip}:${toString config.infra.clients.container-tempo.ports.otlp-http}/v1/traces";
-            prometheusInputs = [ "slskd_metrics" ];
+            prometheusInputs = [
+              "slskd_metrics"
+              "managarr_slskd"
+            ];
             extraSettings = {
+              # The managarr-slskd sidecar in this container. Its collectors sit
+              # on the loopback: the framework serves /metrics on a separate
+              # address from the contract routes, so the sidecar's own port
+              # answers /healthz and /changes but never this.
+              sources.managarr_slskd = {
+                type = "prometheus_scrape";
+                endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                scrape_interval_secs = 30;
+              };
+
               sources.slskd_metrics = {
                 type = "prometheus_scrape";
                 endpoints = [
@@ -162,6 +180,18 @@
                 quality_of_service = "atleastonce";
                 retain = false;
                 encoding.codec = "text"; # emit .message (the single-event JSON)
+              };
+              # Second consumer of the same transform. The Soulseek path has no
+              # infohash, so these events join to Lidarr's import on filename
+              # rather than on a hash — weaker than the torrent spine, and the
+              # reason the acquisition side is worth recording at all.
+              sinks.slskd_notify_managarr = {
+                type = "http";
+                inputs = [ "slskd_notify" ];
+                uri = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}/hook/slskd";
+                method = "post";
+                encoding.codec = "text";
+                request.headers."Content-Type" = "application/json";
               };
             };
           };

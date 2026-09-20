@@ -115,12 +115,12 @@ flowchart TD
 | beets | 10.10.120.18 |
 | bindery | 10.10.120.23 |
 | calibre-web | 10.10.120.17 |
-| cleanuparr | 10.10.120.21 |
 | cross-seed | 10.10.120.15 |
 | flaresolverr | 10.10.120.13 |
 | jellyfin | 10.10.120.10 |
 | komga | 10.10.120.24 |
 | lidarr | 10.10.120.5 |
+| managarr | 10.10.120.29 |
 | mousetrap | 10.10.120.20 |
 | prowlarr | 10.10.120.8 |
 | radarr | 10.10.120.4 |

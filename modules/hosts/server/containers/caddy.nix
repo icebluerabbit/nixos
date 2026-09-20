@@ -84,8 +84,6 @@
       den.aspects.infra._.clients._.container-thelounge
       den.aspects.containers._.cross-seed
       den.aspects.infra._.clients._.container-cross-seed
-      den.aspects.containers._.cleanuparr
-      den.aspects.infra._.clients._.container-cleanuparr
       den.aspects.containers._.autobrr
       den.aspects.infra._.clients._.container-autobrr
     ];

@@ -105,5 +105,6 @@ in
       category = "xxx";
     }
     (import ./_cross-seed-action.nix { inherit config; })
+    (import ./_managarr-action.nix { inherit config; })
   ];
 }

@@ -12,6 +12,7 @@
       den.aspects.infra._.clients._.container-jellyfin
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.networks._.media
       den.aspects.containers._.postgresql
       den.aspects.hosts._.server._.security
@@ -36,6 +37,10 @@
       in
       {
         containerConfigs.sonarr = {
+          # Where managarr-sonarr relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
 
           lldpd.enable = true;
           hostBridge = "br-media";
@@ -108,18 +113,39 @@
               "sonarr_exporter"
               "sonarr_rss_metrics"
               "sonarr_warn_metrics"
+              "managarr_sonarr"
             ];
             extraSettings = {
-              # sonarr's Webhook connection POSTs here on loopback; the sidecar
-              # republishes verbatim to MQTT so HA consumes via an mqtt trigger
-              # instead of a direct webhook — no notify-time dependency on HA.
-              sources.webhook_in = {
-                type = "http_server";
-                address = "127.0.0.1:9001";
-                method = "POST";
-                path = "/";
-                decoding.codec = "bytes"; # keep sonarr's JSON body verbatim → .message
-                framing.method = "bytes"; # one event per request body, not per line
+              # The managarr-* sidecar in this container. Its collectors sit
+              # on the loopback: the framework serves /metrics on a separate
+              # address from the contract routes, so the sidecar's own port
+              # answers /healthz and /changes but never this.
+              sources = {
+                managarr_sonarr = {
+                  type = "prometheus_scrape";
+                  endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                  scrape_interval_secs = 30;
+                };
+                # sonarr's Webhook connection POSTs here on loopback; the
+                # sidecar republishes verbatim to MQTT so HA consumes via an
+                # mqtt trigger instead of a direct webhook — no notify-time
+                # dependency on HA.
+                webhook_in = {
+                  type = "http_server";
+                  address = "127.0.0.1:9001";
+                  method = "POST";
+                  path = "/";
+                  decoding.codec = "bytes"; # keep sonarr's JSON body verbatim → .message
+                  framing.method = "bytes"; # one event per request body, not per line
+                };
+                sonarr_exporter = {
+                  type = "prometheus_scrape";
+                  endpoints = [
+                    "http://127.0.0.1:${toString config.infra.clients.container-sonarr.ports.exporter}/metrics"
+                  ];
+                  scrape_interval_secs = 30;
+                  scrape_timeout_secs = 30;
+                };
               };
               sinks.webhook_mqtt = {
                 type = "mqtt";
@@ -131,14 +157,6 @@
                 quality_of_service = "atleastonce";
                 retain = false;
                 encoding.codec = "text"; # emit .message raw (the sonarr JSON)
-              };
-              sources.sonarr_exporter = {
-                type = "prometheus_scrape";
-                endpoints = [
-                  "http://127.0.0.1:${toString config.infra.clients.container-sonarr.ports.exporter}/metrics"
-                ];
-                scrape_interval_secs = 30;
-                scrape_timeout_secs = 30;
               };
               transforms = {
                 sonarr_rss_filter = {

@@ -31,32 +31,36 @@
     nixos = {
       nixpkgs.overlays = [
         inputs.claude-code.overlays.default
-        # OpenSpec — spec-driven development CLI paired with this agent.
-        # nixpkgs lags upstream by several minor releases, so the version and
-        # both fixed-output hashes are pinned here instead of waiting on the
-        # nixpkgs bump. Refresh all three together.
-        # https://github.com/Fission-AI/OpenSpec
+        # Spec Kit (`specify`) — spec-driven development CLI paired with this
+        # agent. nixpkgs is stuck on 0.0.90 while upstream is past 1.0, so the
+        # version, source hash and dependency set are pinned here instead of
+        # waiting on the nixpkgs bump. Refresh all three together.
+        # https://github.com/github/spec-kit
         (final: prev: {
-          openspec =
+          spec-kit =
             let
-              version = "1.11.0";
-              src = final.fetchFromGitHub {
-                owner = "Fission-AI";
-                repo = "OpenSpec";
-                tag = "v${version}";
-                hash = "sha256-efy/YUkr95S44N26FCRQ2/F+ciaaMRvzh/cI1Z0huzU=";
-              };
+              version = "1.0.8";
             in
-            prev.openspec.overrideAttrs (old: {
-              inherit version src;
-              pnpmDeps = final.fetchPnpmDeps {
-                inherit (old) pname;
-                inherit version src;
-                pnpm = final.pnpm_10;
-                fetcherVersion = 3;
-                hash = "sha256-P50JVvLbTWl66/aOiEZgpAD8z/AAJmn1AoKiNCZbvi4=";
+            prev.spec-kit.overridePythonAttrs {
+              inherit version;
+              src = final.fetchFromGitHub {
+                owner = "github";
+                repo = "spec-kit";
+                tag = "v${version}";
+                hash = "sha256-VnbzJ1EoWze1haoVZQAHXc1QQgUFFKZkPVvmQbS+m5Q=";
               };
-            });
+              dependencies = with final.python3Packages; [
+                typer
+                click
+                rich
+                platformdirs
+                readchar
+                pyyaml
+                packaging
+                pathspec
+                json5
+              ];
+            };
         })
       ];
 
@@ -120,7 +124,7 @@
         kittyTab = kittyTabFor "";
       in
       {
-        home.packages = [ pkgs.openspec ];
+        home.packages = [ pkgs.spec-kit ];
 
         programs.claude-code = {
           enable = true;

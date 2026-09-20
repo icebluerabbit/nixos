@@ -1,4 +1,0 @@
-{% set n = trigger.payload_json -%}
-🧹 <b>Cleanuparr · {{ n.title | default('download cleaned') | lower }}</b>
-{% if n.message %}{{ n.message }}{% endif %}
-<i>⚠️ This one deletes data. Nothing should reach here before phase 2 is enabled.</i>

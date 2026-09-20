@@ -9,6 +9,15 @@ let
     vlan = "media";
     kind = "virtual";
     ports.default = 2468;
+    # managarr-crossseed, the read-only sidecar serving cross-seed's decision
+    # log. cross-seed's own API has no decisions route and its webhook fires
+    # only on a match, so the rejections — most of the record — are reachable no
+    # other way. The sidecar runs in this container because that is where the
+    # database file is; serving it is what spares every consumer a bind mount.
+    #
+    # 9910 is the shared managarr-* sidecar port: every container has its own
+    # IP, so one number carries across all of them.
+    ports.api = 9910;
     proxy.port = "default";
   };
 in

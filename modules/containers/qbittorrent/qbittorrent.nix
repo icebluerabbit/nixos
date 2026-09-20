@@ -15,6 +15,11 @@ _: {
         ...
       }:
       let
+        # Resolved in the HOST's package set. pkgs inside a container
+        # body is the container's own and carries no overlays, so
+        # pkgs.homelab there fails with "attribute 'homelab' missing".
+        # The store path is what crosses the boundary.
+        managarrSidecarExe = lib.getExe pkgs.homelab.managarr-qbittorrent;
         # ── [BitTorrent] section — maps to Session\* conf keys ──
         bitTorrentSubmodule = lib.types.submodule {
           options = {
@@ -395,6 +400,16 @@ _: {
               default = "/mnt/media/watch";
               description = "Watch root (per-category subdirs) for the importer";
             };
+            watchReportUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                POST each watch-dir import here. A hand-dropped torrent is
+                otherwise indistinguishable from a cross-seed inject: both
+                reach the client with no grab in front of them. Empty
+                disables reporting.
+              '';
+            };
             categories = lib.mkOption {
               type = lib.types.attrsOf lib.types.str;
               default = { };
@@ -404,11 +419,6 @@ _: {
               type = lib.types.int;
               default = 10;
               description = "watch-dir poll cadence";
-            };
-            tagSyncIntervalSec = lib.mkOption {
-              type = lib.types.int;
-              default = 60;
-              description = "category->tag mirror cadence";
             };
             reannounceIntervalSec = lib.mkOption {
               type = lib.types.int;
@@ -459,26 +469,25 @@ _: {
                 Same %-substitutions as onTorrentFinished.
               '';
             };
-            qbitManage = {
-              enable = lib.mkOption {
-                type = lib.types.bool;
-                default = false;
-                description = "Run periodic qbit-manage passes driven by qbitManage.settings";
-              };
-              scheduleMinutes = lib.mkOption {
-                type = lib.types.int;
-                default = 1440;
-                description = "Minutes between qbit-manage runs";
-              };
-              settings = lib.mkOption {
-                type = lib.types.attrs;
-                default = { };
-                description = ''
-                  Full qbit-manage config.yml content (commands, qbt, directory,
-                  tracker, nohardlinks, …), rendered verbatim. The host override owns
-                  policy — e.g. keep every rem_*/share_limits command false for tag-only.
-                '';
-              };
+            apiPort = lib.mkOption {
+              type = lib.types.port;
+              default = 9910;
+              description = ''
+                Port for managarr-qbittorrent, the sidecar serving this service's
+                records to managarr.
+
+                9910 on every managarr-* sidecar. Each container has its own
+                IP, so one number is unambiguous everywhere and there is no
+                per-service arithmetic to get wrong.
+              '';
+            };
+            managarrUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                managarr base URL the sidecar relays events to; empty disables
+                relaying and leaves the read half working.
+              '';
             };
           };
 
@@ -528,11 +537,6 @@ _: {
               config =
                 { pkgs, lib, ... }:
                 let
-                  # Rendered read-only into the store, then copied to a writable
-                  # config-dir at preStart so qbit-manage can write its logs beside it.
-                  # Content (commands/qbt/tracker/nohardlinks) comes entirely from the
-                  # host override via cfg.qbitManage.settings.
-                  qbmConfig = (pkgs.formats.yaml { }).generate "qbit-manage.yml" cfg.qbitManage.settings;
                   # Broker client config: broker URL + local WebUI + conf path + tunnel->veth map.
                   brokerClientCfg = pkgs.writeText "qbt-vpn-broker.json" (
                     builtins.toJSON {
@@ -558,6 +562,44 @@ _: {
                 in
                 {
                   imports = [
+                    {
+                      networking.firewall.allowedTCPPorts = [ cfg.apiPort ];
+
+                      systemd.services.managarr-qbittorrent = {
+                        description = "Serve qBittorrent's state and completions to managarr";
+                        after = [ "qbittorrent.service" ];
+                        wantedBy = [ "multi-user.target" ];
+                        wants = [ "qbittorrent.service" ];
+
+                        script =
+                          "exec "
+                          + lib.concatStringsSep " " (
+                            [
+                              managarrSidecarExe
+                              "--addr :${toString cfg.apiPort}"
+                              "--metrics.addr 127.0.0.1:9909"
+                            ]
+                            ++ lib.optional (cfg.managarrUrl != "") "--managarr-url ${cfg.managarrUrl}"
+                            ++ [ "--upstream-url http://127.0.0.1:8080" ]
+                          );
+
+                        serviceConfig = {
+                          User = "qbittorrent";
+                          Group = "qbittorrent";
+                          Restart = "on-failure";
+                          RestartSec = 5;
+                          ProtectSystem = "strict";
+                          ProtectHome = true;
+                          PrivateDevices = true;
+                          PrivateTmp = true;
+                          NoNewPrivileges = true;
+                          RestrictAddressFamilies = [
+                            "AF_INET"
+                            "AF_INET6"
+                          ];
+                        };
+                      };
+                    }
                     (import ../_base.nix {
                       inherit lib cfg;
                       hasPort = false;
@@ -739,7 +781,8 @@ _: {
                             + " --api http://127.0.0.1:${toString cfg.webuiPort}"
                             + " --watch-dir ${cfg.watchDir}"
                             + " --backup-dir ${bt.finishedTorrentExportDirectory}"
-                            + " --categories ${lib.concatStringsSep "," (lib.attrNames cfg.categories)}";
+                            + " --categories ${lib.concatStringsSep "," (lib.attrNames cfg.categories)}"
+                            + lib.optionalString (cfg.watchReportUrl != "") " --report-url ${cfg.watchReportUrl}";
                         };
                       };
 
@@ -751,35 +794,6 @@ _: {
                           Type = "oneshot";
                           User = "qbittorrent";
                           ExecStart = "${qbtScripts}/bin/qbt-reannounce --api http://127.0.0.1:${toString cfg.webuiPort}";
-                        };
-                      };
-
-                      # ── mirror category -> tag (Flood shows tags, not categories) ──
-                      qbt-tag-sync = {
-                        description = "qBittorrent category->tag mirror";
-                        after = [ "qbittorrent.service" ];
-                        serviceConfig = {
-                          Type = "oneshot";
-                          User = "qbittorrent";
-                          ExecStart = "${qbtScripts}/bin/qbt-tag-sync --api http://127.0.0.1:${toString cfg.webuiPort}";
-                        };
-                      };
-
-                      # ── qbit-manage maintenance pass (tag-only per host settings) ──
-                      # Config is read-only in the store; copy it into a writable config-dir
-                      # in the persistent profile so qbit-manage can write logs/ beside it.
-                      qbit-manage = lib.mkIf cfg.qbitManage.enable {
-                        description = "qbit-manage maintenance pass";
-                        after = [ "qbittorrent.service" ];
-                        preStart = ''
-                          ${pkgs.coreutils}/bin/install -d -m 0700 ${cfg.profileDir}/.qbit_manage/logs
-                          ${pkgs.coreutils}/bin/install -m 0600 ${qbmConfig} ${cfg.profileDir}/.qbit_manage/config.yml
-                        '';
-                        serviceConfig = {
-                          Type = "oneshot";
-                          User = "qbittorrent";
-                          Group = "qbittorrent";
-                          ExecStart = "${lib.getExe' pkgs.qbit-manage "qbit-manage"} --config-dir ${cfg.profileDir}/.qbit_manage --run";
                         };
                       };
 
@@ -828,22 +842,6 @@ _: {
                         timerConfig = {
                           OnBootSec = "45s";
                           OnUnitActiveSec = "${toString cfg.reannounceIntervalSec}s";
-                          Persistent = false;
-                        };
-                      };
-                      qbt-tag-sync = {
-                        wantedBy = [ "timers.target" ];
-                        timerConfig = {
-                          OnBootSec = "35s";
-                          OnUnitActiveSec = "${toString cfg.tagSyncIntervalSec}s";
-                          Persistent = false;
-                        };
-                      };
-                      qbit-manage = lib.mkIf cfg.qbitManage.enable {
-                        wantedBy = [ "timers.target" ];
-                        timerConfig = {
-                          OnBootSec = "5m";
-                          OnUnitActiveSec = "${toString cfg.qbitManage.scheduleMinutes}m";
                           Persistent = false;
                         };
                       };

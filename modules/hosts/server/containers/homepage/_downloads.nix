@@ -168,13 +168,6 @@ in
           };
         };
       }
-      (hc {
-        name = "Cleanuparr";
-        icon = "mdi-broom-#50fa7b";
-        href = caddy "cleanuparr";
-        desc = "Stalled and unlinked download cleanup";
-        monitor = "${at cl.container-cleanuparr.ip cl.container-cleanuparr.ports.default}/health";
-      })
     ];
   }
 ]

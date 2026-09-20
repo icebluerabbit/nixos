@@ -22,6 +22,10 @@
       in
       {
         containerConfigs.beets = {
+          # Where managarr-beets relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
           lldpd.enable = true;
           hostBridge = "br-media";
           macAddress = config.infra.clients.container-beets.mac;

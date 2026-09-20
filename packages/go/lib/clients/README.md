@@ -11,7 +11,7 @@ One package per external system this homelab talks to: `qbittorrent/`,
   and the rest of the \*arr family), `maunium.net/go/mautrix`, and
   `code.gitea.io/sdk/gitea` for Forgejo.
 - **Otherwise write the client here,** over `homelab/httpx`. Komga,
-  Audiobookshelf, Cleanuparr, slskd, thelounge, Kiwix, CoolerControl and Home
+  Audiobookshelf, slskd, thelounge, Kiwix, CoolerControl and Home
   Assistant have no maintained Go client, so they get one here. Retry, auth,
   backoff, JSON and logging come from `httpx`; only endpoint structs and method
   signatures are written by hand.

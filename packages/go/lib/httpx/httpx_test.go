@@ -62,6 +62,13 @@ func TestURLResolution(t *testing.T) {
 		"root base no slash":   {baseURL: "http://h:1", path: "v1/x", want: "http://h:1/v1/x"},
 		"prefix base":          {baseURL: "http://h:1/api", path: "/x", want: "http://h:1/api/x"},
 		"prefix base w/ slash": {baseURL: "http://h:1/api/", path: "/x", want: "http://h:1/api/x"},
+		// A query has to survive as a query. Escaping the "?" into the
+		// path yields a 404 that looks like a wrong endpoint rather than
+		// a wrong URL, which is exactly how it was found.
+		"query":          {baseURL: "http://h:1", path: "/x?a=1", want: "http://h:1/x?a=1"},
+		"query escaped":  {baseURL: "http://h:1", path: "/x?a=b+c&d=%2F", want: "http://h:1/x?a=b+c&d=%2F"},
+		"query repeated": {baseURL: "http://h:1", path: "/x?a=1&a=2", want: "http://h:1/x?a=1&a=2"},
+		"empty query":    {baseURL: "http://h:1", path: "/x?", want: "http://h:1/x"},
 	}
 
 	for name, tc := range tests {

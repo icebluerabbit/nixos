@@ -215,10 +215,35 @@ _: {
               default = "lrc,nfo,txt";
               description = "Comma-separated non-audio extensions to keep when useExtensionWhitelist is set.";
             };
+            apiPort = lib.mkOption {
+              type = lib.types.port;
+              default = 9910;
+              description = ''
+                Port for managarr-soularr, the sidecar serving this service's
+                records to managarr.
+
+                9910 on every managarr-* sidecar. Each container has its own
+                IP, so one number is unambiguous everywhere and there is no
+                per-service arithmetic to get wrong.
+              '';
+            };
+            managarrUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                managarr base URL the sidecar relays events to; empty disables
+                relaying and leaves the read half working.
+              '';
+            };
           };
 
         config.containers.soularr =
           let
+            # Resolved in the HOST's package set. pkgs inside a container
+            # body is the container's own and carries no overlays, so
+            # pkgs.homelab there fails with "attribute 'homelab' missing".
+            # The store path is what crosses the boundary.
+            managarrSidecarExe = lib.getExe pkgs.homelab.managarr-soularr;
             cfg = config.containerConfigs.soularr;
             # Resolved from host pkgs so the homelab overlay is in scope; the
             # store path pulls into the container closure via ExecStart.
@@ -294,7 +319,46 @@ _: {
                 );
               in
               {
-                imports = [ (import ../_base.nix { inherit lib cfg; }) ]; # opens cfg.port (web) on LAN
+                imports = [
+                  {
+                    networking.firewall.allowedTCPPorts = [ cfg.apiPort ];
+
+                    systemd.services.managarr-soularr = {
+                      description = "Relay soularr's events to managarr";
+                      after = [ "soularr.service" ];
+                      wantedBy = [ "multi-user.target" ];
+                      wants = [ "soularr.service" ];
+
+                      script =
+                        "exec "
+                        + lib.concatStringsSep " " (
+                          [
+                            managarrSidecarExe
+                            "--addr :${toString cfg.apiPort}"
+                            "--metrics.addr 127.0.0.1:9909"
+                          ]
+                          ++ lib.optional (cfg.managarrUrl != "") "--managarr-url ${cfg.managarrUrl}"
+                        );
+
+                      serviceConfig = {
+                        User = "soularr";
+                        Group = "soularr";
+                        Restart = "on-failure";
+                        RestartSec = 5;
+                        ProtectSystem = "strict";
+                        ProtectHome = true;
+                        PrivateDevices = true;
+                        PrivateTmp = true;
+                        NoNewPrivileges = true;
+                        RestrictAddressFamilies = [
+                          "AF_INET"
+                          "AF_INET6"
+                        ];
+                      };
+                    };
+                  }
+                  (import ../_base.nix { inherit lib cfg; })
+                ]; # opens cfg.port (web) on LAN
 
                 users.users.soularr = {
                   uid = lib.mkForce cfg.uid;

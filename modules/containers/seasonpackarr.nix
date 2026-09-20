@@ -154,11 +154,36 @@ _: {
                 };
               };
             };
+            apiPort = lib.mkOption {
+              type = lib.types.port;
+              default = 9910;
+              description = ''
+                Port for managarr-seasonpackarr, the sidecar serving this service's
+                records to managarr.
+
+                9910 on every managarr-* sidecar. Each container has its own
+                IP, so one number is unambiguous everywhere and there is no
+                per-service arithmetic to get wrong.
+              '';
+            };
+            managarrUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                managarr base URL the sidecar relays events to; empty disables
+                relaying and leaves the read half working.
+              '';
+            };
           };
 
         config = {
           containers.seasonpackarr =
             let
+              # Resolved in the HOST's package set. pkgs inside a container
+              # body is the container's own and carries no overlays, so
+              # pkgs.homelab there fails with "attribute 'homelab' missing".
+              # The store path is what crosses the boundary.
+              managarrSidecarExe = lib.getExe pkgs.homelab.managarr-seasonpackarr;
               cfg = config.containerConfigs.seasonpackarr;
               # Resolved from host pkgs so the homelab overlay is in scope; both
               # store paths pull into the container closure via ExecStart.
@@ -210,7 +235,46 @@ _: {
               config =
                 { pkgs, lib, ... }:
                 {
-                  imports = [ (import ./_base.nix { inherit lib cfg; }) ];
+                  imports = [
+                    {
+                      networking.firewall.allowedTCPPorts = [ cfg.apiPort ];
+
+                      systemd.services.managarr-seasonpackarr = {
+                        description = "Relay seasonpackarr's webhook to managarr";
+                        after = [ "seasonpackarr.service" ];
+                        wantedBy = [ "multi-user.target" ];
+                        wants = [ "seasonpackarr.service" ];
+
+                        script =
+                          "exec "
+                          + lib.concatStringsSep " " (
+                            [
+                              managarrSidecarExe
+                              "--addr :${toString cfg.apiPort}"
+                              "--metrics.addr 127.0.0.1:9909"
+                            ]
+                            ++ lib.optional (cfg.managarrUrl != "") "--managarr-url ${cfg.managarrUrl}"
+                          );
+
+                        serviceConfig = {
+                          User = "seasonpackarr";
+                          Group = "seasonpackarr";
+                          Restart = "on-failure";
+                          RestartSec = 5;
+                          ProtectSystem = "strict";
+                          ProtectHome = true;
+                          PrivateDevices = true;
+                          PrivateTmp = true;
+                          NoNewPrivileges = true;
+                          RestrictAddressFamilies = [
+                            "AF_INET"
+                            "AF_INET6"
+                          ];
+                        };
+                      };
+                    }
+                    (import ./_base.nix { inherit lib cfg; })
+                  ];
 
                   users.users.seasonpackarr = {
                     uid = lib.mkForce cfg.uid;

@@ -1,4 +1,0 @@
-{% set n = trigger.payload_json -%}
-✅ <b>Cleanuparr · {{ n.title | default('search item grabbed') | lower }}</b>
-{% if n.message %}{{ n.message }}{% endif %}
-<i>A replacement release was grabbed for a struck download.</i>

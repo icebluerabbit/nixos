@@ -9,6 +9,7 @@
       den.aspects.infra._.clients._.container-lidarr
       den.aspects.infra._.clients._.container-slskd
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.networks._.media
       den.aspects.hosts._.server._.security
@@ -27,6 +28,10 @@
       in
       {
         containerConfigs.soularr = {
+          # Where managarr-soularr relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
           lldpd.enable = true;
           hostBridge = "br-media";
           macAddress = config.infra.clients.container-soularr.mac;
@@ -124,8 +129,23 @@
             prometheusAddress = "http://${config.infra.clients.container-prometheus.ip}:${toString config.infra.clients.container-prometheus.ports.default}/api/v1/write";
             tempoAddress = "http://${config.infra.clients.container-tempo.ip}:${toString config.infra.clients.container-tempo.ports.otlp-http}/v1/traces";
             # journal-derived metrics (exporter) + notify producer, merged into one Vector config
-            inherit (exporter) prometheusInputs;
-            extraSettings = lib.recursiveUpdate exporter.extraSettings notify.extraSettings;
+            # The exporter's inputs plus the managarr-soularr sidecar's.
+            # Concatenated rather than inherited wholesale: the sidecar is not
+            # the exporter's concern, and adding it there would put a managarr
+            # detail inside a file about soularr's own metrics.
+            prometheusInputs = exporter.prometheusInputs ++ [ "managarr_soularr" ];
+            extraSettings =
+              lib.recursiveUpdate (lib.recursiveUpdate exporter.extraSettings notify.extraSettings)
+                {
+                  # The managarr-soularr sidecar in this container. Its collectors
+                  # sit on the loopback: the framework serves /metrics on a separate
+                  # address from the contract routes.
+                  sources.managarr_soularr = {
+                    type = "prometheus_scrape";
+                    endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                    scrape_interval_secs = 30;
+                  };
+                };
           };
         };
 

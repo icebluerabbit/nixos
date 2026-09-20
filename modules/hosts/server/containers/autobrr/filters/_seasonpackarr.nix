@@ -93,5 +93,6 @@ in
       # torrent errored and needing a manual recheck.
       skip_hash_check = false;
     }
+    (import ./_managarr-action.nix { inherit config; })
   ];
 }

@@ -42,6 +42,11 @@ linters:
         - name: error-strings
         - name: context-as-argument
         - name: indent-error-flow
+    misspell:
+      # A hardlink is the thing this repo spends most of its time reasoning
+      # about; "hardlinked" is not a typo for "hardline".
+      ignore-rules:
+        - hardlinked
     gocritic:
       enabled-tags:
         - diagnostic
@@ -61,3 +66,30 @@ linters:
           - bodyclose
           - errcheck
           - gosec
+      # Test helpers take *testing.T first. That is the convention the whole
+      # standard library and every helper in this workspace follows, and it is
+      # what makes t.Helper() at the top read correctly — revive's rule is
+      # about production APIs.
+      - path: _test\.go$
+        linters:
+          - revive
+        text: "context-as-argument"
+      # TableName is GORM's interface, not an API of ours. Its meaning is fixed
+      # by the ORM and identical on all forty-odd models, so a comment on each
+      # would restate the same sentence forty times; what the table IS is
+      # documented on the type directly above it.
+      - linters:
+          - revive
+        text: 'exported method \w+\.TableName should have comment'
+      # `json:",squash"` is not a json option, and staticcheck is right that
+      # encoding/json would ignore it — but nothing here unmarshals these
+      # structs with encoding/json. lib/config drives koanf with Tag: "json",
+      # so the json tag is read by mapstructure, whose option this is.
+      #
+      # Load-bearing rather than decorative: without squash, an embedded
+      # sidecar.Config decodes as a field named "Config" and collides with the
+      # framework's own --config flag. That collision crashlooped ten sidecars
+      # once already.
+      - linters:
+          - staticcheck
+        text: "SA5008.*squash"

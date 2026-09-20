@@ -14,7 +14,6 @@ rec {
     "icebluerabbit/openchamber-flake"
     "icebluerabbit/youtarr-flake"
     "icebluerabbit/lazylibrarian-flake"
-    "icebluerabbit/cleanuparr-flake"
   ];
 
   # Mirrors HA's entity_id slugification of the device name (the repo full_name),

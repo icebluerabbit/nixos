@@ -19,6 +19,11 @@ _: {
         ...
       }:
       let
+        # Resolved in the HOST's package set. pkgs inside a container
+        # body is the container's own and carries no overlays, so
+        # pkgs.homelab there fails with "attribute 'homelab' missing".
+        # The store path is what crosses the boundary.
+        managarrSidecarExe = lib.getExe pkgs.homelab.managarr-beets;
         hostConfig = config;
         # Resolved from host pkgs so the homelab overlay is in scope; the
         # container's own pkgs has no `homelab` attribute.
@@ -96,6 +101,26 @@ _: {
                 container-coupled structural defaults (directory, library, web
                 host/port, plugin list). This is where import behaviour, path
                 formats, and per-plugin tuning live — set from the host override.
+              '';
+            };
+            apiPort = lib.mkOption {
+              type = lib.types.port;
+              default = 9910;
+              description = ''
+                Port for managarr-beets, the sidecar serving this service's
+                records to managarr.
+
+                9910 on every managarr-* sidecar. Each container has its own
+                IP, so one number is unambiguous everywhere and there is no
+                per-service arithmetic to get wrong.
+              '';
+            };
+            managarrUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                managarr base URL the sidecar relays events to; empty disables
+                relaying and leaves the read half working.
               '';
             };
           };
@@ -197,6 +222,17 @@ _: {
                   web = {
                     host = "0.0.0.0";
                     inherit (cfg) port;
+                    # Serve each item's path. Off by default, and without it
+                    # every item comes back with "path": null — which makes the
+                    # API unusable for anything that has to match a tagged item
+                    # against a file, since the path is the only thing beets and
+                    # the library have in common.
+                    include_paths = true;
+                    # Read-only is already the default; stated because this
+                    # endpoint is now a dependency of another service, and a
+                    # writable library API reachable from the VLAN is a
+                    # different thing entirely.
+                    readonly = true;
                   };
                 }
                 // lib.optionalAttrs (cfg.lidarrUrl != null) {
@@ -234,7 +270,47 @@ _: {
                 };
               in
               {
-                imports = [ (import ../_base.nix { inherit lib cfg; }) ];
+                imports = [
+                  {
+                    networking.firewall.allowedTCPPorts = [ cfg.apiPort ];
+
+                    systemd.services.managarr-beets = {
+                      description = "Serve beets' library to managarr";
+                      after = [ "beets-web.service" ];
+                      wantedBy = [ "multi-user.target" ];
+                      wants = [ "beets-web.service" ];
+
+                      script =
+                        "exec "
+                        + lib.concatStringsSep " " (
+                          [
+                            managarrSidecarExe
+                            "--addr :${toString cfg.apiPort}"
+                            "--metrics.addr 127.0.0.1:9909"
+                          ]
+                          ++ lib.optional (cfg.managarrUrl != "") "--managarr-url ${cfg.managarrUrl}"
+                          ++ [ "--upstream-url http://127.0.0.1:8337" ]
+                        );
+
+                      serviceConfig = {
+                        User = "beets";
+                        Group = "beets";
+                        Restart = "on-failure";
+                        RestartSec = 5;
+                        ProtectSystem = "strict";
+                        ProtectHome = true;
+                        PrivateDevices = true;
+                        PrivateTmp = true;
+                        NoNewPrivileges = true;
+                        RestrictAddressFamilies = [
+                          "AF_INET"
+                          "AF_INET6"
+                        ];
+                      };
+                    };
+                  }
+                  (import ../_base.nix { inherit lib cfg; })
+                ];
 
                 environment.systemPackages = [
                   beetsPkg

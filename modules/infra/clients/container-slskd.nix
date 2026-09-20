@@ -9,6 +9,10 @@ let
     vlan = "download";
     kind = "virtual";
     ports.web = 5030;
+    # managarr-slskd, the sidecar serving this service's records to managarr.
+    # 9910 on every managarr-* sidecar: each container has its own IP, so one
+    # number carries across all of them with no per-service arithmetic.
+    ports.api = 9910;
     proxy.port = "web";
   };
 in

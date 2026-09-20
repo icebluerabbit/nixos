@@ -76,9 +76,74 @@ let
     };
 in
 {
-  cleanuparr-setup = mkProject {
-    module = "cleanuparr-setup";
-    description = "Complete Cleanuparr first-run setup and export its API key";
+  managarr-crossseed = mkProject {
+    module = "managarr-crossseed";
+    description = "Serve cross-seed's decision log to managarr";
+  };
+
+  managarr-lidarr = mkProject {
+    module = "managarr-lidarr";
+    description = "Serve Lidarr's history and notifications to managarr";
+  };
+
+  managarr-prowlarr = mkProject {
+    module = "managarr-prowlarr";
+    description = "Serve Prowlarr's search history to managarr";
+  };
+
+  managarr-radarr = mkProject {
+    module = "managarr-radarr";
+    description = "Serve Radarr's history and notifications to managarr";
+  };
+
+  managarr-sonarr = mkProject {
+    module = "managarr-sonarr";
+    description = "Serve Sonarr's history and notifications to managarr";
+  };
+
+  managarr-autobrr = mkProject {
+    module = "managarr-autobrr";
+    description = "Serve autobrr's announce history to managarr";
+  };
+
+  managarr-bazarr = mkProject {
+    module = "managarr-bazarr";
+    description = "Serve Bazarr's subtitle history to managarr";
+  };
+
+  managarr-beets = mkProject {
+    module = "managarr-beets";
+    description = "Serve beets' library to managarr";
+  };
+
+  managarr-qbittorrent = mkProject {
+    module = "managarr-qbittorrent";
+    description = "Serve qBittorrent's state and completions to managarr";
+  };
+
+  managarr-seasonpackarr = mkProject {
+    module = "managarr-seasonpackarr";
+    description = "Relay seasonpackarr's webhook to managarr";
+  };
+
+  managarr-slskd = mkProject {
+    module = "managarr-slskd";
+    description = "Serve slskd's event log to managarr";
+  };
+
+  managarr-soularr = mkProject {
+    module = "managarr-soularr";
+    description = "Relay soularr's events to managarr";
+  };
+
+  managarr-unpackerr = mkProject {
+    module = "managarr-unpackerr";
+    description = "Relay unpackerr's webhook to managarr";
+  };
+
+  managarr = mkProject {
+    module = "managarr";
+    description = "Record events from the download and library stack";
   };
 
   slskd-prune = mkProject {

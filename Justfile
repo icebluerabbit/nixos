@@ -185,6 +185,25 @@ go-lint:
         (cd "$m" && GOWORK=off golangci-lint run --config ../.golangci.yml ./...)
     done
 
+# Run every //go:generate directive in every module.
+#
+# Go deliberately does not run these as part of a build, so generated code is
+# only as fresh as the last person to remember. This is that reminder in one
+# command; the generated output is committed, because flakes ignore untracked
+# files and Nix has to be able to see it.
+#
+# GOWORK stays ON here, unlike the rest: a generator imports the module it is
+# generating for, and with the workspace off it would resolve `replace` targets
+# against a vendor tree that does not yet contain the code being written.
+go-generate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd packages/go
+    for m in $(just _go-modules); do
+        echo "==> $m"
+        (cd "$m" && go generate ./...)
+    done
+
 # Coverage floors every package except the `main` ones. A cmd/<name>/main.go
 # holds no logic by construction, so covering it would measure nothing — but
 # everything it delegates to is gated.

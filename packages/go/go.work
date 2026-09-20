@@ -11,8 +11,21 @@
 go 1.26
 
 use (
-	./cleanuparr-setup
 	./lib
+	./managarr-autobrr
+	./managarr-bazarr
+	./managarr-beets
+	./managarr-crossseed
+	./managarr-lidarr
+	./managarr-prowlarr
+	./managarr-qbittorrent
+	./managarr-radarr
+	./managarr-seasonpackarr
+	./managarr-slskd
+	./managarr-sonarr
+	./managarr-soularr
+	./managarr-unpackerr
+	./managarr
 	./slskd-prune
 	./stashtrap
 )

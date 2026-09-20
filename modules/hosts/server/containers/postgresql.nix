@@ -38,8 +38,8 @@
       den.aspects.infra._.clients._.container-authelia
       den.aspects.containers._.lldap
       den.aspects.infra._.clients._.container-lldap
-      den.aspects.containers._.cleanuparr
-      den.aspects.infra._.clients._.container-cleanuparr
+      den.aspects.containers._.managarr
+      den.aspects.infra._.clients._.container-managarr
     ];
 
     nixos =
@@ -125,8 +125,8 @@
             }
             {
               database = "all";
-              user = config.containerConfigs.cleanuparr.dbUser;
-              ip = config.infra.clients.container-cleanuparr.ip;
+              user = config.containerConfigs.managarr.dbUser;
+              ip = config.infra.clients.container-managarr.ip;
             }
           ];
           ensureUsers = [
@@ -175,7 +175,7 @@
               ensureDBOwnership = true;
             }
             {
-              name = config.containerConfigs.cleanuparr.dbUser;
+              name = config.containerConfigs.managarr.dbUser;
               ensureDBOwnership = true;
             }
           ];
@@ -197,7 +197,7 @@
             config.containerConfigs.grafana.dbName
             config.containerConfigs.authelia.dbName
             config.containerConfigs.lldap.dbName
-            config.containerConfigs.cleanuparr.dbName
+            config.containerConfigs.managarr.dbName
           ];
           dbOwnerships = {
             "${config.containerConfigs.radarr.dbName}" = config.containerConfigs.radarr.dbUser;
@@ -217,7 +217,7 @@
             "${config.containerConfigs.grafana.dbName}" = config.containerConfigs.grafana.dbUser;
             "${config.containerConfigs.authelia.dbName}" = config.containerConfigs.authelia.dbUser;
             "${config.containerConfigs.lldap.dbName}" = config.containerConfigs.lldap.dbUser;
-            "${config.containerConfigs.cleanuparr.dbName}" = config.containerConfigs.cleanuparr.dbUser;
+            "${config.containerConfigs.managarr.dbName}" = config.containerConfigs.managarr.dbUser;
           };
           # The *arr apps run their own daily VACUUM housekeeping. As plain database
           # owners that walks the shared catalogs (pg_authid, pg_database, …) they have

@@ -75,5 +75,6 @@ in
       '';
       webhook_headers = [ "Content-Type: application/json" ];
     }
+    (import ./_managarr-action.nix { inherit config; })
   ];
 }
