@@ -10,7 +10,6 @@
       den.aspects.infra._.clients._.container-mousetrap
       den.aspects.infra._.clients._.container-qbittorrent
       den.aspects.infra._.clients._.container-seasonpackarr
-      den.aspects.infra._.clients._.container-stashtrap
       den.aspects.infra._.clients._.container-sonarr
       den.aspects.infra._.clients._.container-radarr
       den.aspects.infra._.clients._.container-lidarr
@@ -66,23 +65,15 @@
                 (import ./indexers/_pretome.nix { inherit config; })
                 (import ./indexers/_torrentleech.nix { inherit config; })
                 (import ./indexers/_myanonamouse.nix { inherit config; })
-                (import ./indexers/_digitalcore.nix { inherit config; })
                 (import ./indexers/_retrotoon.nix { inherit config; })
                 (import ./indexers/_darkpeers.nix { inherit config; })
                 (import ./indexers/_yuscene.nix { inherit config; })
                 (import ./indexers/_seedpool.nix { inherit config; })
-                (import ./indexers/_bitporn.nix { inherit config; })
-              ];
-              # Poll-only trackers. Everything above announces over IRC; BitPorn
-              # has no announce network, so it is fetched from Prowlarr instead.
-              feeds = [
-                (import ./feeds/_bitporn.nix { inherit config; })
               ];
               irc_networks = [
                 (import ./irc-networks/_pretome.nix { inherit config; })
                 (import ./irc-networks/_torrentleech.nix { inherit config; })
                 (import ./irc-networks/_myanonamouse.nix { inherit config; })
-                (import ./irc-networks/_digitalcore.nix { inherit config; })
                 (import ./irc-networks/_retrotoon.nix { inherit config; })
                 (import ./irc-networks/_darkpeers.nix { inherit config; })
                 (import ./irc-networks/_yuscene.nix { inherit config; })
@@ -95,8 +86,6 @@
                 (import ./filters/_torrentleech-movies.nix { inherit config; })
                 (import ./filters/_torrentleech-music.nix { inherit config; })
                 (import ./filters/_mam.nix { inherit config; })
-                (import ./filters/_digitalcore-tv.nix { inherit config; })
-                (import ./filters/_digitalcore-movies.nix { inherit config; })
                 (import ./filters/_retrotoon.nix { inherit config; })
                 (import ./filters/_pretome-tv.nix { inherit config; })
                 (import ./filters/_pretome-movies.nix { inherit config; })
@@ -109,7 +98,6 @@
                 (import ./filters/_yuscene-music.nix { inherit config; })
                 (import ./filters/_seedpool-tv.nix { inherit config; })
                 (import ./filters/_seedpool-movies.nix { inherit config; })
-                (import ./filters/_bitporn.nix { inherit config; })
               ];
               notifications = [
                 (import ./notifications/_home-assistant.nix { inherit config; })

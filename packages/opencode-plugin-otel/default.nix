@@ -48,7 +48,7 @@ stdenv.mkDerivation {
 
   outputHashAlgo = "sha256";
   outputHashMode = "recursive";
-  outputHash = "sha256-UKm8ZE0J0pQqmOrDawOOdcGp714h1K869Xnny89Bneo=";
+  outputHash = "sha256-UJPDm8FpwxV28VtiNj1PZ/nKezLTEelyeeJymUZO9mU=";
 
   meta = {
     description = "OpenTelemetry plugin for the opencode agent";

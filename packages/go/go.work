@@ -27,5 +27,4 @@ use (
 	./managarr-unpackerr
 	./managarr
 	./slskd-prune
-	./stashtrap
 )

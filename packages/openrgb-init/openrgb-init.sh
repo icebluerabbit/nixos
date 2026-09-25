@@ -19,6 +19,12 @@
 #                      device. Repeatable, applied in the order given.
 #   --set-delay SECS   sleep after each --set (0)
 #   --pass-delay SECS  sleep after each pass (0)
+#   --local            detect the hardware in-process (--noautoconnect)
+#                      instead of driving it through openrgb.service's SDK
+#                      server. The server keeps one long-lived view of each
+#                      controller; where that view has drifted from the
+#                      hardware, writes through it land on the wrong LEDs
+#                      while a fresh detection reads the real layout.
 
 openrgb=""
 device=""
@@ -30,6 +36,7 @@ passes=1
 set_delay=0
 pass_delay=0
 sets=()
+openrgb_flags=()
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -73,6 +80,10 @@ while [ "$#" -gt 0 ]; do
     pass_delay="$2"
     shift 2
     ;;
+  --local)
+    openrgb_flags+=(--noautoconnect)
+    shift
+    ;;
   *)
     echo "unknown argument: $1" >&2
     exit 2
@@ -93,6 +104,22 @@ if [ "${#sets[@]}" -eq 0 ]; then
   exit 2
 fi
 
+# Detailed device listing: "N: <name>" plus indented Type:/Zones:/LEDs: lines.
+# OpenRGB 1.0 moved those fields out of --list-devices into --list-detailed;
+# older builds only have --list-devices and print the fields there. Probe once
+# so the same script drives either.
+detail_flag=""
+detail() {
+  if [ -z "$detail_flag" ]; then
+    if "$openrgb" --help 2>/dev/null | grep -q -- --list-detailed; then
+      detail_flag="--list-detailed"
+    else
+      detail_flag="--list-devices"
+    fi
+  fi
+  "$openrgb" "${openrgb_flags[@]}" "$detail_flag" 2>/dev/null
+}
+
 # Apply every --set to one device selector, honouring --set-delay.
 apply_sets() {
   local selector="$1" spec zone color
@@ -100,20 +127,20 @@ apply_sets() {
     zone="${spec%%:*}"
     color="${spec#*:}"
     if [ -n "$zone" ]; then
-      "$openrgb" --device "$selector" --mode Direct \
+      "$openrgb" "${openrgb_flags[@]}" --device "$selector" --mode Direct \
         --zone "$zone" --color "$color" || return 1
     else
-      "$openrgb" --device "$selector" --mode Direct \
+      "$openrgb" "${openrgb_flags[@]}" --device "$selector" \
         --color "$color" || return 1
     fi
     [ "$set_delay" = "0" ] || sleep "$set_delay"
   done
 }
 
-# Indices of every device whose "Type:" line matches --by-type. --list-devices
+# Indices of every device whose "Type:" line matches --by-type. The listing
 # prints "N: <name>" followed by indented fields, so carry the last index seen.
 list_by_type() {
-  "$openrgb" --list-devices 2>/dev/null | awk -v want="$by_type" '
+  detail | awk -v want="$by_type" '
     /^[0-9]+:/ { idx = $1; sub(":", "", idx) }
     $0 ~ "Type:[[:space:]]+" want { print idx }
   '
@@ -136,7 +163,8 @@ for _ in $(seq 1 "$retries"); do
     fi
     selectors=("${found[@]}")
   else
-    "$openrgb" --list-devices 2>/dev/null | grep -qF "$device" || {
+    "$openrgb" "${openrgb_flags[@]}" --list-devices 2>/dev/null |
+      grep -qF "$device" || {
       sleep 1
       continue
     }

@@ -51,7 +51,6 @@
                 # (import ./networks/_pretome.nix)
                 (import ./networks/_torrentleech.nix)
                 (import ./networks/_myanonamouse.nix)
-                (import ./networks/_digitalcore.nix)
                 (import ./networks/_retrotoon.nix)
                 (import ./networks/_darkpeers.nix)
                 (import ./networks/_yuscene.nix)
@@ -95,14 +94,6 @@
             };
             "/run/secrets/torrentleech-irc-key" = {
               hostPath = config.sops.secrets."torrentleech-irc-key".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/digitalcore-username" = {
-              hostPath = config.sops.secrets."digitalcore-username".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/digitalcore-irc-key" = {
-              hostPath = config.sops.secrets."digitalcore-irc-key".path;
               isReadOnly = true;
             };
             "/run/secrets/retrotoon-username" = {

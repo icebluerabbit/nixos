@@ -1,8 +1,9 @@
 # Jellyfin metrics for the Vector sidecar.
 #
 # No packaged Jellyfin exporter exists, so this polls the Jellyfin API directly
-# with Vector `http_client` sources (auth via X-Emby-Token = ${JELLYFIN_API_KEY},
-# interpolated from the sidecar's jellyfin-env EnvironmentFile) and derives gauges
+# with Vector `http_client` sources (auth via Authorization: MediaBrowser
+# Token=${JELLYFIN_API_KEY}, interpolated from the sidecar's jellyfin-env
+# EnvironmentFile) and derives gauges
 # with VRL + log_to_metric — the same custom-metrics pattern the *arr containers use.
 #
 # Returns a `logging.extraSettings` fragment (sources + transforms). The three
@@ -13,7 +14,11 @@ let
   # http_client headers are arrays of strings. `:-` default keeps Vector's
   # build-time `validate` happy (no env in the sandbox); the real value comes
   # from the sidecar's jellyfin-env EnvironmentFile at runtime.
-  auth = [ "\${JELLYFIN_API_KEY:-}" ];
+  #
+  # Jellyfin 12 dropped both the X-Emby-Token header and the api_key query
+  # parameter — each now answers 401 — leaving the MediaBrowser Authorization
+  # scheme as the only one it accepts.
+  auth = [ ''MediaBrowser Token="''${JELLYFIN_API_KEY:-}"'' ];
   base = "http://127.0.0.1:${toString port}";
 in
 {
@@ -24,7 +29,7 @@ in
       endpoint = "${base}/Items/Counts";
       scrape_interval_secs = 60;
       scrape_timeout_secs = 30;
-      headers."X-Emby-Token" = auth;
+      headers."Authorization" = auth;
     };
     # Active playback sessions (streams / transcodes).
     jellyfin_sessions = {
@@ -32,7 +37,7 @@ in
       endpoint = "${base}/Sessions?activeWithinSeconds=960";
       scrape_interval_secs = 30;
       scrape_timeout_secs = 20;
-      headers."X-Emby-Token" = auth;
+      headers."Authorization" = auth;
     };
     # Liveness — any successful scrape emits jellyfin_up=1.
     jellyfin_up = {
@@ -40,7 +45,7 @@ in
       endpoint = "${base}/System/Info";
       scrape_interval_secs = 60;
       scrape_timeout_secs = 20;
-      headers."X-Emby-Token" = auth;
+      headers."Authorization" = auth;
     };
   };
 

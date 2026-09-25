@@ -51,8 +51,8 @@ are not reinvented:
   signature with no branch.
 - **Grouping by domain** (`media/`, `torrent/`, `infra/`) reintroduces a
   classification decision per binary, and about a third of the inventory pulls
-  two ways — `soularr-reclaim` is slskd and Lidarr, `stashtrap` is autobrr
-  and stash, `vpn-broker` is networking and torrenting. If it
+  two ways — `soularr-reclaim` is slskd and Lidarr, `seasonpackarr` is autobrr
+  and Sonarr, `vpn-broker` is networking and torrenting. If it
   is ever wanted, put the group in the _directory_ only and leave the module
   path flat, so reclassifying costs one `go.work` line instead of an import
   rewrite across every consumer.

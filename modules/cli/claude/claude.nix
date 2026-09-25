@@ -138,7 +138,7 @@
           plugins = [ ];
           rules = { };
           skills = {
-            grill-me = "${inputs.matt-pocock-skills}/grill-me";
+            grill-me = "${inputs.matt-pocock-skills}/skills/productivity/grill-me";
             skill-creator = "${inputs.anthropics-skills}/skills/skill-creator";
 
             # Local homelab skills — procedures + knowledge references.

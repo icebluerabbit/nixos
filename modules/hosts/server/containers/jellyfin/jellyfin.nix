@@ -141,7 +141,8 @@
             prometheusAddress = "http://${config.infra.clients.container-prometheus.ip}:${toString config.infra.clients.container-prometheus.ports.default}/api/v1/write";
             tempoAddress = "http://${config.infra.clients.container-tempo.ip}:${toString config.infra.clients.container-tempo.ports.otlp-http}/v1/traces";
             # Vector polls the Jellyfin API for metrics (no packaged exporter);
-            # X-Emby-Token comes from JELLYFIN_API_KEY in the mounted jellyfin-env.
+            # the Authorization token comes from JELLYFIN_API_KEY in the mounted
+            # jellyfin-env.
             environmentFile = "/run/secrets/jellyfin-env";
             prometheusInputs = [
               "jellyfin_counts_metrics"

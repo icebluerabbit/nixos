@@ -214,15 +214,14 @@ _: {
                     (import ../_base.nix { inherit lib cfg; })
                   ];
 
-                  # zeroconf/mDNS (port 5353) isn't covered by openFirewall,
-                  # which only opens the HTTP port; without it, discovery for
+                  # zeroconf/mDNS (port 5353) is not the container's HTTP port
+                  # that _base.nix opens; without it, discovery for
                   # homekit_controller and other auto-discovered integrations
                   # never reaches the container.
                   networking.firewall.allowedUDPPorts = [ 5353 ];
 
                   services.home-assistant = {
                     enable = true;
-                    openFirewall = false;
                     extraComponents = cfg.extraComponents ++ [ "isal" ];
                     extraPackages = ps: (cfg.extraPackages ps) ++ (lib.optional (cfg.dbHost != null) ps.psycopg2);
                     inherit (cfg) customComponents;

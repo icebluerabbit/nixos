@@ -17,9 +17,9 @@
   # failing with ENOSPC (new logins get no session scope). Storage=volatile states
   # what is actually happening and moves the cap onto RuntimeMaxUse. 64 MB is a
   # debugging window, not retention: vector ships everything to Loki regardless.
-  services.journald = {
-    storage = "volatile";
-    extraConfig = "RuntimeMaxUse=64M";
+  services.journald.settings.Journal = {
+    Storage = "volatile";
+    RuntimeMaxUse = "64M";
   };
 
   networking = {

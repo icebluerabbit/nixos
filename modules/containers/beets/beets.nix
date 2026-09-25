@@ -174,9 +174,17 @@ _: {
                       # which fails to build in this nixpkgs pin (wants uv_build
                       # <0.11 but the pin ships >=0.11). We only need filetote at
                       # runtime, so skip its tests to drop that broken dep.
+                      #
+                      # meta.broken: nixpkgs marks filetote broken for beets
+                      # >= 2.14 on gtronset/beets-filetote#402, which is a test
+                      # failure in `modify`-query pruning, not the import path
+                      # this container uses. Tests are already off; unbreak it.
                       propagatedBuildInputs = (old.propagatedBuildInputs or [ ]) ++ [
-                        (pkgs.python3Packages.beets-filetote.overridePythonAttrs (_: {
+                        (pkgs.python3Packages.beets-filetote.overridePythonAttrs (prev: {
                           doCheck = false;
+                          meta = prev.meta // {
+                            broken = false;
+                          };
                         }))
                       ];
                     })

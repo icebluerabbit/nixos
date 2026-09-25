@@ -23,5 +23,4 @@
   managarr-unpackerr = "sha256-fekADesJbaWpfCU5WMcR55P67MJq9rOSWi4970yu3+Y=";
   managarr = "sha256-oTavRptRfMkbEbcgagMmxrXUXueyIzyAKhcbZeQmo3U=";
   slskd-prune = "sha256-3ytzSjsWUrIpsqUWLZqNFGSgSJO5xpFMcT89ItiKdrw=";
-  stashtrap = "sha256-Xwvhc2R57N1t0PA1Q/W9K5t2H3GCWZSDvTxJAdEsUo0=";
 }

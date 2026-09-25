@@ -97,8 +97,6 @@
       den.aspects.infra._.clients._.container-sonarr
       den.aspects.infra._.clients._.container-bazarr
       den.aspects.infra._.clients._.container-prowlarr
-      den.aspects.infra._.clients._.container-stash
-      den.aspects.infra._.clients._.container-stashtrap
       den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.clients._.container-flaresolverr
       den.aspects.infra._.clients._.container-cross-seed

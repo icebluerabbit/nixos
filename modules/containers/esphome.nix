@@ -59,6 +59,34 @@ _: {
               let
                 yamlFormat = pkgs.formats.yaml { };
                 esphomeConfigTemplateYaml = yamlFormat.generate "esphome-config.yaml" cfg.config;
+
+                # esphome 2026.8+ installs its own ESP-IDF toolchain at
+                # runtime, downloading FHS-linked binaries (cmake, ninja,
+                # xtensa-esp-elf, openocd) that cannot exec on NixOS. Run it
+                # inside an FHS sandbox so those binaries find ld-linux and
+                # their shared libraries.
+                esphomeFhs = pkgs.buildFHSEnv {
+                  name = "esphome-fhs";
+                  targetPkgs = p: [
+                    p.esphome
+                    p.git
+                    p.libusb1
+                    p.zlib
+                    p.ncurses
+                    p.stdenv.cc.cc.lib
+                  ];
+                  runScript = "esphome";
+                  # buildFHSEnv auto-binds top-level host dirs with plain
+                  # `bwrap --bind`, which sets MS_NODEV, so the serial node
+                  # under /var/lib/esphome cannot be opened. Re-bind it with
+                  # device access. The -try variant keeps the sandbox usable
+                  # when the board is unplugged and the node is absent.
+                  extraBwrapArgs = [
+                    "--dev-bind-try"
+                    cfg.device
+                    cfg.device
+                  ];
+                };
               in
               {
                 imports = [
@@ -70,7 +98,7 @@ _: {
 
                 # Install esphome package
                 environment.systemPackages = [
-                  pkgs.esphome
+                  esphomeFhs
                   pkgs.git
                 ];
 
@@ -91,7 +119,7 @@ _: {
                           if [ ! -f "$LAST_FLASHED" ] || [ "$(cat "$LAST_FLASHED")" != "$CURRENT_CONFIG" ]; then
                             echo "ESPHome configuration is out-of-date or not flashed yet. Starting compilation & flash..."
                             ${pkgs.coreutils}/bin/cp "$CURRENT_CONFIG" /var/lib/esphome/esphome-config.yaml
-                            if ${pkgs.esphome}/bin/esphome -s wifi_password "$WIFI_PASSWORD" run /var/lib/esphome/esphome-config.yaml --device ${cfg.device} --no-logs; then
+                            if ${esphomeFhs}/bin/esphome-fhs -s wifi_password "$WIFI_PASSWORD" run /var/lib/esphome/esphome-config.yaml --device ${cfg.device} --no-logs; then
                               echo "$CURRENT_CONFIG" > "$LAST_FLASHED"
                               echo "ESPHome flashing completed successfully."
                             else

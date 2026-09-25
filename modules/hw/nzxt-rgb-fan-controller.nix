@@ -35,13 +35,18 @@ in
             # NZXT Hue2 can enumerate in the OpenRGB SDK server well past 60s on
             # a cold boot, so --retries covers the whole 180s window.
             TimeoutStartSec = "180s";
-            # Zones are 1 bottom, 2 side, 3 back; the bare ":ffffff" set is the
-            # whole device, which the per-zone sets then paint over. Two passes
-            # because a single one intermittently leaves a zone dark.
+            # One whole-device set, detected in-process (--local). The Hue 2
+            # reports its own layout — 24 + 24 + 18 LEDs on channels 2/3/4 —
+            # and a fresh detection reads that correctly, so nothing here has
+            # to name zones. Writing through openrgb.service's long-lived SDK
+            # view instead left whole channels dark, and the per-zone writes it
+            # took to work around that are what made the strips flash on every
+            # deploy: four device-wide resets in a row rather than one write.
             ExecStart = lib.escapeShellArgs [
               (lib.getExe pkgs.homelab.openrgb-init)
               "--openrgb"
               (lib.getExe pkgs.openrgb)
+              "--local"
               "--device"
               "NZXT RGB & Fan Controller"
               "--retries"
@@ -52,14 +57,6 @@ in
               "2"
               "--set"
               ":ffffff"
-              "--set"
-              "1:ffffff"
-              "--set"
-              "2:ffffff"
-              "--set"
-              "3:ffffff"
-              "--set-delay"
-              "0.5"
               "--pass-delay"
               "1"
             ];

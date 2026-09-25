@@ -65,8 +65,6 @@
       den.aspects.hosts._.server._.containers._.sonarr
       den.aspects.hosts._.server._.containers._.bazarr
       den.aspects.hosts._.server._.containers._.prowlarr
-      den.aspects.hosts._.server._.containers._.stash
-      den.aspects.hosts._.server._.containers._.stashtrap
       den.aspects.hosts._.server._.containers._.managarr
       den.aspects.hosts._.server._.containers._.flaresolverr
       den.aspects.hosts._.server._.containers._.cross-seed

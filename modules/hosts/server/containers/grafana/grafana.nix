@@ -97,7 +97,12 @@
               auto_sign_up = true;
               sync_ttl = 720;
             };
-            "auth.anonymous".enabled = false;
+            # Anonymous read-only access so the e-paper display can fetch
+            # /render PNGs without a service account token.
+            "auth.anonymous" = {
+              enabled = true;
+              org_role = "Viewer";
+            };
           };
 
           provision = {
@@ -122,6 +127,7 @@
               (import ./dashboards/_container_metrics.nix)
               (import ./dashboards/_cross-seed.nix)
               (import ./dashboards/_dnsmasq.nix)
+              (import ./dashboards/_epaper_server.nix)
               (import ./dashboards/_flaresolverr.nix)
               (import ./dashboards/_home_sensors.nix)
               (import ./dashboards/_host_logs.nix)
@@ -147,7 +153,6 @@
               (import ./dashboards/_smart.nix)
               (import ./dashboards/_sonarr.nix)
               (import ./dashboards/_soularr.nix)
-              (import ./dashboards/_stashtrap.nix)
               (import ./dashboards/_soulseek.nix)
               (import ./dashboards/_unpackerr.nix)
               (import ./dashboards/_vpn_gw.nix)

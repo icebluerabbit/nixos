@@ -151,11 +151,6 @@ in
     description = "Delete slskd searches older than a retention window";
   };
 
-  stashtrap = mkProject {
-    module = "stashtrap";
-    description = "Record autobrr announces and decide whether to grab them";
-  };
-
   # lib ships no binaries; it is built so that `nix flake check` and every
   # `just build-*` run its tests. Its attribute is prefixed because `lib` alone
   # would read like nixpkgs' own.

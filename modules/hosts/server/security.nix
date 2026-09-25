@@ -23,15 +23,6 @@ _: {
             lidarr-apikey = { };
             readarr-apikey = { };
             prowlarr-apikey = { };
-            bitporn-apikey = { };
-            # Read directly by the stash container's service user, which is why
-            # these are plain secrets rather than a rendered env template. No
-            # password secret: Stash runs without its own login, gated by Caddy.
-            stash-jwt-secret.mode = "0444";
-            stash-session-key.mode = "0444";
-            # Stash's stash-box connection authenticates with this.
-
-            stashdb-apikey.mode = "0444";
             mam-username = {
               mode = "0444";
             };
@@ -132,8 +123,6 @@ _: {
             };
             torrentleech-password = { };
             torrentleech-rss-key = { };
-            digitalcore-apikey = { };
-            digitalcore-passkey = { };
             retrotoon-passkey = { };
             darkpeers-apikey = { };
             darkpeers-rsskey = { };
@@ -141,12 +130,6 @@ _: {
             yuscene-rsskey = { };
             seedpool-apikey = { };
             seedpool-rsskey = { };
-            digitalcore-username = {
-              mode = "0444";
-            };
-            digitalcore-irc-key = {
-              mode = "0444";
-            };
             retrotoon-username = {
               mode = "0444";
             };
@@ -325,9 +308,6 @@ _: {
             "autobrr-env".content = ''
               AUTOBRR_API_TOKEN=${config.sops.placeholder.autobrr-api-token}
               CROSS_SEED_APIKEY=${config.sops.placeholder.cross-seed-apikey}
-              # BitPorn is polled through Prowlarr's Torznab feed, not IRC, so
-              # autobrr authenticates to Prowlarr rather than to the tracker.
-              PROWLARR_APIKEY=${config.sops.placeholder.prowlarr-apikey}
               TORRENTLEECH_RSS_KEY=${config.sops.placeholder.torrentleech-rss-key}
               TORRENTLEECH_NICK=${config.sops.placeholder.torrentleech-username}
               PRETOME_RSS_KEY=${config.sops.placeholder.pretome-rss-key}
@@ -340,9 +320,6 @@ _: {
               MAM_NICK=${config.sops.placeholder.mam-username}
               MAM_IRC_PASSWORD=${config.sops.placeholder.mam-irc-password}
               MAM_ID=${config.sops.placeholder.mam-autobrr-id}
-              DIGITALCORE_PASSKEY=${config.sops.placeholder.digitalcore-passkey}
-              DIGITALCORE_NICK=${config.sops.placeholder.digitalcore-username}
-              DIGITALCORE_IRC_KEY=${config.sops.placeholder.digitalcore-irc-key}
               RETROTOON_PASSKEY=${config.sops.placeholder.retrotoon-passkey}
               RETROTOON_NICK=${config.sops.placeholder.retrotoon-username}
               RETROTOON_IRC_PASSWORD=${config.sops.placeholder.retrotoon-irc-password}
@@ -403,12 +380,10 @@ _: {
               PRETOME_PIN=${config.sops.placeholder.pretome-pin}
               TORRENTLEECH_USERNAME=${config.sops.placeholder.torrentleech-username}
               TORRENTLEECH_PASSWORD=${config.sops.placeholder.torrentleech-password}
-              DIGITALCORE_APIKEY=${config.sops.placeholder.digitalcore-apikey}
               RETROTOON_PASSKEY=${config.sops.placeholder.retrotoon-passkey}
               DARKPEERS_APIKEY=${config.sops.placeholder.darkpeers-apikey}
               YUSCENE_APIKEY=${config.sops.placeholder.yuscene-apikey}
               SEEDPOOL_APIKEY=${config.sops.placeholder.seedpool-apikey}
-              BITPORN_APIKEY=${config.sops.placeholder.bitporn-apikey}
               RADARR__AUTH__APIKEY=${config.sops.placeholder.radarr-apikey}
               SONARR__AUTH__APIKEY=${config.sops.placeholder.sonarr-apikey}
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}

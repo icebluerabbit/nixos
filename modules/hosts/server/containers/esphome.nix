@@ -25,7 +25,7 @@
 
         containerConfigs.esphome = {
 
-          autoStart = false;
+          autoStart = true;
           lldpd.enable = true;
           device = "/var/lib/esphome/device";
 
@@ -64,36 +64,27 @@
               platformio_options = {
                 "board_build.flash_mode" = "dio";
               };
-              includes = [ "<driver/gpio.h>" ];
-              on_boot = {
-                priority = 900.0;
-                "then" = [
-                  {
-                    lambda = ''
-                      gpio_set_direction(GPIO_NUM_11, GPIO_MODE_OUTPUT);
-                      gpio_set_level(GPIO_NUM_11, 1);
-                      gpio_set_direction(GPIO_NUM_21, GPIO_MODE_OUTPUT);
-                      gpio_set_level(GPIO_NUM_21, 1);
-                    '';
-                  }
-                ];
-              };
             };
-
-            # Pull in the IT8951 component from ESPHome PR #15346
-            external_components = [
-              {
-                source = "github://pr#15346";
-                components = [ "it8951" ];
-              }
-            ];
 
             esp32 = {
               board = "esp32-s3-devkitc-1";
               variant = "esp32s3";
+              # Grafana's /render takes ~5s to produce the PNG, and
+              # online_image blocks the main loop waiting for the response;
+              # the default 5s task watchdog panics mid-request.
+              watchdog_timeout = "30s";
               framework = {
                 type = "esp-idf";
               };
+            };
+
+            # The E1003 carries an ESP32-S3R8: 8 MB octal SPI PSRAM. The
+            # it8951 framebuffer is 1314144 bytes (1872x1404 at 4bpp), far
+            # beyond internal DRAM, so PSRAM must be initialized or the
+            # display fails allocation at setup.
+            psram = {
+              mode = "octal";
+              speed = "80MHz";
             };
 
             wifi = {
@@ -111,6 +102,26 @@
               platform = "esphome";
             };
             logger = { };
+
+            http_request = {
+              timeout = "30s";
+            };
+
+            # Grafana renders the dashboard to a PNG server-side; the panel
+            # only redraws when a new image finishes downloading.
+            image = [
+              {
+                id = "dash";
+                platform = "online_image";
+                url = "http://${config.infra.clients.container-grafana.ip}:${toString config.infra.clients.container-grafana.ports.default}/render/d/epaper-server/epaper-server?orgId=1&width=1000&height=750&scale=1.872&theme=light&kiosk&_dash.hideTimePicker";
+                format = "PNG";
+                type = "GRAYSCALE";
+                update_interval = "10min";
+                on_download_finished = [
+                  { "component.update" = "e1003_display"; }
+                ];
+              }
+            ];
 
             # SPI interface pins for the E1003 display
             spi = {
@@ -159,35 +170,9 @@
                 platform = "it8951";
                 model = "seeed-reterminal-e1003";
                 id = "e1003_display";
-                cs_pin = "GPIO10";
-                reset_pin = "GPIO12";
-                busy_pin = "GPIO13";
-                vcom = 1580;
-                dimensions = {
-                  width = 1404;
-                  height = 1872;
-                };
-                rotation = "0°";
-                update_interval = "60s";
+                update_interval = "never";
                 lambda = ''
-                  // Draw a sleek frame border around the screen edge
-                  it.rectangle(10, 10, 1384, 1852, Color::BLACK);
-
-                  // Print "Hello World" perfectly centered horizontally
-                  it.print(702, 400, id(font_large), Color::BLACK, TextAlign::CENTER, "Hello World");
-
-                  // Draw a subtle horizontal divider line under the headline
-                  it.line(400, 480, 1004, 480, Color::BLACK);
-
-                  // Print the local environment statistics safely
-                  if (id(ambient_temp).has_state()) {
-                    it.printf(702, 540, id(font_small), Color::BLACK, TextAlign::CENTER,
-                              "System Temp: %.1f°C  |  Humidity: %.1f%%",
-                              id(ambient_temp).state, id(ambient_hum).state);
-                  } else {
-                    it.print(702, 540, id(font_small), Color::BLACK, TextAlign::CENTER,
-                             "Sensor Initializing...");
-                  }
+                  it.image(0, 0, id(dash));
                 '';
               }
             ];

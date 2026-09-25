@@ -79,14 +79,6 @@ in
           };
         };
       }
-      # Plain health-dot card: Homepage has no stash widget type.
-      (hc {
-        name = "Stash";
-        icon = "stash.svg";
-        href = caddy "stash";
-        monitor = at cl.container-stash.ip cl.container-stash.ports.default;
-        desc = "Adult library organizer & player";
-      })
       {
         "Lidarr" = {
           icon = "lidarr.svg";

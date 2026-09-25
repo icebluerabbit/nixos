@@ -34,7 +34,6 @@ in
   episodes = "0";
   indexers = [
     { id = "\${ref.indexer.TorrentLeech}"; }
-    { id = "\${ref.indexer.DigitalCore}"; }
     { id = "\${ref.indexer.PreToMe}"; }
     { id = "\${ref.indexer.DarkPeers}"; }
     { id = "\${ref.indexer.RetroToon}"; }
