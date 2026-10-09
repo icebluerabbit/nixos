@@ -23,7 +23,7 @@
       scrape_interval_secs = 30;
     };
     # Per-peer flags carry the choke/interest state the WebAPI global surface omits.
-    # No global peer list exists, so exporter.py loops /sync/torrentPeers over ACTIVE
+    # No global peer list exists, so qbt-peer-exporter loops /sync/torrentPeers over ACTIVE
     # torrents (top-upspeed capped at capN, wall-clock budgeted) and prints one JSON
     # line of aggregates. Cost is bound by active-torrent count, not library size.
     sources.qbt_peer_exec = {
@@ -37,7 +37,7 @@
       ];
     };
     transforms = {
-      # exporter.py stdout (one JSON line) → event fields → gauges.
+      # qbt-peer-exporter stdout (one JSON line) → event fields → gauges.
       qbt_peer_parse = {
         type = "remap";
         inputs = [ "qbt_peer_exec" ];

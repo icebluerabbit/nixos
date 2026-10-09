@@ -262,19 +262,25 @@ _: {
               UP_UNIFI_DEFAULT_USER=${config.sops.placeholder.unifi-controller-username}
               UP_UNIFI_DEFAULT_PASS=${config.sops.placeholder.unifi-controller-password}
             '';
+            # The Jellyfin key reaches jellyfin-refresh — the CustomScript hook
+            # that replaced the *arr's own Jellyfin connection — through that
+            # tool's own environment prefix, so it is never passed on argv. The
+            # hook inherits it from the *arr service, which is the only route
+            # available: the rendered env file is root-only and the *arr runs as
+            # its own user.
             "sonarr-env".content = ''
               SONARR__AUTH__APIKEY=${config.sops.placeholder.sonarr-apikey}
               SONARR__AUTH__METHOD=External
               APIKEY=${config.sops.placeholder.sonarr-apikey}
               TRAKT_AUTH_USER=${config.sops.placeholder.trakt-auth-user}
-              JELLYFIN_API_KEY=${config.sops.placeholder.jellyfin-apikey}
+              HOMELAB_JELLYFIN_REFRESH_API_KEY=${config.sops.placeholder.jellyfin-apikey}
             '';
             "radarr-env".content = ''
               RADARR__AUTH__APIKEY=${config.sops.placeholder.radarr-apikey}
               RADARR__AUTH__METHOD=External
               APIKEY=${config.sops.placeholder.radarr-apikey}
               TRAKT_AUTH_USER=${config.sops.placeholder.trakt-auth-user}
-              JELLYFIN_API_KEY=${config.sops.placeholder.jellyfin-apikey}
+              HOMELAB_JELLYFIN_REFRESH_API_KEY=${config.sops.placeholder.jellyfin-apikey}
             '';
             "bazarr-env".content = ''
               DYNACONF_AUTH__APIKEY=${config.sops.placeholder.bazarr-apikey}
@@ -295,7 +301,7 @@ _: {
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}
               LIDARR__AUTH__METHOD=External
               APIKEY=${config.sops.placeholder.lidarr-apikey}
-              JELLYFIN_API_KEY=${config.sops.placeholder.jellyfin-apikey}
+              HOMELAB_JELLYFIN_REFRESH_API_KEY=${config.sops.placeholder.jellyfin-apikey}
             '';
             "slskd-env".content = ''
               SLSKD_SLSK_USERNAME=${config.sops.placeholder.slskd-slsk-username}

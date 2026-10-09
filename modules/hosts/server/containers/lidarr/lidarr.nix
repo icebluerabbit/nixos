@@ -23,7 +23,12 @@
     ];
 
     nixos =
-      { config, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         cfg = config.containerConfigs.lidarr;
       in
@@ -115,7 +120,7 @@
                   multi_disc_track_format = "{Album Title} ({Release Year})/{medium:0}-{track:00} - {Track Title}";
                 };
                 notifications = [
-                  (import ./notifications/_jellyfin.nix { inherit config; })
+                  (import ./notifications/_jellyfin.nix { inherit config lib pkgs; })
                   (import ./notifications/_home-assistant.nix { inherit config; })
                   (import ./notifications/_managarr.nix { inherit config; })
                 ];

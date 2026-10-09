@@ -215,7 +215,7 @@ Every directory under [`packages/`](packages/) is auto-`callPackage`d into `pkgs
 
 ## 🔍 sys-mcp
 
-[`packages/sys-mcp/`](packages/sys-mcp/) is an MCP server that answers questions about this repo: which host runs a container, what owns an IP or a port, which VLAN something is on, what is plugged into which switch port, and what the UniFi controller currently reports.
+[`packages/go/sys-mcp/`](packages/go/sys-mcp/) is an MCP server that answers questions about this repo: which host runs a container, what owns an IP or a port, which VLAN something is on, what is plugged into which switch port, and what the UniFi controller currently reports.
 
 It also runs the diagnostics — journals, unit status, exec — and SSHes to the right host itself. That last part is the point: the same command on the wrong host returns wrong data with no error.
 

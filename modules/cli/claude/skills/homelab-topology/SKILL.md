@@ -26,7 +26,7 @@ sys-mcp runtime tools (`container_*`, `host_*`) do all three automatically — p
 
 ## sys-mcp — tool → task map (use before grep)
 
-MCP server at `packages/sys-mcp/`. Returns a fully connected entity: VLAN + client (IP/MAC/ports) + container (bridge/bind mounts) + host (SSH target) + pre-built diagnostic commands.
+MCP server at `packages/go/sys-mcp/`. Returns a fully connected entity: VLAN + client (IP/MAC/ports) + container (bridge/bind mounts) + host (SSH target) + pre-built diagnostic commands.
 
 | Task                                             | Tool                                                                                                                 |
 | :----------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- |
@@ -49,7 +49,7 @@ MCP server at `packages/sys-mcp/`. Returns a fully connected entity: VLAN + clie
 
 ## Generated diagrams
 
-`just topology` regenerates the README's Network Topology sections from `modules/infra` plus the server's own `networking`/`containers` — physical cabling as mermaid, VLANs and containers as tables. Renderer is `packages/topology/`. CI fails if they are stale, so run it after anything that changes a client, device, port profile or container.
+`just topology` regenerates the README's Network Topology sections from `modules/infra` plus the server's own `networking`/`containers` — physical cabling as mermaid, VLANs and containers as tables. Renderer is `packages/go/topology/`. CI fails if they are stale, so run it after anything that changes a client, device, port profile or container.
 
 ## What is this plugged into?
 

@@ -282,8 +282,11 @@ let
       };
     };
 
-  # every mousetrap log line is slog JSON on stdout → journald `.message`; parse the
+  # every mousetrap log line is slog JSON on stderr → journald `.message`; parse the
   # wrapper, lift the app line, parse it. Filter on `msg` (slog's message key).
+  # The stream does not matter here — journald captures both and there is no
+  # `stream` selector below — but the binary logs to stderr because stdout is
+  # reserved for a tool's product (see packages/go/README.md).
   applog = ''{host="mousetrap"} | json | line_format "{{.message}}" | json'';
 in
 {

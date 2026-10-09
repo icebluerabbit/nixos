@@ -23,15 +23,23 @@
     ];
 
     nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         cfg = config.containerConfigs.radarr;
         # Assemble a configuratarr list section from one-file-per-entry. Each entry
         # file is a `{ config, ... }:` function returning a single attrset; files are
         # `_`-prefixed so import-tree skips them as modules but readDir still sees them.
+        # pkgs is the HOST's package set, which is what an entry naming a
+        # homelab package needs: the store path is what crosses into the
+        # container, and pkgs inside a container body carries no overlays.
         importDir =
           dir:
-          map (n: import (dir + "/${n}") { inherit config; }) (
+          map (n: import (dir + "/${n}") { inherit config lib pkgs; }) (
             builtins.filter (lib.hasSuffix ".nix") (builtins.attrNames (builtins.readDir dir))
           );
       in

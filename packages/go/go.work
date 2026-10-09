@@ -11,6 +11,12 @@
 go 1.26
 
 use (
+	./beets-lidarr-import
+	./flac-util
+	./forgejo-token-inject
+	./ha-seeders
+	./hermes-resolve-rooms
+	./jellyfin-refresh
 	./lib
 	./managarr-autobrr
 	./managarr-bazarr
@@ -26,5 +32,14 @@ use (
 	./managarr-soularr
 	./managarr-unpackerr
 	./managarr
+	./mousetrap
+	./nixos-notify
+	./qbt-scripts
+	./qui-provision
 	./slskd-prune
+	./soularr-reclaim
+	./sys-mcp
+	./thelounge-seed
+	./topology
+	./tuwunel-init
 )

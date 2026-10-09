@@ -23,7 +23,13 @@
   the build: nixpkgs vendors each module separately and a workspace would
   override -mod=vendor.
 */
-{ lib, buildGoModule }:
+{
+  lib,
+  buildGoModule,
+  makeWrapper,
+  chromaprint,
+  flac,
+}:
 let
   version = "0.1.0";
   hashes = import ./vendor-hashes.nix;
@@ -48,32 +54,51 @@ let
       # is built only so its tests run.
       program ? module,
       pname ? module,
+      # Every binary the module installs. One project ships one binary, so the
+      # default is just `program`; a project that has grown a cmd/ layer lists
+      # each of them, and the PATH wrapper then reaches all of them.
+      programs ? lib.optional (program != null) program,
+      # Tools the binaries exec at runtime. A non-empty list wraps each
+      # installed binary with them on PATH — the same contract
+      # writeShellApplication's runtimeInputs gave the scripts that some of
+      # these projects replace, so nothing is assumed to be on the caller's
+      # PATH.
+      runtimeInputs ? [ ],
     }:
-    buildGoModule {
-      inherit pname version;
-      src = lib.fileset.toSource {
-        root = ./.;
-        fileset = lib.fileset.unions ([ ./lib ] ++ lib.optional (module != "lib") (./. + "/${module}"));
-      };
-      modRoot = module;
-      vendorHash = hashes.${module};
+    buildGoModule (
+      {
+        inherit pname version;
+        src = lib.fileset.toSource {
+          root = ./.;
+          fileset = lib.fileset.unions ([ ./lib ] ++ lib.optional (module != "lib") (./. + "/${module}"));
+        };
+        modRoot = module;
+        vendorHash = hashes.${module};
 
-      env.GOWORK = "off";
+        env.GOWORK = "off";
 
-      # One ldflag stamps every binary in the module, which is why the version
-      # lives in homelab/buildinfo rather than a main.version per binary. Nix
-      # builds carry no VCS metadata, so debug.ReadBuildInfo cannot supply it.
-      ldflags = [
-        "-s"
-        "-w"
-        "-X homelab/buildinfo.Version=${version}"
-      ];
+        # One ldflag stamps every binary in the module, which is why the version
+        # lives in homelab/buildinfo rather than a main.version per binary. Nix
+        # builds carry no VCS metadata, so debug.ReadBuildInfo cannot supply it.
+        ldflags = [
+          "-s"
+          "-w"
+          "-X homelab/buildinfo.Version=${version}"
+        ];
 
-      meta = {
-        inherit description;
+        meta = {
+          inherit description;
+        }
+        // (if program == null then { } else { mainProgram = program; });
       }
-      // (if program == null then { } else { mainProgram = program; });
-    };
+      // lib.optionalAttrs (runtimeInputs != [ ]) {
+        nativeBuildInputs = [ makeWrapper ];
+        postInstall = lib.concatMapStringsSep "\n" (p: ''
+          wrapProgram $out/bin/${p} \
+            --prefix PATH : ${lib.makeBinPath runtimeInputs}
+        '') programs;
+      }
+    );
 in
 {
   managarr-crossseed = mkProject {
@@ -146,9 +171,100 @@ in
     description = "Record events from the download and library stack";
   };
 
+  beets-lidarr-import = mkProject {
+    module = "beets-lidarr-import";
+    description = "Hand one finished album from beets to Lidarr";
+  };
+
+  flac-util = mkProject {
+    module = "flac-util";
+    description = "Measure FLAC files and record what was found";
+    # The reference decoder and the acoustic fingerprinter are consulted as
+    # external processes: --flac and --fpcalc name them, and both default to
+    # being found on PATH.
+    runtimeInputs = [
+      flac
+      chromaprint
+    ];
+  };
+
+  forgejo-token-inject = mkProject {
+    module = "forgejo-token-inject";
+    description = "Splice the forgejo API token into code-server's settings";
+  };
+
+  # The first project with a cmd/ layer: three binaries over one shared
+  # internal package, so the attribute keeps its name and every
+  # ${pkgs.homelab.ha-seeders}/bin/ha-seed-* callsite is unchanged. program
+  # is null because no binary is named after the project.
+  ha-seeders = mkProject {
+    module = "ha-seeders";
+    program = null;
+    description = "Seed Home Assistant's area, person and config-entry registries";
+  };
+
+  hermes-resolve-rooms = mkProject {
+    module = "hermes-resolve-rooms";
+    description = "Resolve Matrix room aliases to room IDs for Hermes";
+  };
+
+  jellyfin-refresh = mkProject {
+    module = "jellyfin-refresh";
+    description = "Refresh one Jellyfin library path from an *arr hook";
+  };
+
+  nixos-notify = mkProject {
+    module = "nixos-notify";
+    description = "Report a host lifecycle event to MQTT";
+  };
+
+  # Three binaries over one shared WebAPI surface, so the attribute keeps its
+  # name and every ${pkgs.homelab.qbt-scripts}/bin/qbt-* callsite is
+  # unchanged. program is null because no binary is named after the project.
+  qbt-scripts = mkProject {
+    module = "qbt-scripts";
+    program = null;
+    description = "qBittorrent watch-dir import, tracker re-announce and peer metrics";
+  };
+
+  qui-provision = mkProject {
+    module = "qui-provision";
+    description = "Register the qBittorrent instance in qui";
+  };
+
   slskd-prune = mkProject {
     module = "slskd-prune";
     description = "Delete slskd searches older than a retention window";
+  };
+
+  mousetrap = mkProject {
+    module = "mousetrap";
+    description = "MyAnonaMouse grab authority";
+  };
+
+  soularr-reclaim = mkProject {
+    module = "soularr-reclaim";
+    description = "Hand stranded Soulseek album folders back to Lidarr";
+  };
+
+  sys-mcp = mkProject {
+    module = "sys-mcp";
+    description = "Resolve and diagnose this homelab over MCP";
+  };
+
+  thelounge-seed = mkProject {
+    module = "thelounge-seed";
+    description = "Merge declared IRC networks into thelounge's user files";
+  };
+
+  topology = mkProject {
+    module = "topology";
+    description = "Render network diagrams from the infra registries";
+  };
+
+  tuwunel-init = mkProject {
+    module = "tuwunel-init";
+    description = "Provision tuwunel users, rooms and spaces";
   };
 
   # lib ships no binaries; it is built so that `nix flake check` and every

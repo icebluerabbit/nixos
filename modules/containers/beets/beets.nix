@@ -249,7 +249,7 @@ _: {
                   hook.hooks = [
                     {
                       event = "album_imported";
-                      command = "${lidarrImportExe} {album.path}";
+                      command = "${lidarrImportExe} --album {album.path}";
                     }
                   ];
                 };

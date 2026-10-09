@@ -44,9 +44,11 @@ linters:
         - name: indent-error-flow
     misspell:
       # A hardlink is the thing this repo spends most of its time reasoning
-      # about; "hardlinked" is not a typo for "hardline".
+      # about; "hardlinked" is not a typo for "hardline". Mosquitto is the
+      # MQTT broker and mosquitto_pub is its binary, so the second t stays.
       ignore-rules:
         - hardlinked
+        - mosquitto
     gocritic:
       enabled-tags:
         - diagnostic

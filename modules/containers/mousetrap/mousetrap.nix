@@ -4,7 +4,7 @@
   the *arr ecosystem), /refresh/* + /shop (data collectors + shop policy) and /metrics.
   systemd timers (built from settings.refresh) POST to the /refresh|/shop endpoints on
   a schedule; all policy/params come from flags (settings below), so the timer bodies
-  are bare. Binary is pkgs.homelab.mousetrap (see packages/mousetrap).
+  are bare. Binary is pkgs.homelab.mousetrap (see packages/go/mousetrap).
 */
 _: {
   den.aspects.containers._.mousetrap = {

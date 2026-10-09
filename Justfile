@@ -147,7 +147,7 @@ topology file="README.md": _track
         --into {{file}} --marker topology-logical
     @echo "{{file}}"
 
-# Same, on every save under modules/infra or packages/topology.
+# Same, on every save under modules/infra or packages/go/topology.
 topology-watch file="README.md":
     nix run nixpkgs#watchexec -- \
       -w modules/infra -w packages/go -e nix,go \

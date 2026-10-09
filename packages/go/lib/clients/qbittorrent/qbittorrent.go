@@ -152,6 +152,15 @@ type Torrent struct {
 	// covers both a torrent at 3% and one at 99%.
 	Progress float64 `json:"progress"`
 
+	// UpSpeed is the instantaneous upload rate in bytes/s.
+	//
+	// The one rate field decoded, and only because it ranks: a sampler that
+	// can afford to look at some of the active torrents wants the ones
+	// carrying the traffic, and no cumulative counter answers that — a
+	// torrent with a huge Uploaded may have gone quiet months ago. Nothing
+	// should store this.
+	UpSpeed int64 `json:"upspeed"`
+
 	// Cumulative counters. Facts about the torrent's whole life, unlike the
 	// rate fields, which are instantaneous and deliberately not decoded.
 	Ratio      float64 `json:"ratio"`
@@ -231,10 +240,30 @@ func IsUnregistered(msg string) bool {
 	return false
 }
 
+// Filters for TorrentsFiltered, as /torrents/info accepts them. Only the ones
+// used here are named; the endpoint takes more.
+const (
+	// FilterActive is the client's own notion of active: transferring in
+	// either direction right now. It is the cheap way to bound work that
+	// scales per torrent, because it tracks what the client is doing rather
+	// than how much it holds.
+	FilterActive = "active"
+)
+
 // Torrents lists every torrent the client holds.
 func (c *Client) Torrents(ctx context.Context) ([]Torrent, error) {
+	return c.TorrentsFiltered(ctx, "")
+}
+
+// TorrentsFiltered lists the torrents matching one of the endpoint's filters.
+// An empty filter lists everything.
+func (c *Client) TorrentsFiltered(ctx context.Context, filter string) ([]Torrent, error) {
+	path := pathTorrentsInfo
+	if filter != "" {
+		path += "?" + url.Values{"filter": {filter}}.Encode()
+	}
 	var out []Torrent
-	if err := c.http.Do(ctx, "GET", pathTorrentsInfo, nil, &out); err != nil {
+	if err := c.http.Do(ctx, "GET", path, nil, &out); err != nil {
 		return nil, fmt.Errorf("qbittorrent: list torrents: %w", err)
 	}
 	return out, nil

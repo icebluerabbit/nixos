@@ -48,13 +48,13 @@ git clone --depth 1 --filter=blob:none --sparse <url> <scratchpad-path>
 - **flake.nix is auto-generated** (`import-tree ./modules` auto-imports every `.nix`; `_`-prefixed paths and non-`.nix` files are ignored). Never hand-edit it. Run `just flake` after adding/removing modules.
 - **Flakes ignore untracked files** — `git add` (or `git add -N`) new files before Nix can evaluate them. `just format` runs `git add -N .` first.
 - Commands: `just build-*` / `eval-*` (safe checks), `just vm-*`, `just sops-host-secrets` / `sops-user-secrets`, `just gc`, `just infra-plan-homelab`, `just topology`. See _Operational Safety_ for the human-only set.
-- **`just topology`** regenerates the README's Network Topology sections from `modules/infra` + the server's `networking`/`containers` (renderer: `packages/topology/`). CI fails if stale — run it after any change to a client, device, port profile or container.
+- **`just topology`** regenerates the README's Network Topology sections from `modules/infra` + the server's `networking`/`containers` (renderer: `packages/go/topology/`). CI fails if stale — run it after any change to a client, device, port profile or container.
 
 ---
 
 ## Topology & Diagnostics
 
-An MCP server (**sys-mcp**, `packages/sys-mcp/`) resolves hosts / containers / clients / IPs / ports / VLANs and runs diagnostics with **auto-SSH to the correct host** — prefer it over grep or manual ssh; running a diagnostic on the wrong host returns wrong data with no error. `server` runs all nspawn containers; `desktop` runs none. Full resolution model + tool catalog: skill `homelab-topology`.
+An MCP server (**sys-mcp**, `packages/go/sys-mcp/`) resolves hosts / containers / clients / IPs / ports / VLANs and runs diagnostics with **auto-SSH to the correct host** — prefer it over grep or manual ssh; running a diagnostic on the wrong host returns wrong data with no error. `server` runs all nspawn containers; `desktop` runs none. Full resolution model + tool catalog: skill `homelab-topology`.
 
 Other MCP servers: `nixos` (packages/options), `grafana`, `github`, `git`, `context7`, `fetch`, `memory`, `sequential-thinking`, `home-assistant`.
 
@@ -97,25 +97,27 @@ den.aspects.<category>._.<name> = { includes = [ … ]; nixos = { … }; terrani
 `modules/cli/claude/skills/<name>/SKILL.md`.
 
 **Procedures (workflows):**
-| Skill | Use for |
-|:---|:---|
-| `nixos-container-create` | Add a new container end-to-end |
-| `github-repo-create` | Create + wire a new GitHub repo (binary, `-flake` wrapper, nix lib) |
-| `nixos-container-debug` | Logs / status / connectivity for a running container or host service |
-| `nixos-secret-add` | Add/wire a sops-nix secret |
-| `nixos-infra-provision` | Prepare UniFi/Cloudflare/Terranix changes (apply handed to user) |
-| `nixos-web-expose` | Caddy reverse-proxy + Homepage card for a web UI |
-| `homelab-observability` | Grafana / Loki / Prometheus / Tempo investigation |
+
+| Skill                    | Use for                                                              |
+| :----------------------- | :------------------------------------------------------------------- |
+| `nixos-container-create` | Add a new container end-to-end                                       |
+| `github-repo-create`     | Create + wire a new GitHub repo (binary, `-flake` wrapper, nix lib)  |
+| `nixos-container-debug`  | Logs / status / connectivity for a running container or host service |
+| `nixos-secret-add`       | Add/wire a sops-nix secret                                           |
+| `nixos-infra-provision`  | Prepare UniFi/Cloudflare/Terranix changes (apply handed to user)     |
+| `nixos-web-expose`       | Caddy reverse-proxy + Homepage card for a web UI                     |
+| `homelab-observability`  | Grafana / Loki / Prometheus / Tempo investigation                    |
 
 **Knowledge (reference):**
-| Skill | Covers |
-|:---|:---|
-| `homelab-topology` | host/container/IP/VLAN resolution, sys-mcp catalog, SSH fallbacks |
-| `homelab-networking` | VLAN/bridge/bond architecture, direct-bridging philosophy, MAC formula |
-| `nixos-container-conventions` | `_base.nix`, port/UID/tmpfiles/firewall/glue invariants |
-| `den-aspects` | den framework structure + patterns |
-| `nixos-vector-logging` | Vector sidecar options + wiring |
-| `nix-style` | nixfmt/statix/deadnix conformance + repo Nix idioms |
+
+| Skill                         | Covers                                                                 |
+| :---------------------------- | :--------------------------------------------------------------------- |
+| `homelab-topology`            | host/container/IP/VLAN resolution, sys-mcp catalog, SSH fallbacks      |
+| `homelab-networking`          | VLAN/bridge/bond architecture, direct-bridging philosophy, MAC formula |
+| `nixos-container-conventions` | `_base.nix`, port/UID/tmpfiles/firewall/glue invariants                |
+| `den-aspects`                 | den framework structure + patterns                                     |
+| `nixos-vector-logging`        | Vector sidecar options + wiring                                        |
+| `nix-style`                   | nixfmt/statix/deadnix conformance + repo Nix idioms                    |
 
 ---
 
