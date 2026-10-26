@@ -18,6 +18,9 @@ _: {
           # recipes call each other — so it has to be on PATH, not just in the
           # caller's shell.
           pkgs.just
+          # The build-*/switch-* recipes drive nh, and a fresh host (the
+          # laptop before its first switch) has no system nh yet.
+          pkgs.nh
 
           pkgs.go
           pkgs.gopls

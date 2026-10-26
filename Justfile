@@ -13,6 +13,9 @@ build-desktop: flake
 build-server: flake
     nh os build .#server
 
+build-laptop: flake
+    nh darwin build .#laptop
+
 build: build-server build-desktop
 
 test-desktop: flake
@@ -27,6 +30,9 @@ eval-desktop: flake
 eval-server: flake
     nix eval .#nixosConfigurations.server.config.system.build.toplevel.drvPath
 
+eval-laptop: flake
+    nix eval .#darwinConfigurations.laptop.config.system.build.toplevel.drvPath
+
 test: test-server test-desktop
 
 switch-desktop: flake format
@@ -34,6 +40,9 @@ switch-desktop: flake format
 
 switch-server: flake format
     nh os switch . --target-host {{ server }} --hostname server
+
+switch-laptop: flake format
+    nh darwin switch .#laptop
 
 switch: infra-apply-homelab switch-server switch-desktop
 

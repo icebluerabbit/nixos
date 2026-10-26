@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -21,12 +24,76 @@ import (
 // for enriching responses with Nix source file paths.
 
 type unifiConn struct {
-	c      *unificlient.ApiClient
 	site   string
-	rawURL string
 	apiKey string
 	http   *http.Client
 	si     *cache.SourceIndex
+
+	// Dialled on first use rather than at registration: logging in to the
+	// controller is a network round trip, and doing it while wiring up tools
+	// meant an unreachable controller hung the MCP handshake itself — the
+	// laptop off the homelab network never finished starting sys-mcp. Guarded
+	// by a mutex and not sync.Once so a failure is retried on the next call;
+	// Once would cache "unreachable" for the life of the process, and this
+	// host moves between networks.
+	baseURL string
+	mu      sync.Mutex
+	c       *unificlient.ApiClient
+	rawURL  string
+}
+
+// api returns the controller client, dialling it on first use. The caller's
+// context carries the request deadline, so an unreachable controller fails
+// that one tool call instead of blocking startup.
+func (conn *unifiConn) api(ctx context.Context) (*unificlient.ApiClient, error) {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+
+	if conn.c != nil {
+		return conn.c, nil
+	}
+
+	// go-unifi defaults to a long timeout and several retries, each of which
+	// waits out a full connect against an unreachable controller. Off-LAN
+	// that turned one tool call into minutes, so cap both.
+	timeoutSeconds := 10
+	retryMax := 1
+	client, err := unificlient.New(ctx, &unificlient.Config{
+		BaseURL:        conn.baseURL,
+		APIKey:         conn.apiKey,
+		AllowInsecure:  true,
+		TimeoutSeconds: &timeoutSeconds,
+		RetryMax:       &retryMax,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("unifi controller %s: %w", conn.baseURL, err)
+	}
+
+	conn.c = client
+	// Only meaningful once the controller answered, and rawGet needs it.
+	conn.rawURL = probeRawBase(ctx, conn.baseURL, conn.site, conn.apiKey, conn.http)
+	return conn.c, nil
+}
+
+// raw returns the base URL for classic API paths, dialling if needed so the
+// /proxy/network probe has happened. An already-known base is returned as-is:
+// the stats endpoints are plain HTTP and need no client, so a caller that
+// supplied the base itself never pays for a login.
+func (conn *unifiConn) raw(ctx context.Context) (string, error) {
+	conn.mu.Lock()
+	if conn.rawURL != "" {
+		defer conn.mu.Unlock()
+		return conn.rawURL, nil
+	}
+	conn.mu.Unlock()
+
+	if _, err := conn.api(ctx); err != nil {
+		return "", err
+	}
+
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	return conn.rawURL, nil
 }
 
 // clientStat maps the raw UniFi sta endpoint. go-unifi's generated ClientInfo
@@ -101,7 +168,11 @@ type deviceStat struct {
 }
 
 func (conn *unifiConn) rawGet(ctx context.Context, path string, out any) error {
-	url := strings.TrimRight(conn.rawURL, "/") + "/" + strings.TrimLeft(path, "/")
+	base, err := conn.raw(ctx)
+	if err != nil {
+		return err
+	}
+	url := strings.TrimRight(base, "/") + "/" + strings.TrimLeft(path, "/")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return err
@@ -172,30 +243,23 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 		return
 	}
 
-	client, err := unificlient.New(context.Background(), &unificlient.Config{
-		BaseURL:       ac.Cfg.UnifiURL,
-		APIKey:        ac.Cfg.UnifiAPIKey,
-		AllowInsecure: true,
-	})
-	if err != nil {
-		return
-	}
-
 	httpClient := &http.Client{
+		// Without a timeout an off-LAN request waits on the OS connect
+		// timeout, which is long enough to look like a hang.
+		Timeout: 15 * time.Second,
 		Transport: &http.Transport{
+			DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
 			// The controller serves its own certificate on the LAN.
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // self-signed controller cert
 		},
 	}
-	rawBase := probeRawBase(context.Background(), ac.Cfg.UnifiURL, ac.Cfg.UnifiSite, ac.Cfg.UnifiAPIKey, httpClient)
 
 	conn := &unifiConn{
-		c:      client,
-		site:   ac.Cfg.UnifiSite,
-		rawURL: rawBase,
-		apiKey: ac.Cfg.UnifiAPIKey,
-		si:     ac.SI,
-		http:   httpClient,
+		site:    ac.Cfg.UnifiSite,
+		apiKey:  ac.Cfg.UnifiAPIKey,
+		si:      ac.SI,
+		http:    httpClient,
+		baseURL: ac.Cfg.UnifiURL,
 	}
 
 	s.AddTool(
@@ -203,7 +267,11 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 			mcp.WithDescription("List all UniFi network devices (UDM, switches, APs) with model, state, IP, MAC, firmware version, uptime, and connected client count."),
 		),
 		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			devices, err := conn.c.ListDevice(ctx, conn.site)
+			api, err := conn.api(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			devices, err := api.ListDevice(ctx, conn.site)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -257,7 +325,11 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 				return mcp.NewToolResultError("provide name or mac"), nil
 			}
 
-			devices, err := conn.c.ListDevice(ctx, conn.site)
+			api, err := conn.api(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			devices, err := api.ListDevice(ctx, conn.site)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -470,7 +542,11 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 			mcp.WithDescription("List all configured UniFi networks/VLANs: name, VLAN ID, subnet, purpose, DHCP state."),
 		),
 		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			networks, err := conn.c.ListNetwork(ctx, conn.site)
+			api, err := conn.api(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			networks, err := api.ListNetwork(ctx, conn.site)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -510,7 +586,11 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 			mcp.WithDescription("List all UniFi port forward rules: name, protocol, WAN port, forward IP/port, enabled state."),
 		),
 		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			fwds, err := conn.c.ListPortForward(ctx, conn.site)
+			api, err := conn.api(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			fwds, err := api.ListPortForward(ctx, conn.site)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -546,7 +626,11 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 			mcp.WithDescription("List all UniFi WiFi networks (SSIDs): name, enabled, security, bands, network association, guest status."),
 		),
 		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			wlans, err := conn.c.ListWLAN(ctx, conn.site)
+			api, err := conn.api(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			wlans, err := api.ListWLAN(ctx, conn.site)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -582,7 +666,11 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 			mcp.WithDescription("List all UniFi firewall policies: name, action, source, destination, enabled state."),
 		),
 		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			policies, err := conn.c.ListFirewallPolicy(ctx, conn.site)
+			api, err := conn.api(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			policies, err := api.ListFirewallPolicy(ctx, conn.site)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -612,7 +700,11 @@ func RegisterUnifiTools(s *server.MCPServer, ac *app.AppContext) {
 			mcp.WithDescription("List all UniFi switch port profiles: name, native VLAN, forward mode, isolation, PoE enabled."),
 		),
 		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			profiles, err := conn.c.ListPortProfile(ctx, conn.site)
+			api, err := conn.api(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			profiles, err := api.ListPortProfile(ctx, conn.site)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}

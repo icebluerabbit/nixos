@@ -14,7 +14,12 @@
     ];
 
     homeManager =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       {
         home.sessionVariables.TERMINAL = "kitty";
 
@@ -27,7 +32,11 @@
 
           settings = {
             window_padding_width = 16;
-            hide_window_decorations = "yes";
+            # niri draws its own borders and has no titlebars to begin with,
+            # so the desktop hides the lot. On macOS `yes` takes the traffic
+            # lights with the titlebar, leaving no way to close, move or
+            # resize a window by mouse — there the native decorations stay.
+            hide_window_decorations = if pkgs.stdenv.hostPlatform.isDarwin then "no" else "yes";
             confirm_os_window_close = 0;
             enable_audio_bell = "no";
             scrollback_lines = 10000;
@@ -37,7 +46,14 @@
             # Notify when a command that ran for 10s or more finishes in a
             # window that isn't focused. Rides on the shell integration
             # home-manager already enables.
-            notify_on_cmd_finish = "unfocused 10.0";
+            #
+            # Linux only: nixpkgs' darwin kitty is built against the glib
+            # notification backend rather than the native macOS one, so every
+            # attempt dies with "Cannot spawn a message bus without a
+            # machine-id" — there is no dbus to spawn. The failure surfaces
+            # through whatever drove the window, which made it look like a
+            # Claude Code Stop hook error.
+            notify_on_cmd_finish = lib.mkIf pkgs.stdenv.hostPlatform.isLinux "unfocused 10.0";
             # ctrl+shift+h opens the scrollback here instead of in less.
             # This invocation is kitty's own for neovim 0.12+: it opens the
             # buffer as a terminal so the ANSI colours survive, and maps q
@@ -78,7 +94,16 @@
             # socket; see hooks/kitty-tab.sh. socket-only keeps the control
             # channel off the terminal's own escape-code stream.
             allow_remote_control = "socket-only";
-            listen_on = "unix:@kitty-{kitty_pid}";
+            # The @ prefix is Linux's abstract socket namespace, which macOS
+            # has no equivalent for — kitty there rejects the whole address
+            # ("Invalid listen_on=..., ignoring") and remote control, so the
+            # tab tint above, silently stops working. A path under /tmp is
+            # the portable form.
+            listen_on =
+              if pkgs.stdenv.hostPlatform.isDarwin then
+                "unix:/tmp/kitty-{kitty_pid}"
+              else
+                "unix:@kitty-{kitty_pid}";
 
             # How long a ctrl+a chord stays open.
             map_timeout = "2.0";

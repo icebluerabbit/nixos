@@ -53,7 +53,7 @@
               treefmt-check = {
                 enable = true;
                 name = "treefmt";
-                description = "Format Nix, Python, Go, shell and markdown using the project formatter";
+                description = "Format Nix, Python, Go, shell, Lua and markdown using the project formatter";
                 entry =
                   if config ? treefmt then
                     "${config.treefmt.build.wrapper}/bin/treefmt"

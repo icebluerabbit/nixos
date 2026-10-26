@@ -26,6 +26,11 @@ indent_size = 2
 indent_style = space
 indent_size = 4
 
+# StyLua does not read this file; keep in sync with stylua.toml at the root.
+[*.lua]
+indent_style = space
+indent_size = 2
+
 [*.go]
 indent_style = tab
 indent_size = 4

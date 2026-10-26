@@ -19,7 +19,18 @@ _: {
         programs.git = {
           enable = true;
           settings = {
-            credential."https://github.com".helper = "${github-helper}";
+            # The empty first entry is load-bearing: git accumulates
+            # credential.helper across config scopes, and an empty value
+            # resets the list built up so far. nixpkgs' git on darwin ships
+            # `credential.helper = osxkeychain` in its own /etc/gitconfig,
+            # which is system scope and therefore read first — a stale
+            # keychain entry answered for github.com and the push was
+            # rejected as the wrong account, without this helper ever being
+            # consulted. Linux git has no such entry, so only darwin saw it.
+            credential."https://github.com".helper = [
+              ""
+              "${github-helper}"
+            ];
           };
         };
 

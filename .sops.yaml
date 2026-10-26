@@ -3,6 +3,7 @@ keys:
   - &root age16jvtj3xjat4vydtvd0kmyn89c3xg03m95xfgdwtr4ezgeuzrksssfqma6m
   - &desktop age1t6qz6cvxfup36ahx9fzdv0ge0ky23xcz56w0ps978cf8cmy2u3zq2twftg
   - &server age126u89788ekufmnznddpc5yh3x4sgcf7aca9s8ysw40qy2ytm09qqkqdscf
+  - &laptop age100lkpnqeaknzj0jgcq6pzsv35vd6uztqcdgrxq2euwy0sttmm55sfmnyf6
   - &zms age107epys6xga5rtz3errawesumftsecvuq4ppvshhcf6yn0pwkhdms40yrnc
 
 creation_rules:
@@ -12,6 +13,7 @@ creation_rules:
           - *root
           - *desktop
           - *server
+          - *laptop
   - path_regex: secrets/user-secrets\.yaml$
     key_groups:
       - age:

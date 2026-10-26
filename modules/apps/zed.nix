@@ -34,10 +34,17 @@
             "jetbrains-new-ui-icons"
           ];
           userSettings = {
-            trusted_directories = [
-              "/etc/nixos"
-              "/src"
-            ];
+            # Where this repo and the scratch tree live, which differs by
+            # platform: the Linux hosts bind-mount them at the top level,
+            # the Mac keeps a plain checkout under $HOME.
+            trusted_directories =
+              if pkgs.stdenv.hostPlatform.isDarwin then
+                [ "${config.home.homeDirectory}/Projects" ]
+              else
+                [
+                  "/etc/nixos"
+                  "/src"
+                ];
             telemetry = {
               diagnostics = false;
               metrics = false;

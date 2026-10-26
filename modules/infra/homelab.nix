@@ -24,6 +24,8 @@
 
       den.aspects.infra._.vpns._.one-click-vpn
 
+      den.aspects.infra._.dns._.udm-records
+
       den.aspects.infra._.ports._.ap-trunk
       den.aspects.infra._.ports._.gateway-trunk
       den.aspects.infra._.ports._.living-room-trunk

@@ -34,6 +34,27 @@
         };
       };
 
+    darwin =
+      { pkgs, ... }:
+      {
+        imports = [ inputs.sops-nix.darwinModules.sops ];
+
+        environment.systemPackages = [
+          pkgs.sops
+          pkgs.age
+        ];
+
+        sops = {
+          defaultSopsFile = inputs.self + "/secrets/host-secrets.yaml";
+          age.keyFile = "/var/lib/sops-nix/key.txt";
+          age.generateKey = true;
+          validateSopsFiles = true;
+          secrets = {
+            fake-password = { };
+          };
+        };
+      };
+
     homeManager =
       { config, ... }:
       {

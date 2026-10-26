@@ -14,6 +14,8 @@
               `just go-lint`, configured in packages/go/.golangci.yml,
               because it needs the module graph rather than a file list.
     shell     shfmt + shellcheck
+    lua       stylua (config: ../stylua.toml, auto-discovered rather than
+              passed, so conform-nvim and a bare `stylua` agree with the hook)
     markdown  prettier, restricted to *.md — it is the only markdown formatter
               here that preserves YAML frontmatter, which the skills under
               modules/cli/claude/skills depend on. Left unrestricted it would
@@ -46,6 +48,7 @@
             gofmt.enable = true;
             shfmt.enable = true;
             shellcheck.enable = true;
+            stylua.enable = true;
             prettier.enable = true;
           };
           settings = {

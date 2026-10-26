@@ -60,6 +60,10 @@
       };
     };
     import-tree.url = "github:denful/import-tree";
+    mac-app-util = {
+      url = "github:hraban/mac-app-util";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     matt-pocock-skills = {
       url = "github:mattpocock/skills";
       flake = false;

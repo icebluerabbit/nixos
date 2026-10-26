@@ -80,20 +80,20 @@
       let
         skills = ./skills;
         hooks = ./hooks;
+        # notify-send only exists on Linux; both scripts fall back to
+        # osascript on darwin, which ships with the OS.
+        notifyInputs = [
+          pkgs.jq
+        ]
+        ++ lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.libnotify;
         notificationHook = pkgs.writeShellApplication {
           name = "claude-notification";
-          runtimeInputs = [
-            pkgs.jq
-            pkgs.libnotify
-          ];
+          runtimeInputs = notifyInputs;
           text = builtins.readFile "${hooks}/notification.sh";
         };
         stopHook = pkgs.writeShellApplication {
           name = "claude-stop";
-          runtimeInputs = [
-            pkgs.jq
-            pkgs.libnotify
-          ];
+          runtimeInputs = notifyInputs;
           text = builtins.readFile "${hooks}/stop.sh";
         };
         # Tints the session's kitty tab; a no-op outside kitty.

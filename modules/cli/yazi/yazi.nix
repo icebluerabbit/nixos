@@ -15,6 +15,10 @@
         pkgs,
         ...
       }:
+      let
+        # glibc carries iconv on Linux; darwin has no glibc, so use libiconv.
+        iconv = if pkgs.stdenv.hostPlatform.isLinux then pkgs.glibc.bin else pkgs.libiconv;
+      in
       {
         # Yazi shells out for anything it cannot decode itself: video
         # thumbnails, the image formats outside the Rust image crate
@@ -41,31 +45,33 @@
               show_symlink = true;
               show_hidden = true;
             };
-            keymap.mgr.prepend_keymap = [
-              {
+            # wl-clipboard drives wl-copy, which only exists under Wayland.
+            keymap.mgr.prepend_keymap =
+              lib.optional pkgs.stdenv.hostPlatform.isLinux {
                 on = "<C-y>";
                 run = [ "plugin wl-clipboard" ];
                 desc = "Copy file (or contents) to clipboard";
               }
-              {
-                on = "<C-d>";
-                run = [ "plugin diff" ];
-                desc = "Diff the selected with the hovered file";
-              }
-              {
-                on = [
-                  "c"
-                  "m"
-                ];
-                run = [ "plugin chmod" ];
-                desc = "Chmod on selected files";
-              }
-              {
-                on = "l";
-                run = [ "plugin smart-enter" ];
-                desc = "Enter the child directory, or open the file";
-              }
-            ];
+              ++ [
+                {
+                  on = "<C-d>";
+                  run = [ "plugin diff" ];
+                  desc = "Diff the selected with the hovered file";
+                }
+                {
+                  on = [
+                    "c"
+                    "m"
+                  ];
+                  run = [ "plugin chmod" ];
+                  desc = "Chmod on selected files";
+                }
+                {
+                  on = "l";
+                  run = [ "plugin smart-enter" ];
+                  desc = "Enter the child directory, or open the file";
+                }
+              ];
             plugin = {
               prepend_previewers = [
                 {
@@ -90,7 +96,7 @@
                 # on the way in.
                 {
                   url = "*.nfo";
-                  run = ''piper -- ${lib.getExe' pkgs.glibc.bin "iconv"} -f CP437 -t UTF-8 "$1"'';
+                  run = ''piper -- ${lib.getExe' iconv "iconv"} -f CP437 -t UTF-8 "$1"'';
                 }
                 # Thumbnail plus codec/bitrate/stream metadata, in place of
                 # yazi's own video and audio previewers. Images are left on
@@ -137,12 +143,14 @@
               chmod
               compress
               rich-preview
-              wl-clipboard
               piper
               mediainfo
               full-border
               smart-enter
               ;
+          }
+          // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            inherit (pkgs.yaziPlugins) wl-clipboard;
           };
         };
       };

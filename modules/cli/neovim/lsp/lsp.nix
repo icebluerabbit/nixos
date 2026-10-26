@@ -11,6 +11,8 @@
       den.aspects.cli._.neovim._.lsp._.servers._.lua
       den.aspects.cli._.neovim._.lsp._.servers._.markdown
       den.aspects.cli._.neovim._.lsp._.servers._.nix
+      den.aspects.cli._.neovim._.lsp._.servers._.python
+      den.aspects.cli._.neovim._.lsp._.servers._.typescript
       den.aspects.cli._.neovim._.lsp._.servers._.yaml
     ];
 
