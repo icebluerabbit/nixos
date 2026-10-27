@@ -8,12 +8,15 @@
       den.aspects.infra._.clients._.container-autobrr
       den.aspects.infra._.clients._.container-cross-seed
       den.aspects.infra._.clients._.container-mousetrap
+      den.aspects.infra._.clients._.container-qbittorrent
+      den.aspects.infra._.clients._.container-seasonpackarr
       den.aspects.infra._.clients._.container-sonarr
       den.aspects.infra._.clients._.container-radarr
       den.aspects.infra._.clients._.container-lidarr
       den.aspects.infra._.clients._.container-home-assistant
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.networks._.media
       den.aspects.hosts._.server._.security
       den.aspects.hosts._.server._.networking._.vlans._.media
@@ -30,6 +33,10 @@
       in
       {
         containerConfigs.autobrr = {
+          # Where managarr-autobrr relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
           lldpd.enable = true;
           hostBridge = "br-media";
           macAddress = config.infra.clients.container-autobrr.mac;
@@ -52,32 +59,45 @@
                 (import ./download-clients/_sonarr.nix { inherit config; })
                 (import ./download-clients/_radarr.nix { inherit config; })
                 (import ./download-clients/_lidarr.nix { inherit config; })
+                (import ./download-clients/_qbittorrent.nix { inherit config; })
               ];
               indexers = [
                 (import ./indexers/_pretome.nix { inherit config; })
                 (import ./indexers/_torrentleech.nix { inherit config; })
                 (import ./indexers/_myanonamouse.nix { inherit config; })
-                (import ./indexers/_digitalcore.nix { inherit config; })
                 (import ./indexers/_retrotoon.nix { inherit config; })
+                (import ./indexers/_darkpeers.nix { inherit config; })
+                (import ./indexers/_yuscene.nix { inherit config; })
+                (import ./indexers/_seedpool.nix { inherit config; })
               ];
               irc_networks = [
                 (import ./irc-networks/_pretome.nix { inherit config; })
                 (import ./irc-networks/_torrentleech.nix { inherit config; })
                 (import ./irc-networks/_myanonamouse.nix { inherit config; })
-                (import ./irc-networks/_digitalcore.nix { inherit config; })
                 (import ./irc-networks/_retrotoon.nix { inherit config; })
+                (import ./irc-networks/_darkpeers.nix { inherit config; })
+                (import ./irc-networks/_yuscene.nix { inherit config; })
+                (import ./irc-networks/_seedpool.nix { inherit config; })
               ];
               filters = [
+                # Priority 100 — must be evaluated before every TV filter below.
+                (import ./filters/_seasonpackarr.nix { inherit config; })
                 (import ./filters/_torrentleech-tv.nix { inherit config; })
                 (import ./filters/_torrentleech-movies.nix { inherit config; })
                 (import ./filters/_torrentleech-music.nix { inherit config; })
                 (import ./filters/_mam.nix { inherit config; })
-                (import ./filters/_digitalcore-tv.nix { inherit config; })
-                (import ./filters/_digitalcore-movies.nix { inherit config; })
                 (import ./filters/_retrotoon.nix { inherit config; })
                 (import ./filters/_pretome-tv.nix { inherit config; })
                 (import ./filters/_pretome-movies.nix { inherit config; })
                 (import ./filters/_pretome-music.nix { inherit config; })
+                (import ./filters/_darkpeers-tv.nix { inherit config; })
+                (import ./filters/_darkpeers-movies.nix { inherit config; })
+                (import ./filters/_darkpeers-music.nix { inherit config; })
+                (import ./filters/_yuscene-tv.nix { inherit config; })
+                (import ./filters/_yuscene-movies.nix { inherit config; })
+                (import ./filters/_yuscene-music.nix { inherit config; })
+                (import ./filters/_seedpool-tv.nix { inherit config; })
+                (import ./filters/_seedpool-movies.nix { inherit config; })
               ];
               notifications = [
                 (import ./notifications/_home-assistant.nix { inherit config; })
@@ -109,6 +129,7 @@
             prometheusInputs = [
               "autobrr_release_stats_metrics"
               "autobrr_irc_metrics"
+              "managarr_autobrr"
             ];
             extraSettings =
               lib.recursiveUpdate
@@ -116,6 +137,17 @@
                   inherit port;
                 })
                 {
+                  # The managarr-autobrr sidecar in this container. Its
+                  # collectors sit on the loopback: the framework serves
+                  # /metrics on a separate address from the contract routes, so
+                  # the sidecar's own port answers /healthz and /changes but
+                  # never this.
+                  sources.managarr_autobrr = {
+                    type = "prometheus_scrape";
+                    endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                    scrape_interval_secs = 30;
+                  };
+
                   # autobrr's WEBHOOK notification POSTs here on loopback; the sidecar
                   # republishes verbatim to MQTT so HA consumes via an mqtt trigger
                   # instead of a direct webhook — no notify-time dependency on HA.

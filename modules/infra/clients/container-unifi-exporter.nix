@@ -1,8 +1,18 @@
 # modules/infra/clients/container-unifi-exporter.nix
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "UniFi Exporter Container";
-  mac = "62:f5:a4:5b:20:97";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-unifi-exporter";
+    resourceName = "container_unifi_exporter";
+    name = "UniFi Exporter Container";
+    mac = "62:f5:a4:5b:20:97";
+    vlan = "services";
+    kind = "virtual";
+    ports = {
+      default = 9130;
+      syslog = 5140;
+    };
+  };
 in
 {
   den.aspects.infra._.clients._.container-unifi-exporter = {
@@ -10,47 +20,11 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.services
     ];
 
-    os =
-      { config, ... }:
-      {
-        infra.clients.container-unifi-exporter = {
-          inherit name mac;
-          ip = config.infra.vlans.services.staticAddresses.unifi-exporter;
-          ports = {
-            default = 9130;
-            syslog = 5140;
-          };
-        };
-      };
-
+    os = { config, ... }: client.mkOs config.infra.vlans.services.staticAddresses.unifi-exporter;
     terranix =
-      { config, ... }:
-      {
-        infra.clients.container-unifi-exporter = {
-          inherit name mac;
-          ip = config.infra.vlans.services.staticAddresses.unifi-exporter;
-          ports = {
-            default = 9130;
-            syslog = 5140;
-          };
-        };
-
-        resource.unifi_client.container_unifi_exporter = {
-          inherit mac name;
-          fixed_ip = config.infra.vlans.services.staticAddresses.unifi-exporter;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_unifi_exporter";
-            id = mac;
-          }
-        ];
-      };
+      { config, ... }: client.mkTerranix config.infra.vlans.services.staticAddresses.unifi-exporter;
   };
 }

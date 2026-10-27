@@ -5,7 +5,8 @@
 { config, ... }:
 {
   name = "PreToMe TV";
-  enabled = true;
+  # Disabled — see indexers/_pretome.nix.
+  enabled = false;
   match_categories = "TV*";
   indexers = [ { id = "\${ref.indexer.PreToMe}"; } ];
   actions = [
@@ -16,5 +17,6 @@
       client_id = "\${ref.download_client.Sonarr}";
     }
     (import ./_cross-seed-action.nix { inherit config; })
+    (import ./_managarr-action.nix { inherit config; })
   ];
 }

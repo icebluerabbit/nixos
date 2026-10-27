@@ -18,6 +18,13 @@ result-*
 __pycache__/
 *.pyc
 
+# Formatter/linter caches
+.ruff_cache/
+
+# Nix's own cache dir, created here when a tool runs with HOME set to the
+# repo. Its sentry crash-report payloads were getting staged.
+.cache/
+
 # Backup and temp files
 *~
 *.swp

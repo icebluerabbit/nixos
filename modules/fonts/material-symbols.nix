@@ -5,7 +5,10 @@
 _: {
   den.aspects.fonts._.material-symbols = {
     aspect-name = "fonts.material-symbols";
-    nixos =
+    # `os` forwards into both nixos and darwin; its route policy fires in
+    # user scopes too, so reaching this from a user aspect still lands in
+    # the host's system-level fonts.packages.
+    os =
       { pkgs, ... }:
       {
         fonts.packages = [

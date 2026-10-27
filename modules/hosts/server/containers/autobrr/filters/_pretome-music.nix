@@ -9,7 +9,8 @@
 { config, ... }:
 {
   name = "PreToMe Music";
-  enabled = true;
+  # Disabled — see indexers/_pretome.nix.
+  enabled = false;
   match_categories = "Music*";
   indexers = [ { id = "\${ref.indexer.PreToMe}"; } ];
   actions = [
@@ -20,5 +21,6 @@
       client_id = "\${ref.download_client.Lidarr}";
     }
     (import ./_cross-seed-action.nix { inherit config; })
+    (import ./_managarr-action.nix { inherit config; })
   ];
 }

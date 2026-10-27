@@ -8,9 +8,17 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         hostConfig = config;
+        # Resolved from host pkgs so the homelab overlay is in scope; the store
+        # path pulls into the container closure via ExecStart.
+        seedExe = lib.getExe pkgs.homelab.thelounge-seed;
       in
       {
         options.containerConfigs.thelounge =
@@ -30,11 +38,6 @@ _: {
               type = lib.types.nullOr lib.types.str;
               default = null;
               description = "LDAP base DN for simple-bind user lookup (e.g. ou=people,dc=homelab)";
-            };
-            seedScript = lib.mkOption {
-              type = lib.types.nullOr lib.types.path;
-              default = null;
-              description = "Path to the Python network-seed script (run in the container)";
             };
             seedUsers = lib.mkOption {
               type = lib.types.listOf (
@@ -77,6 +80,26 @@ _: {
                               type = lib.types.nullOr lib.types.str;
                               default = null;
                               description = "In-container path to a file holding the IRC server password (sops secret); null = none";
+                            };
+                            sasl = lib.mkOption {
+                              type = lib.types.nullOr (
+                                lib.types.enum [
+                                  "plain"
+                                  "external"
+                                ]
+                              );
+                              default = null;
+                              description = "SASL mechanism; null = no SASL";
+                            };
+                            saslAccountPath = lib.mkOption {
+                              type = lib.types.nullOr lib.types.str;
+                              default = null;
+                              description = "In-container path to a file holding the SASL account (sops secret)";
+                            };
+                            saslPasswordPath = lib.mkOption {
+                              type = lib.types.nullOr lib.types.str;
+                              default = null;
+                              description = "In-container path to a file holding the SASL password (sops secret)";
                             };
                             channels = lib.mkOption {
                               type = lib.types.listOf lib.types.str;
@@ -181,7 +204,7 @@ _: {
                   };
                   users.groups.thelounge.gid = lib.mkForce cfg.gid;
 
-                  systemd.services.thelounge-seed = lib.mkIf (cfg.seedUsers != [ ] && cfg.seedScript != null) {
+                  systemd.services.thelounge-seed = lib.mkIf (cfg.seedUsers != [ ]) {
                     description = "Seed thelounge per-user IRC networks (merge .networks)";
                     before = [ "thelounge.service" ];
                     wantedBy = [ "multi-user.target" ];
@@ -191,7 +214,7 @@ _: {
                       User = config.users.users.thelounge.name;
                       Group = config.users.groups.thelounge.name;
                       Environment = "THELOUNGE_SEED_FILE=${pkgs.writeText "thelounge-seed.json" (builtins.toJSON cfg.seedUsers)}";
-                      ExecStart = "${pkgs.python3}/bin/python3 ${cfg.seedScript}";
+                      ExecStart = seedExe;
                     };
                   };
                 };

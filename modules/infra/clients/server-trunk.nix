@@ -1,9 +1,14 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Server Trunk";
-  mac = "62:f5:a4:5b:20:b1";
-  ip = null;
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "server-trunk";
+    resourceName = "server_trunk";
+    name = "Server Trunk";
+    mac = "62:f5:a4:5b:20:b1";
+    kind = "virtual";
+    portProfile = "server-trunk";
+  };
 in
 {
   den.aspects.infra._.clients._.server-trunk = {
@@ -11,34 +16,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
-
+      den.aspects.infra._.ports._.server-trunk
     ];
 
-    os = _: {
-      infra.clients.server-trunk = {
-        inherit
-          name
-          mac
-          ip
-          ;
-      };
-    };
-
-    terranix = {
-      resource.unifi_client.server_trunk = {
-        inherit mac name;
-        allow_existing = true;
-        blocked = false;
-        site = "default";
-        skip_forget_on_destroy = false;
-      };
-
-      import = [
-        {
-          to = "unifi_client.server_trunk";
-          id = mac;
-        }
-      ];
-    };
+    os = _: client.mkOs null;
+    terranix = _: client.mkTerranix null;
   };
 }

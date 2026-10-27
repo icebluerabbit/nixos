@@ -8,8 +8,18 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
+        # Resolved in the HOST's package set. pkgs inside a container
+        # body is the container's own and carries no overlays, so
+        # pkgs.homelab there fails with "attribute 'homelab' missing".
+        # The store path is what crosses the boundary.
+        managarrSidecarExe = lib.getExe pkgs.homelab.managarr-qbittorrent;
         # ── [BitTorrent] section — maps to Session\* conf keys ──
         bitTorrentSubmodule = lib.types.submodule {
           options = {
@@ -84,6 +94,16 @@ _: {
               type = lib.types.bool;
               default = false;
               description = "Session\\CoalesceReadWrite — batch disk I/O";
+            };
+            pieceExtentAffinity = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Session\\PieceExtentAffinity — bias the piece picker toward pieces in the same file extent, so concurrent peers pull from a narrow region of the file instead of spreading seeks across the whole torrent";
+            };
+            suggestMode = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Session\\SuggestMode — send SUGGEST messages naming pieces already in cache so peers request those first. libtorrent maps this to suggest_read_cache, which needs a disk backend that tracks cached pieces";
             };
             chokingAlgorithm = lib.mkOption {
               type = lib.types.enum [
@@ -163,6 +183,34 @@ _: {
               type = lib.types.int;
               default = 30;
               description = "Session\\SocketBacklogSize — inbound listen backlog";
+            };
+            multiConnectionsPerIp = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Session\\MultiConnectionsPerIp — allow more than one peer connection from a single IP (peers behind shared NAT, or several clients on one seedbox)";
+            };
+
+            # ── peer turnover — libtorrent's periodic peer churn ──
+            # Fires when total connections reach maxConnections * cutoff%, or (failing
+            # that) when a single torrent reaches maxConnectionsPerTorrent * cutoff%.
+            # Which peers get dropped is NOT tunable: compare_disconnect_peer ranks on
+            # is_interesting / is_seed / payload DOWNLOAD rate, all of which are
+            # degenerate or inverted on a completed torrent, and it never looks at
+            # upload rate. These three only control how often and how many.
+            peerTurnover = lib.mkOption {
+              type = lib.types.int;
+              default = 4;
+              description = "Session\\PeerTurnover — % of a torrent's peers to disconnect per pass. Note 0 does NOT disable it: libtorrent floors the count at 1 peer (max(n * pct / 100, 1)), capped by the number of connect candidates";
+            };
+            peerTurnoverCutOff = lib.mkOption {
+              type = lib.types.int;
+              default = 90;
+              description = "Session\\PeerTurnoverCutOff — only churn once connections reach this % of the limit; 100 = only at the limit itself";
+            };
+            peerTurnoverInterval = lib.mkOption {
+              type = lib.types.int;
+              default = 300;
+              description = "Session\\PeerTurnoverInterval — seconds between churn passes";
             };
 
             # ── protocol ──
@@ -290,10 +338,20 @@ _: {
                     default = "/run/secrets/mam-vpn-id";
                     description = "In-container path to the mam_id seed cookie (sops, bind-mounted)";
                   };
-                  floorSeconds = lib.mkOption {
+                  requireStable = lib.mkOption {
+                    type = lib.types.bool;
+                    default = true;
+                    description = "Spend a MAM IP change only on a tunnel the broker reports `stable` (see vpn-gw stableAfterSeconds). MAM allows roughly one change an hour, so a tunnel that is itself failing over must not consume the budget";
+                  };
+                  backoffBaseSeconds = lib.mkOption {
+                    type = lib.types.int;
+                    default = 60;
+                    description = "First backoff after MAM answers `too recent`. There is no wait until MAM actually refuses — its real change interval is unpublished, so it is discovered rather than guessed";
+                  };
+                  backoffMaxSeconds = lib.mkOption {
                     type = lib.types.int;
                     default = 3600;
-                    description = "Min seconds between change attempts (MAM rate-limits changes to 1/hr)";
+                    description = "Ceiling on the change backoff ladder (doubles per refusal, jittered, resets on success). With the defaults this bounds retries at roughly 7 per hour";
                   };
                   refreshSeconds = lib.mkOption {
                     type = lib.types.int;
@@ -342,6 +400,16 @@ _: {
               default = "/mnt/media/watch";
               description = "Watch root (per-category subdirs) for the importer";
             };
+            watchReportUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                POST each watch-dir import here. A hand-dropped torrent is
+                otherwise indistinguishable from a cross-seed inject: both
+                reach the client with no grab in front of them. Empty
+                disables reporting.
+              '';
+            };
             categories = lib.mkOption {
               type = lib.types.attrsOf lib.types.str;
               default = { };
@@ -351,11 +419,6 @@ _: {
               type = lib.types.int;
               default = 10;
               description = "watch-dir poll cadence";
-            };
-            tagSyncIntervalSec = lib.mkOption {
-              type = lib.types.int;
-              default = 60;
-              description = "category->tag mirror cadence";
             };
             reannounceIntervalSec = lib.mkOption {
               type = lib.types.int;
@@ -406,26 +469,25 @@ _: {
                 Same %-substitutions as onTorrentFinished.
               '';
             };
-            qbitManage = {
-              enable = lib.mkOption {
-                type = lib.types.bool;
-                default = false;
-                description = "Run periodic qbit-manage passes driven by qbitManage.settings";
-              };
-              scheduleMinutes = lib.mkOption {
-                type = lib.types.int;
-                default = 1440;
-                description = "Minutes between qbit-manage runs";
-              };
-              settings = lib.mkOption {
-                type = lib.types.attrs;
-                default = { };
-                description = ''
-                  Full qbit-manage config.yml content (commands, qbt, directory,
-                  tracker, nohardlinks, …), rendered verbatim. The host override owns
-                  policy — e.g. keep every rem_*/share_limits command false for tag-only.
-                '';
-              };
+            apiPort = lib.mkOption {
+              type = lib.types.port;
+              default = 9910;
+              description = ''
+                Port for managarr-qbittorrent, the sidecar serving this service's
+                records to managarr.
+
+                9910 on every managarr-* sidecar. Each container has its own
+                IP, so one number is unambiguous everywhere and there is no
+                per-service arithmetic to get wrong.
+              '';
+            };
+            managarrUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                managarr base URL the sidecar relays events to; empty disables
+                relaying and leaves the read half working.
+              '';
             };
           };
 
@@ -435,6 +497,10 @@ _: {
               cfg = config.containerConfigs.qbittorrent;
               bt = cfg.bitTorrentConfig;
               pref = cfg.preferences;
+              # Resolved from host pkgs so the homelab overlay is in scope; the
+              # store paths pull into the container closure via ExecStart.
+              vpnClient = lib.getExe pkgs.homelab.vpn-broker-client-qbt;
+              qbtScripts = pkgs.homelab.qbt-scripts;
               # VPN tunnel pool — the client's OWN wiring (decoupled from vpn-gw). Each entry
               # is a p2p veth into br-vpnN with the routing bits for egress. The broker (on
               # vpn-gw) selects which tunnel to bind and hands its name back; the broker client
@@ -471,11 +537,6 @@ _: {
               config =
                 { pkgs, lib, ... }:
                 let
-                  # Rendered read-only into the store, then copied to a writable
-                  # config-dir at preStart so qbit-manage can write its logs beside it.
-                  # Content (commands/qbt/tracker/nohardlinks) comes entirely from the
-                  # host override via cfg.qbitManage.settings.
-                  qbmConfig = (pkgs.formats.yaml { }).generate "qbit-manage.yml" cfg.qbitManage.settings;
                   # Broker client config: broker URL + local WebUI + conf path + tunnel->veth map.
                   brokerClientCfg = pkgs.writeText "qbt-vpn-broker.json" (
                     builtins.toJSON {
@@ -491,14 +552,54 @@ _: {
                       mam = {
                         inherit (cfg.mam) enable endpoint;
                         seed_path = cfg.mam.seedSecretPath;
-                        floor_seconds = cfg.mam.floorSeconds;
                         refresh_seconds = cfg.mam.refreshSeconds;
+                        require_stable = cfg.mam.requireStable;
+                        backoff_base_seconds = cfg.mam.backoffBaseSeconds;
+                        backoff_max_seconds = cfg.mam.backoffMaxSeconds;
                       };
                     }
                   );
                 in
                 {
                   imports = [
+                    {
+                      networking.firewall.allowedTCPPorts = [ cfg.apiPort ];
+
+                      systemd.services.managarr-qbittorrent = {
+                        description = "Serve qBittorrent's state and completions to managarr";
+                        after = [ "qbittorrent.service" ];
+                        wantedBy = [ "multi-user.target" ];
+                        wants = [ "qbittorrent.service" ];
+
+                        script =
+                          "exec "
+                          + lib.concatStringsSep " " (
+                            [
+                              managarrSidecarExe
+                              "--addr :${toString cfg.apiPort}"
+                              "--metrics.addr 127.0.0.1:9909"
+                            ]
+                            ++ lib.optional (cfg.managarrUrl != "") "--managarr-url ${cfg.managarrUrl}"
+                            ++ [ "--upstream-url http://127.0.0.1:8080" ]
+                          );
+
+                        serviceConfig = {
+                          User = "qbittorrent";
+                          Group = "qbittorrent";
+                          Restart = "on-failure";
+                          RestartSec = 5;
+                          ProtectSystem = "strict";
+                          ProtectHome = true;
+                          PrivateDevices = true;
+                          PrivateTmp = true;
+                          NoNewPrivileges = true;
+                          RestrictAddressFamilies = [
+                            "AF_INET"
+                            "AF_INET6"
+                          ];
+                        };
+                      };
+                    }
                     (import ../_base.nix {
                       inherit lib cfg;
                       hasPort = false;
@@ -528,6 +629,8 @@ _: {
                         "Session\\CheckingMemUsageSize" = bt.checkingMemUsageSize;
                         "Session\\DiskQueueSize" = bt.diskQueueSize;
                         "Session\\CoalesceReadWrite" = bt.coalesceReadWrite;
+                        "Session\\PieceExtentAffinity" = bt.pieceExtentAffinity;
+                        "Session\\SuggestMode" = bt.suggestMode;
                         "Session\\ChokingAlgorithm" = bt.chokingAlgorithm;
                         "Session\\SeedChokingAlgorithm" = bt.seedChokingAlgorithm;
                         "Session\\QueueingSystemEnabled" = bt.queueingSystemEnabled;
@@ -550,6 +653,10 @@ _: {
                         "Session\\SendBufferWatermarkFactor" = bt.sendBufferWatermarkFactor;
                         "Session\\ConnectionSpeed" = bt.connectionSpeed;
                         "Session\\SocketBacklogSize" = bt.socketBacklogSize;
+                        "Session\\MultiConnectionsPerIp" = bt.multiConnectionsPerIp;
+                        "Session\\PeerTurnover" = bt.peerTurnover;
+                        "Session\\PeerTurnoverCutOff" = bt.peerTurnoverCutOff;
+                        "Session\\PeerTurnoverInterval" = bt.peerTurnoverInterval;
                         "Session\\DHTEnabled" = bt.dht;
                         "Session\\PeXEnabled" = bt.pex;
                         "Session\\LSDEnabled" = bt.lsd;
@@ -628,11 +735,9 @@ _: {
                       # network/vpn veth/broker isn't settled yet at boot; with the module
                       # default Restart=no it then stays dead forever. Restart=always retries
                       # until the environment settles (on-failure would NOT fire — the race
-                      # exit is 0). StartLimit turns a genuinely-broken config into a visible
-                      # failed unit instead of an infinite loop.
+                      # exit is 0).
                       qbittorrent = {
-                        startLimitIntervalSec = 300;
-                        startLimitBurst = 10;
+                        startLimitIntervalSec = 0;
                         serviceConfig = {
                           PrivateUsers = lib.mkForce false;
                           ReadWritePaths = [
@@ -643,7 +748,7 @@ _: {
                           Restart = "always";
                           RestartSec = "10s";
                           ExecStartPre = lib.mkAfter [
-                            "+${lib.getExe pkgs.python3} ${./vpn_broker_client.py} prestart ${brokerClientCfg}"
+                            "+${vpnClient} prestart ${brokerClientCfg}"
                           ];
                         };
                       };
@@ -660,7 +765,7 @@ _: {
                         path = lib.optionals cfg.mam.enable [ pkgs.curl ];
                         serviceConfig = {
                           Type = "oneshot";
-                          ExecStart = "${lib.getExe pkgs.python3} ${./vpn_broker_client.py} keepalive ${brokerClientCfg}";
+                          ExecStart = "${vpnClient} keepalive ${brokerClientCfg}";
                         };
                       };
 
@@ -672,11 +777,12 @@ _: {
                           Type = "oneshot";
                           User = "qbittorrent";
                           ExecStart =
-                            "${pkgs.python3}/bin/python3 ${./watch.py}"
+                            "${qbtScripts}/bin/qbt-watch"
                             + " --api http://127.0.0.1:${toString cfg.webuiPort}"
                             + " --watch-dir ${cfg.watchDir}"
                             + " --backup-dir ${bt.finishedTorrentExportDirectory}"
-                            + " --categories ${lib.concatStringsSep "," (lib.attrNames cfg.categories)}";
+                            + " --categories ${lib.concatStringsSep "," (lib.attrNames cfg.categories)}"
+                            + lib.optionalString (cfg.watchReportUrl != "") " --report-url ${cfg.watchReportUrl}";
                         };
                       };
 
@@ -687,36 +793,7 @@ _: {
                         serviceConfig = {
                           Type = "oneshot";
                           User = "qbittorrent";
-                          ExecStart = "${pkgs.python3}/bin/python3 ${./reannounce.py} --api http://127.0.0.1:${toString cfg.webuiPort}";
-                        };
-                      };
-
-                      # ── mirror category -> tag (Flood shows tags, not categories) ──
-                      qbt-tag-sync = {
-                        description = "qBittorrent category->tag mirror";
-                        after = [ "qbittorrent.service" ];
-                        serviceConfig = {
-                          Type = "oneshot";
-                          User = "qbittorrent";
-                          ExecStart = "${pkgs.python3}/bin/python3 ${./tag_sync.py} --api http://127.0.0.1:${toString cfg.webuiPort}";
-                        };
-                      };
-
-                      # ── qbit-manage maintenance pass (tag-only per host settings) ──
-                      # Config is read-only in the store; copy it into a writable config-dir
-                      # in the persistent profile so qbit-manage can write logs/ beside it.
-                      qbit-manage = lib.mkIf cfg.qbitManage.enable {
-                        description = "qbit-manage maintenance pass";
-                        after = [ "qbittorrent.service" ];
-                        preStart = ''
-                          ${pkgs.coreutils}/bin/install -d -m 0700 ${cfg.profileDir}/.qbit_manage/logs
-                          ${pkgs.coreutils}/bin/install -m 0600 ${qbmConfig} ${cfg.profileDir}/.qbit_manage/config.yml
-                        '';
-                        serviceConfig = {
-                          Type = "oneshot";
-                          User = "qbittorrent";
-                          Group = "qbittorrent";
-                          ExecStart = "${lib.getExe' pkgs.qbit-manage "qbit-manage"} --config-dir ${cfg.profileDir}/.qbit_manage --run";
+                          ExecStart = "${qbtScripts}/bin/qbt-reannounce --api http://127.0.0.1:${toString cfg.webuiPort}";
                         };
                       };
 
@@ -765,22 +842,6 @@ _: {
                         timerConfig = {
                           OnBootSec = "45s";
                           OnUnitActiveSec = "${toString cfg.reannounceIntervalSec}s";
-                          Persistent = false;
-                        };
-                      };
-                      qbt-tag-sync = {
-                        wantedBy = [ "timers.target" ];
-                        timerConfig = {
-                          OnBootSec = "35s";
-                          OnUnitActiveSec = "${toString cfg.tagSyncIntervalSec}s";
-                          Persistent = false;
-                        };
-                      };
-                      qbit-manage = lib.mkIf cfg.qbitManage.enable {
-                        wantedBy = [ "timers.target" ];
-                        timerConfig = {
-                          OnBootSec = "5m";
-                          OnUnitActiveSec = "${toString cfg.qbitManage.scheduleMinutes}m";
                           Persistent = false;
                         };
                       };

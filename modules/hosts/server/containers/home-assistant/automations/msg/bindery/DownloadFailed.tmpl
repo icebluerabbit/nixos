@@ -1,0 +1,8 @@
+{% set p = trigger.payload_json %}❌ <b>Bindery · download failed</b>
+<b>{{ p.item | default('—') }}</b>
+<ul>
+<li><b>Reason:</b> {{ p.message | default('—') }}</li>
+<li><b>Status:</b> <code>{{ p.status | default('—') }}</code></li>
+<li><b>Client:</b> <code>{{ p.clientId | default('—') }}</code></li>
+</ul>
+<i>A held mousetrap grab answers 404 by design; routine holds surface here.</i>

@@ -1,8 +1,15 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Mousetrap Container";
-  mac = "62:f5:a4:5b:20:8a";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-mousetrap";
+    resourceName = "container_mousetrap";
+    name = "Mousetrap Container";
+    mac = "62:f5:a4:5b:20:8a";
+    vlan = "media";
+    kind = "virtual";
+    ports.default = 8080;
+  };
 in
 {
   den.aspects.infra._.clients._.container-mousetrap = {
@@ -10,59 +17,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.media
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.media.staticAddresses.mousetrap;
-      in
-      {
-        infra.clients.container-mousetrap = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 8080;
-          };
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.media.staticAddresses.mousetrap;
-      in
-      {
-        infra.clients.container-mousetrap = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 8080;
-          };
-        };
-
-        resource.unifi_client.container_mousetrap = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        # Uncomment AFTER the first `just infra-apply-homelab` registers the client:
-        # import = [
-        #   {
-        #     to = "unifi_client.container_mousetrap";
-        #     id = mac;
-        #   }
-        # ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.media.staticAddresses.mousetrap;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.media.staticAddresses.mousetrap;
   };
 }

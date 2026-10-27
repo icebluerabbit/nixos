@@ -7,6 +7,7 @@
       den.aspects.containers._.unpackerr
       den.aspects.infra._.clients._.container-unpackerr
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.networks._.media
       den.aspects.infra._.clients._.container-radarr
       den.aspects.infra._.clients._.container-sonarr
@@ -22,6 +23,10 @@
       { config, ... }:
       {
         containerConfigs.unpackerr = {
+          # Where managarr-unpackerr relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
 
           lldpd.enable = true;
           hostBridge = "br-media";
@@ -71,6 +76,21 @@
                 protocols = "torrent";
               }
             ];
+            # managarr recorder. unpackerr is the only thing that knows an
+            # archive was extracted, and extraction is exactly where the
+            # download-side files stop matching what the *arr imports — the
+            # extracted file is a new inode, so no hardlink ever ties the two
+            # together. Recording the event is how that gets modelled from a
+            # fact rather than re-derived from link counts.
+            webhook = [
+              {
+                url = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}/hook/unpackerr";
+                name = "managarr";
+                # Every event type, and the full payload rather than the
+                # trimmed one — this is a corpus, not a notification.
+                silent = false;
+              }
+            ];
             # Built-in Prometheus metrics endpoint (scraped by the Vector sidecar).
             webserver = {
               metrics = true;
@@ -87,12 +107,22 @@
               "unpackerr_metrics"
               "unpackerr_queue_metrics"
               "unpackerr_import_metrics"
+              "managarr_unpackerr"
             ];
             # ~1400 identical queue heartbeats/day — the numbers already live in
             # unpackerr_queue_metrics, which reads the raw journal source and so is
             # unaffected by this Loki-side drop.
             journalDropPatterns = [ "\\[Unpackerr\\] Queue: [0-9]+ waiting" ];
             extraSettings = {
+              # The managarr-* sidecar in this container. Its collectors sit
+              # on the loopback: the framework serves /metrics on a separate
+              # address from the contract routes, so the sidecar's own port
+              # answers /healthz and /changes but never this.
+              sources.managarr_unpackerr = {
+                type = "prometheus_scrape";
+                endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                scrape_interval_secs = 30;
+              };
               # unpackerr's native Prometheus endpoint → extract/import/failed counts.
               sources.unpackerr_metrics = {
                 type = "prometheus_scrape";

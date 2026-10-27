@@ -56,11 +56,11 @@ repo.
 The container is ephemeral. On restart the root filesystem is rebuilt from the
 declarative config, and anything written outside these two paths is gone:
 
-| Path | Survives | Notes |
-|:---|:---|:---|
-| `/var/lib/workspace` | yes | project checkouts; shared with the code-server IDE and the host user |
-| `/home/opencode` | yes | your config, credentials, session state |
-| everything else | **no** | `/tmp`, `/etc`, `/var`, anything installed |
+| Path                 | Survives | Notes                                                                |
+| :------------------- | :------- | :------------------------------------------------------------------- |
+| `/var/lib/workspace` | yes      | project checkouts; shared with the code-server IDE and the host user |
+| `/home/opencode`     | yes      | your config, credentials, session state                              |
+| everything else      | **no**   | `/tmp`, `/etc`, `/var`, anything installed                           |
 
 Scratch files in `/tmp` are fine and self-cleaning. Real work belongs in
 `/var/lib/workspace`, and anything you would be sorry to lose should be committed

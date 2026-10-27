@@ -1,12 +1,13 @@
 # Vector logging extras for qbittorrent: the martabal exporter scrape and the per-peer
-# choke/interest aggregator (exporter.py → exec → log_to_metric). VPN exit-IP/forwarded-port
-# metrics now come from the vpn-gw broker's /export, not a qbt journal line.
+# choke/interest aggregator (qbt-peer-exporter → exec → log_to_metric). VPN
+# exit-IP/forwarded-port metrics now come from the vpn-gw broker's /export, not a
+# qbt journal line.
 {
   exporterPort,
   webuiPort,
   pkgs,
-  lib,
   capN ? 200,
+  ...
 }:
 {
   prometheusInputs = [
@@ -22,7 +23,7 @@
       scrape_interval_secs = 30;
     };
     # Per-peer flags carry the choke/interest state the WebAPI global surface omits.
-    # No global peer list exists, so exporter.py loops /sync/torrentPeers over ACTIVE
+    # No global peer list exists, so qbt-peer-exporter loops /sync/torrentPeers over ACTIVE
     # torrents (top-upspeed capped at capN, wall-clock budgeted) and prints one JSON
     # line of aggregates. Cost is bound by active-torrent count, not library size.
     sources.qbt_peer_exec = {
@@ -30,14 +31,13 @@
       mode = "scheduled";
       scheduled.exec_interval_secs = 60;
       command = [
-        (lib.getExe pkgs.python3)
-        "${./exporter.py}"
+        "${pkgs.homelab.qbt-scripts}/bin/qbt-peer-exporter"
         "http://127.0.0.1:${toString webuiPort}"
         (toString capN)
       ];
     };
     transforms = {
-      # exporter.py stdout (one JSON line) → event fields → gauges.
+      # qbt-peer-exporter stdout (one JSON line) → event fields → gauges.
       qbt_peer_parse = {
         type = "remap";
         inputs = [ "qbt_peer_exec" ];

@@ -1228,7 +1228,7 @@ in
       ];
     })
 
-    # ── Row 12: peer choke/interest (exporter.py flag aggregation) ───────
+    # ── Row 12: peer choke/interest (qbt-peer-exporter flag aggregation) ─
     (ts {
       id = 110;
       title = "Peer Upload State";
@@ -1274,7 +1274,7 @@ in
       ];
     })
 
-    # ── Row 13: swarm demand & reach (exporter.py + martabal) ───────────
+    # ── Row 13: swarm demand & reach (qbt-peer-exporter + martabal) ─────
     (ts {
       id = 120;
       title = "Swarm Demand vs Reach";

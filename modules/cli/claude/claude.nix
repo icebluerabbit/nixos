@@ -29,7 +29,40 @@
     includes = [ den.aspects.dev._.nodejs ];
 
     nixos = {
-      nixpkgs.overlays = [ inputs.claude-code.overlays.default ];
+      nixpkgs.overlays = [
+        inputs.claude-code.overlays.default
+        # Spec Kit (`specify`) — spec-driven development CLI paired with this
+        # agent. nixpkgs is stuck on 0.0.90 while upstream is past 1.0, so the
+        # version, source hash and dependency set are pinned here instead of
+        # waiting on the nixpkgs bump. Refresh all three together.
+        # https://github.com/github/spec-kit
+        (final: prev: {
+          spec-kit =
+            let
+              version = "1.0.8";
+            in
+            prev.spec-kit.overridePythonAttrs {
+              inherit version;
+              src = final.fetchFromGitHub {
+                owner = "github";
+                repo = "spec-kit";
+                tag = "v${version}";
+                hash = "sha256-VnbzJ1EoWze1haoVZQAHXc1QQgUFFKZkPVvmQbS+m5Q=";
+              };
+              dependencies = with final.python3Packages; [
+                typer
+                click
+                rich
+                platformdirs
+                readchar
+                pyyaml
+                packaging
+                pathspec
+                json5
+              ];
+            };
+        })
+      ];
 
       nix.settings = {
         substituters = [ "https://claude-code.cachix.org" ];
@@ -38,28 +71,61 @@
     };
 
     homeManager =
-      { lib, pkgs, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         skills = ./skills;
         hooks = ./hooks;
+        # notify-send only exists on Linux; both scripts fall back to
+        # osascript on darwin, which ships with the OS.
+        notifyInputs = [
+          pkgs.jq
+        ]
+        ++ lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.libnotify;
         notificationHook = pkgs.writeShellApplication {
           name = "claude-notification";
-          runtimeInputs = [
-            pkgs.jq
-            pkgs.libnotify
-          ];
+          runtimeInputs = notifyInputs;
           text = builtins.readFile "${hooks}/notification.sh";
         };
         stopHook = pkgs.writeShellApplication {
           name = "claude-stop";
-          runtimeInputs = [
-            pkgs.jq
-            pkgs.libnotify
-          ];
+          runtimeInputs = notifyInputs;
           text = builtins.readFile "${hooks}/stop.sh";
         };
+        # Tints the session's kitty tab; a no-op outside kitty.
+        kittyTabHook = pkgs.writeShellApplication {
+          name = "claude-kitty-tab";
+          runtimeInputs = [ pkgs.kitty ];
+          # The state colours and the text colour drawn on them.
+          runtimeEnv = {
+            CLAUDE_TAB_BUSY = config.lib.stylix.colors.withHashtag.base0A;
+            CLAUDE_TAB_ATTENTION = config.lib.stylix.colors.withHashtag.base08;
+            CLAUDE_TAB_IDLE = config.lib.stylix.colors.withHashtag.base0D;
+            CLAUDE_TAB_DONE = config.lib.stylix.colors.withHashtag.base0B;
+            CLAUDE_TAB_FAILED = config.lib.stylix.colors.withHashtag.base09;
+            CLAUDE_TAB_COMPACTING = config.lib.stylix.colors.withHashtag.base0C;
+            CLAUDE_TAB_FG = config.lib.stylix.colors.withHashtag.base00;
+          };
+          text = builtins.readFile "${hooks}/kitty-tab.sh";
+        };
+        kittyTabFor = matcher: state: {
+          inherit matcher;
+          hooks = [
+            {
+              type = "command";
+              command = "${kittyTabHook}/bin/claude-kitty-tab ${state}";
+            }
+          ];
+        };
+        kittyTab = kittyTabFor "";
       in
       {
+        home.packages = [ pkgs.spec-kit ];
+
         programs.claude-code = {
           enable = true;
           enableMcpIntegration = true;
@@ -72,7 +138,7 @@
           plugins = [ ];
           rules = { };
           skills = {
-            grill-me = "${inputs.matt-pocock-skills}/grill-me";
+            grill-me = "${inputs.matt-pocock-skills}/skills/productivity/grill-me";
             skill-creator = "${inputs.anthropics-skills}/skills/skill-creator";
 
             # Local homelab skills — procedures + knowledge references.
@@ -109,6 +175,11 @@
               command = "${lib.getExe pkgs.bash} ${inputs.caveman}/src/hooks/caveman-statusline.sh";
             };
             hooks = {
+              UserPromptSubmit = [ (kittyTab "busy") ];
+              # Repaints busy after every tool call. Approving a permission
+              # prompt fires no hook of its own, so without this the
+              # attention colour would sit there until the turn ended.
+              PostToolUse = [ (kittyTab "busy") ];
               Notification = [
                 {
                   matcher = "";
@@ -119,6 +190,11 @@
                     }
                   ];
                 }
+                # Notification matchers name the notification type, so the
+                # two cases split here rather than by sniffing the payload
+                # inside the hook script.
+                (kittyTabFor "permission_prompt" "attention")
+                (kittyTabFor "idle_prompt" "idle")
               ];
               Stop = [
                 {
@@ -130,7 +206,17 @@
                     }
                   ];
                 }
+                (kittyTab "done")
               ];
+              # A turn that died on an API error rather than finishing.
+              StopFailure = [ (kittyTab "failed") ];
+              # Compaction is slow and silent; the colour says the session
+              # is busy rather than wedged.
+              PreCompact = [ (kittyTab "compacting") ];
+              # Both ends of a session start from no tint, so a resumed one
+              # does not inherit whatever colour it died with.
+              SessionStart = [ (kittyTab "") ];
+              SessionEnd = [ (kittyTab "") ];
             };
             env = {
               CLAUDE_CODE_ENABLE_TELEMETRY = "1";

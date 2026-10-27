@@ -24,20 +24,19 @@
 
       den.aspects.infra._.vpns._.one-click-vpn
 
+      den.aspects.infra._.dns._.udm-records
+
+      den.aspects.infra._.ports._.ap-trunk
+      den.aspects.infra._.ports._.gateway-trunk
       den.aspects.infra._.ports._.living-room-trunk
       den.aspects.infra._.ports._.server-trunk
-      den.aspects.infra._.ports._.work
-      den.aspects.infra._.ports._.iot
-      den.aspects.infra._.ports._.game
-      den.aspects.infra._.ports._.storage
-      den.aspects.infra._.ports._.mgmt
-      den.aspects.infra._.ports._.trust
-      den.aspects.infra._.ports._.apps
-      den.aspects.infra._.ports._.dmz
-      den.aspects.infra._.ports._.download
-      den.aspects.infra._.ports._.guest
-      den.aspects.infra._.ports._.media
-      den.aspects.infra._.ports._.services
+      den.aspects.infra._.ports._.work-macbookpro-work-1
+      den.aspects.infra._.ports._.iot-hue-hub
+      den.aspects.infra._.ports._.game-playstation5
+      den.aspects.infra._.ports._.storage-unas-pro
+      den.aspects.infra._.ports._.mgmt-server
+      den.aspects.infra._.ports._.mgmt-server-ipmi
+      den.aspects.infra._.ports._.trust-desktop
 
       den.aspects.infra._.networks._.default
       den.aspects.infra._.networks._.mgmt
@@ -93,14 +92,17 @@
       den.aspects.infra._.clients._.container-lidarr
       den.aspects.infra._.clients._.container-beets
       den.aspects.infra._.clients._.container-readarr
-      den.aspects.infra._.clients._.container-lazylibrarian
       den.aspects.infra._.clients._.container-calibre-web
+      den.aspects.infra._.clients._.container-bindery
+      den.aspects.infra._.clients._.container-komga
+      den.aspects.infra._.clients._.container-audiobookshelf
       den.aspects.infra._.clients._.container-sonarr
       den.aspects.infra._.clients._.container-bazarr
       den.aspects.infra._.clients._.container-prowlarr
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.clients._.container-flaresolverr
       den.aspects.infra._.clients._.container-cross-seed
-      den.aspects.infra._.clients._.container-cleanuparr
+      den.aspects.infra._.clients._.container-seasonpackarr
       den.aspects.infra._.clients._.container-autobrr
       den.aspects.infra._.clients._.container-mousetrap
       den.aspects.infra._.clients._.container-unpackerr

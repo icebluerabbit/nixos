@@ -141,27 +141,30 @@ in
         desc = "eBook library & reader";
       })
       {
-        "LazyLibrarian" = {
-          icon = "lazylibrarian.png";
-          href = caddy "lazylibrarian";
-          siteMonitor = at cl.container-lazylibrarian.ip cl.container-lazylibrarian.ports.default;
-          description = "Book & audiobook manager";
+        "Bindery" = {
+          icon = "mdi-book-open-page-variant-#8be9fd";
+          href = caddy "bindery";
+          siteMonitor = at cl.container-bindery.ip cl.container-bindery.ports.default;
+          description = "Book & audiobook automation";
+          # No native Homepage widget. Bindery's own /metrics carries HTTP and
+          # scheduler series only — no library or queue counts — so these are the
+          # useful KPIs available.
           widget = {
             type = "prometheusmetric";
             url = promUrl;
             refreshInterval = 60000;
             metrics = [
               {
-                label = "Books Found";
-                query = "sum(lazylibrarian_search_books_found)";
+                label = "Jobs 24h";
+                query = "sum(increase(bindery_scheduler_runs_total[24h]))";
                 format = {
                   type = "number";
                   options.maximumFractionDigits = 0;
                 };
               }
               {
-                label = "Warnings 24h";
-                query = "sum(increase(lazylibrarian_warnings_total[24h]))";
+                label = "5xx 24h";
+                query = ''sum(increase(bindery_http_requests_total{status=~"5.."}[24h]))'';
                 format = {
                   type = "number";
                   options.maximumFractionDigits = 0;
@@ -171,6 +174,33 @@ in
           };
         };
       }
+      {
+        "Komga" = {
+          icon = "komga.svg";
+          href = caddy "komga";
+          siteMonitor = at cl.container-komga.ip cl.container-komga.ports.default;
+          description = "Comic & manga server";
+          # Komga's widget authenticates with the admin account rather than an API
+          # key — which is what we have in sops. The runtime-minted key lives
+          # inside the Komga container and Homepage could not read it anyway.
+          widget = {
+            type = "komga";
+            url = at cl.container-komga.ip cl.container-komga.ports.default;
+            username = "{{HOMEPAGE_VAR_KOMGA_USERNAME}}";
+            password = "{{HOMEPAGE_VAR_KOMGA_PASSWORD}}";
+          };
+        };
+      }
+      # Audiobookshelf's widget needs an API token, but that token is minted at
+      # runtime inside the ABS container and Homepage runs elsewhere — containers
+      # talk over IP here, not shared bind mounts. Health dot until that changes.
+      (hc {
+        name = "Audiobookshelf";
+        icon = "audiobookshelf.svg";
+        href = caddy "audiobookshelf";
+        monitor = at cl.container-audiobookshelf.ip cl.container-audiobookshelf.ports.default;
+        desc = "Audiobook & podcast server";
+      })
       {
         "Youtarr" = {
           icon = "youtube.svg";

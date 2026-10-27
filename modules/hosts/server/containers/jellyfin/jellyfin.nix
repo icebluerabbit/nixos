@@ -63,7 +63,27 @@
                 enable_hardware_encoding = true;
                 allow_hevc_encoding = true;
                 allow_av1_encoding = true;
+                # VPP tonemapping is HDR10-only and cannot reshape Dolby Vision.
+                # Without OpenCL tonemapping Jellyfin falls back to tagging DV
+                # Profile 5 frames as bt709 via setparams and encoding the raw
+                # IPT-PQ-c2 data unconverted — the browser reads IPT as YCbCr
+                # and renders a purple/green tint. OpenCL tonemapping handles
+                # DV; VA-API<->OpenCL sharing is zero-copy on this Arc GPU.
+                enable_tonemapping = true;
                 enable_vpp_tonemapping = true;
+                # Browsers cannot direct-play mkv, so every play spawns ffmpeg
+                # writing HLS segments. The default cache lives on the container's
+                # ephemeral tmpfs root (23G of RAM); a 4K remux direct-streams at
+                # ~46x realtime and fills it in minutes, after which every segment
+                # is written 0-byte and the client reports a fatal HLS error.
+                # Park the segments on the appdata nvme instead (excluded from the
+                # restic job in hosts/server/backups.nix), and bound how far ffmpeg
+                # may run ahead of playback so no single stream can run away again.
+                transcoding_temp_path = "/var/lib/jellyfin/transcodes";
+                enable_throttling = true;
+                throttle_delay_seconds = 180;
+                enable_segment_deletion = true;
+                segment_keep_seconds = 720;
                 hardware_decoding_codecs = [
                   "h264"
                   "hevc"
@@ -121,7 +141,8 @@
             prometheusAddress = "http://${config.infra.clients.container-prometheus.ip}:${toString config.infra.clients.container-prometheus.ports.default}/api/v1/write";
             tempoAddress = "http://${config.infra.clients.container-tempo.ip}:${toString config.infra.clients.container-tempo.ports.otlp-http}/v1/traces";
             # Vector polls the Jellyfin API for metrics (no packaged exporter);
-            # X-Emby-Token comes from JELLYFIN_API_KEY in the mounted jellyfin-env.
+            # the Authorization token comes from JELLYFIN_API_KEY in the mounted
+            # jellyfin-env.
             environmentFile = "/run/secrets/jellyfin-env";
             prometheusInputs = [
               "jellyfin_counts_metrics"

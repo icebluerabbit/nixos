@@ -12,6 +12,7 @@
       den.aspects.infra._.clients._.container-jellyfin
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.networks._.media
       den.aspects.containers._.postgresql
       den.aspects.hosts._.server._.security
@@ -22,12 +23,21 @@
     ];
 
     nixos =
-      { config, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         cfg = config.containerConfigs.lidarr;
       in
       {
         containerConfigs.lidarr = {
+          # Where managarr-lidarr relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
 
           lldpd.enable = true;
           hostBridge = "br-media";
@@ -85,8 +95,13 @@
                   # Import sidecar extras (lyrics/cue/log/art) present in the download folder.
                   # All new files — never modifies audio, so torrent-safe. (Fetched art comes
                   # from the Kodi metadata consumer below, not from the peer.)
+                  #
+                  # toc/xml are whipper's: the .toc describes the disc layout and the .xml is
+                  # the rip's MusicBrainz submission. Without them here, a CD rip coming in
+                  # via beets loses half its provenance at import, and the .log — the proof
+                  # of rip quality — arrives without the disc data that backs it.
                   import_extra_files = true;
-                  extra_file_extensions = "lrc,cue,log,m3u,jpg,jpeg,png,nfo,txt";
+                  extra_file_extensions = "lrc,cue,log,m3u,toc,xml,jpg,jpeg,png,nfo,txt";
                 };
                 # Album/artist artwork + NFO as sidecar files (cover.jpg, *.nfo). Never rewrites
                 # audio tags, so it can't corrupt an actively-seeding hardlinked file.
@@ -105,8 +120,9 @@
                   multi_disc_track_format = "{Album Title} ({Release Year})/{medium:0}-{track:00} - {Track Title}";
                 };
                 notifications = [
-                  (import ./notifications/_jellyfin.nix { inherit config; })
+                  (import ./notifications/_jellyfin.nix { inherit config lib pkgs; })
                   (import ./notifications/_home-assistant.nix { inherit config; })
+                  (import ./notifications/_managarr.nix { inherit config; })
                 ];
               };
             };
@@ -139,18 +155,42 @@
               "lidarr_exporter"
               "lidarr_rss_metrics"
               "lidarr_warn_metrics"
+              "managarr_lidarr"
             ];
             extraSettings = {
-              # lidarr's Webhook connection POSTs here on loopback; the sidecar
-              # republishes verbatim to MQTT so HA consumes via an mqtt trigger
-              # instead of a direct webhook — no notify-time dependency on HA.
-              sources.webhook_in = {
-                type = "http_server";
-                address = "127.0.0.1:9001";
-                method = "POST";
-                path = "/";
-                decoding.codec = "bytes"; # keep lidarr's JSON body verbatim → .message
-                framing.method = "bytes"; # one event per request body, not per line
+              # The managarr-* sidecar in this container. Its collectors sit
+              # on the loopback: the framework serves /metrics on a separate
+              # address from the contract routes, so the sidecar's own port
+              # answers /healthz and /changes but never this.
+              sources = {
+                managarr_lidarr = {
+                  type = "prometheus_scrape";
+                  endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                  scrape_interval_secs = 30;
+                };
+                # lidarr's Webhook connection POSTs here on loopback; the
+                # sidecar republishes verbatim to MQTT so HA consumes via an
+                # mqtt trigger instead of a direct webhook — no notify-time
+                # dependency on HA.
+                webhook_in = {
+                  type = "http_server";
+                  address = "127.0.0.1:9001";
+                  method = "POST";
+                  path = "/";
+                  decoding.codec = "bytes"; # keep lidarr's JSON body verbatim → .message
+                  framing.method = "bytes"; # one event per request body, not per line
+                };
+                # exportarr sidecar → Lidarr state metrics (artists, albums, songs, queue, health).
+                lidarr_exporter = {
+                  type = "prometheus_scrape";
+                  endpoints = [
+                    "http://127.0.0.1:${toString config.infra.clients.container-lidarr.ports.exporter}/metrics"
+                  ];
+                  scrape_interval_secs = 30;
+                  # exportarr walks the whole Lidarr API per scrape; default 5s
+                  # timeout is too tight and the scrape fails → stale metrics.
+                  scrape_timeout_secs = 30;
+                };
               };
               sinks.webhook_mqtt = {
                 type = "mqtt";
@@ -162,17 +202,6 @@
                 quality_of_service = "atleastonce";
                 retain = false;
                 encoding.codec = "text"; # emit .message raw (the lidarr JSON)
-              };
-              # exportarr sidecar → Lidarr state metrics (artists, albums, songs, queue, health).
-              sources.lidarr_exporter = {
-                type = "prometheus_scrape";
-                endpoints = [
-                  "http://127.0.0.1:${toString config.infra.clients.container-lidarr.ports.exporter}/metrics"
-                ];
-                scrape_interval_secs = 30;
-                # exportarr walks the whole Lidarr API per scrape; default 5s timeout
-                # is too tight and the scrape fails → stale metrics.
-                scrape_timeout_secs = 30;
               };
               # VRL extras — event metrics derived from the journal that the exporter
               # doesn't expose (RSS throughput, warnings).

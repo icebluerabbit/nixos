@@ -8,9 +8,17 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         hostConfig = config;
+        # Resolved from host pkgs so the homelab overlay is in scope; the store
+        # path pulls into the container closure via the seed unit.
+        haSeeders = pkgs.homelab.ha-seeders;
       in
       {
         options.containerConfigs.home-assistant =
@@ -197,24 +205,23 @@ _: {
               config =
                 { pkgs, lib, ... }:
                 let
-                  seedPy = pkgs.writeText "ha-seed-config-entries.py" (builtins.readFile ./seed_config_entries.py);
-                  seedAreaPy = pkgs.writeText "ha-seed-areas.py" (builtins.readFile ./seed_areas.py);
-                  seedPersonPy = pkgs.writeText "ha-seed-persons.py" (builtins.readFile ./seed_persons.py);
+                  seedEntries = "${haSeeders}/bin/ha-seed-config-entries";
+                  seedAreas = "${haSeeders}/bin/ha-seed-areas";
+                  seedPersons = "${haSeeders}/bin/ha-seed-persons";
                 in
                 {
                   imports = [
                     (import ../_base.nix { inherit lib cfg; })
                   ];
 
-                  # zeroconf/mDNS (port 5353) isn't covered by openFirewall,
-                  # which only opens the HTTP port; without it, discovery for
+                  # zeroconf/mDNS (port 5353) is not the container's HTTP port
+                  # that _base.nix opens; without it, discovery for
                   # homekit_controller and other auto-discovered integrations
                   # never reaches the container.
                   networking.firewall.allowedUDPPorts = [ 5353 ];
 
                   services.home-assistant = {
                     enable = true;
-                    openFirewall = false;
                     extraComponents = cfg.extraComponents ++ [ "isal" ];
                     extraPackages = ps: (cfg.extraPackages ps) ++ (lib.optional (cfg.dbHost != null) ps.psycopg2);
                     inherit (cfg) customComponents;
@@ -290,13 +297,13 @@ _: {
                             };
                             script =
                               lib.optionalString (cfg.configEntries != [ ]) ''
-                                printf '%s' ${lib.escapeShellArg (builtins.toJSON cfg.configEntries)} | ${pkgs.python3}/bin/python3 ${seedPy}
+                                printf '%s' ${lib.escapeShellArg (builtins.toJSON cfg.configEntries)} | ${seedEntries}
                               ''
                               + lib.optionalString (cfg.areas != [ ]) ''
-                                printf '%s' ${lib.escapeShellArg (builtins.toJSON cfg.areas)} | ${pkgs.python3}/bin/python3 ${seedAreaPy}
+                                printf '%s' ${lib.escapeShellArg (builtins.toJSON cfg.areas)} | ${seedAreas}
                               ''
                               + lib.optionalString (cfg.persons != [ ]) ''
-                                printf '%s' ${lib.escapeShellArg (builtins.toJSON cfg.persons)} | ${pkgs.python3}/bin/python3 ${seedPersonPy}
+                                printf '%s' ${lib.escapeShellArg (builtins.toJSON cfg.persons)} | ${seedPersons}
                               '';
                           };
                     };

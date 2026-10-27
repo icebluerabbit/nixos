@@ -1,8 +1,0 @@
-<b>📚 LazyLibrarian</b> · <font color="#faa61a">🧪 Test</font>
-{% set p = trigger.payload_json %}
-<ul>
-<li><b>Book:</b> {{ p.BookName | default('—') }}</li>
-<li><b>Author:</b> {{ p.AuthorName | default('—') }}</li>
-<li><b>BookID:</b> <code>{{ p.BookID | default('—') }}</code></li>
-</ul>
-<i>Notifier reachable — LL → Vector → MQTT → HA → Matrix.</i>

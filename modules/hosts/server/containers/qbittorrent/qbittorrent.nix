@@ -12,6 +12,7 @@
       den.aspects.infra._.clients._.container-home-assistant
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.networks._.download
       den.aspects.infra._.networks._.apps
       den.aspects.infra._.networks._.media
@@ -38,6 +39,20 @@
           audiobooks = "/mnt/media/complete/audiobooks";
           music = "/mnt/media/complete/music";
           misc = "/mnt/media/complete/misc";
+          # MAM sorted Manga and Comic Book / Graphic Novel under Ebooks before
+          # promoting them to media types of their own, so mousetrap filed them
+          # as `books`. Split out so a comics library manager can own them
+          # without Bindery's ebook importer walking the same tree.
+          comics = "/mnt/media/complete/comics";
+          # seasonpackarr's preImportPath — packs it assembles from episodes
+          # already held here are added under this category by autobrr, so the
+          # save path must match what seasonpackarr hardlinked into. Kept out of
+          # Sonarr's `tv` category on purpose: Sonarr would try to import these
+          # packs and reject them as "not an upgrade".
+          seasonpacks = "/mnt/media/complete/seasonpacks";
+          # Adult category. Own tree so nothing else's importer walks
+          # it and so the library split stays clean.
+          xxx = "/mnt/media/complete/xxx";
         };
         categoriesJson = pkgs.writeText "categories.json" (
           builtins.toJSON (lib.mapAttrs (_: sp: { save_path = sp; }) categories)
@@ -46,14 +61,36 @@
         # qbt AutoRun hooks POST here on loopback → local Vector sidecar → MQTT
         # (homelab/notify/qbittorrent); HA consumes via an mqtt trigger. No webhook to HA.
         haWebhook = "http://127.0.0.1:9001/";
+        # managarr's recorder endpoint. qBittorrent emits no HTTP webhook, so
+        # these AutoRun hooks are the only client-side events it can see.
+        managarrBase =
+          let
+            m = config.infra.clients.container-managarr;
+          in
+          "http://${m.ip}:${toString m.ports.default}";
+        managarrHook = "${managarrBase}/hook/qbittorrent";
+        # The completion hook posts HERE rather than to managarr directly.
+        #
+        # managarr-qbittorrent runs inside this container, so it can read back
+        # the file list, the trackers and the real sizes while the torrent
+        # still exists — and then relay all of it onward. Once a *arr imports
+        # and removes the torrent, nothing in the stack can: qBittorrent keeps
+        # no history, which makes this the one event whose loss is permanent.
+        managarrSidecarHook = "http://127.0.0.1:${toString config.infra.clients.container-qbittorrent.ports.api}/events";
+        # Separate route: the watch importer reports provenance, not a client
+        # event, and keeping them apart means the source is known from the
+        # path rather than by inspecting the payload.
+        managarrWatchHook = "${managarrBase}/hook/qbt-watch";
         onAdded = import ./_on_added.nix {
           inherit pkgs lib;
           webhook = haWebhook;
+          managarr = managarrHook;
         };
         onFinished = import ./_on_finished.nix {
           inherit pkgs lib;
           webhook = haWebhook;
           crossSeed = config.infra.clients.container-cross-seed;
+          sidecar = managarrSidecarHook;
         };
         # qbt's own veth IP on each tunnel bridge (qbt owns these; the broker client passes the
         # right one at dnat() time). Everything else (bridge/gateway/table/veth) is derived from
@@ -88,6 +125,10 @@
         sops.secrets.mam-vpn-id.mode = "0444";
 
         containerConfigs.qbittorrent = {
+          # Where managarr-qbittorrent relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
           lldpd.enable = true;
           hostBridge = "br-download";
           macAddress = config.infra.clients.container-qbittorrent.mac;
@@ -110,18 +151,13 @@
           watchDir = "/mnt/media/watch";
           inherit categories;
           watchIntervalSec = 10;
-          tagSyncIntervalSec = 60;
+          watchReportUrl = managarrWatchHook;
           # %N name, %L category, %Z size-bytes, %I infohash-v1. No quotes: qbt splits
           # the program string into argv FIRST, then substitutes each %-token in place,
           # so %N stays a single arg even with spaces. Quoting instead gets mangled by
           # qbt's conf writer (it ate the quotes and collapsed the spaces → one arg).
           onTorrentFinished = "${onFinished} %N %L %Z %I";
-          onTorrentAdded = "${onAdded} %N %L %Z";
-
-          qbitManage = import ./_qbit-manage.nix {
-            inherit lib categories;
-            webuiPort = config.infra.clients.container-qbittorrent.ports.webui;
-          };
+          onTorrentAdded = "${onAdded} %N %L %Z %I";
 
           qbittorrentExporter = {
             enable = true;
@@ -178,16 +214,17 @@
             lokiAddress = "http://${config.infra.clients.container-loki.ip}:${toString config.infra.clients.container-loki.ports.default}";
             prometheusAddress = "http://${config.infra.clients.container-prometheus.ip}:${toString config.infra.clients.container-prometheus.ports.default}/api/v1/write";
             tempoAddress = "http://${config.infra.clients.container-tempo.ip}:${toString config.infra.clients.container-tempo.ports.otlp-http}/v1/traces";
-            inherit
-              (
-                (import ./_exporter.nix {
-                  exporterPort = config.infra.clients.container-qbittorrent.ports.exporter;
-                  webuiPort = config.infra.clients.container-qbittorrent.ports.webui;
-                  inherit pkgs lib;
-                })
-              )
-              prometheusInputs
-              ;
+            # The exporter's inputs plus the managarr-qbittorrent sidecar's.
+            # Concatenated rather than inherited wholesale, because the sidecar
+            # is not the exporter's concern and adding it there would put a
+            # managarr detail inside a file about qBittorrent's own metrics.
+            prometheusInputs =
+              (import ./_exporter.nix {
+                exporterPort = config.infra.clients.container-qbittorrent.ports.exporter;
+                webuiPort = config.infra.clients.container-qbittorrent.ports.webui;
+                inherit pkgs lib;
+              }).prometheusInputs
+              ++ [ "managarr_qbittorrent" ];
             # qbt AutoRun hooks POST to the local Vector sidecar (loopback); republished
             # verbatim to MQTT so HA consumes via an mqtt trigger instead of a webhook.
             extraSettings =
@@ -198,6 +235,17 @@
                   inherit pkgs lib;
                 }).extraSettings
                 {
+                  # The managarr-qbittorrent sidecar in this container. Its
+                  # collectors sit on the loopback: the framework serves
+                  # /metrics on a separate address from the contract routes, so
+                  # the sidecar's own port answers /healthz and /changes but
+                  # never this.
+                  sources.managarr_qbittorrent = {
+                    type = "prometheus_scrape";
+                    endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                    scrape_interval_secs = 30;
+                  };
+
                   sources.webhook_in = {
                     type = "http_server";
                     address = "127.0.0.1:9001";

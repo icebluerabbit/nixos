@@ -1,8 +1,15 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Server IoT Bridge";
-  mac = "82:13:8a:a0:4f:3e";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "server-bridge-iot";
+    resourceName = "server_bridge_iot";
+    name = "Server IoT Bridge";
+    mac = "82:13:8a:a0:4f:3e";
+    vlan = "iot";
+    kind = "virtual";
+    dependsOn = [ "server_vlan_iot" ];
+  };
 in
 {
   den.aspects.infra._.clients._.server-bridge-iot = {
@@ -10,54 +17,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
-
+      den.aspects.infra._.networks._.iot
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.iot.staticAddresses.server;
-      in
-      {
-        infra.clients.server-bridge-iot = {
-          inherit
-            name
-            mac
-            ip
-            ;
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.iot.staticAddresses.server;
-      in
-      {
-        infra.clients.server-bridge-iot = {
-          inherit
-            name
-            mac
-            ip
-            ;
-        };
-
-        resource.unifi_client.server_bridge_iot = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-          depends_on = [ "unifi_client.server_vlan_iot" ];
-        };
-
-        import = [
-          {
-            to = "unifi_client.server_bridge_iot";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.iot.staticAddresses.server;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.iot.staticAddresses.server;
   };
 }

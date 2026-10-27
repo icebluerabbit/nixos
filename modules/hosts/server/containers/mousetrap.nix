@@ -37,13 +37,34 @@
             mam = {
               apiBase = "https://www.myanonamouse.net";
               seedSecretPath = "/run/secrets/mam-api-id";
+              # The search API sends a numeric mediatype id where the IRC announce
+              # sends a name; this is the join between them. Ids confirmed by
+              # correlating a live search page against the post-2026-08-11 announce
+              # stream. Ids 3 and 4 exist (Musicology sheet music, Radio) but no
+              # torrent of either has been announced since the format change, so
+              # nothing ties them to a name — left out deliberately. They arrive as
+              # "3"/"4", match no list below, and show up as such in the metrics.
+              mediaTypeNames = {
+                "1" = "Audiobook";
+                "2" = "Ebook";
+                "5" = "Manga";
+                "6" = "Comic Book / Graphic Novel";
+                "7" = "Periodical Ebook";
+              };
             };
             # Reactive delivery target for armed grabs.
             client = {
               url = "http://${config.infra.clients.container-qbittorrent.ip}:${toString config.infra.clients.container-qbittorrent.ports.webui}";
+              # Keyed by MAM media type. Manga and Comic Book were the "Ebooks -
+              # Comics/Graphic novels" subcategory before MAM promoted them to media
+              # types of their own; they route to their own `comics` category so a
+              # comics library manager can own that tree independently of Bindery.
               categories = {
-                ebook = "books";
-                audiobook = "audiobooks";
+                "Ebook" = "books";
+                "Periodical Ebook" = "books";
+                "Manga" = "comics";
+                "Comic Book / Graphic Novel" = "comics";
+                "Audiobook" = "audiobooks";
               };
               addPaused = false;
             };
@@ -67,13 +88,23 @@
               };
             };
             shop = {
-              dryRun = true; # log "would buy", spend nothing until armed
+              dryRun = false; # ARM SWITCH — true = decide and log only; false = real buys
               reserved = 1000;
               vip = {
                 enable = true;
-                cost = 5000;
-                reserveMultiple = 2;
-                buyableClasses = [ ]; # add your class (Power User+) to arm VIP buys
+                # The store prices VIP at 5000 points per 4 weeks, but the API only
+                # accepts duration=max, which fills to the 90-day cap. The gate below
+                # buys only at 0 days remaining, so a purchase is always the full
+                # 90 days ≈ 12.86 weeks ≈ 16071 points — a constant, not a function of
+                # account state. Still an estimate: the API returns no price and
+                # userBonusHistory carries no purchase row, so the only ground truth is
+                # the mam_seedbonus step across a buy. Correct this from that.
+                cost = 16071;
+                # One renewal, not two: MAM refuses a buy that would exceed 90 days
+                # remaining, so a second stacked renewal is unbuyable by rule and
+                # reserving for it only strands points.
+                reserveMultiple = 1;
+                buyableClasses = [ "Power User" ];
               };
               upload = {
                 enable = true;
@@ -110,48 +141,69 @@
             # traffic fills the tuning dashboard; tighten from what you see. Every value
             # explicit even at default. Empty list / 0 / "" = rule off.
             accept = {
-              kinds = [
-                "ebook"
-                "audiobook"
+              # MAM's own media-type vocabulary; matched case-insensitively. Manga and
+              # Comic Book / Graphic Novel are listed explicitly because they used to
+              # arrive as the "Ebooks - Comics/Graphic novels" category (61 of the
+              # first 1236 announces) and would otherwise be dropped outright.
+              mediaTypes = [
+                "Ebook"
+                "Periodical Ebook"
+                "Manga"
+                "Comic Book / Graphic Novel"
+                "Audiobook"
               ];
-              # SciFi / Fantasy / Horror, both mains. Exact strings verified against the
-              # search catnames (Urban Fantasy is a separate category, not included).
+              # SciFi / Fantasy / Horror. Categories are multi-valued as of 2026-08-11
+              # and a release passes on ANY match, so entries lost their "Ebooks - " /
+              # "Audiobooks - " prefix — that split is the media type above now.
+              #
+              # MAM also RE-WORDED the taxonomy in that change, so the de-prefixed old
+              # names were dead strings: Crime/Thriller became Crime + Thriller/Suspense,
+              # General Fiction became Contemporary Fiction, Historical Fiction became
+              # Historical, and Comics/Graphic novels stopped being a category at all
+              # (comics are a media type above). Every entry below has been observed in a
+              # live post-cutover announce; History, True Crime and Young Adult were
+              # dropped because they have not been — re-add only once seen in
+              # announces_by_category_total.
               categoriesAllow = [
-                "Audiobooks - Science Fiction"
-                "Audiobooks - Fantasy"
-                "Audiobooks - Horror"
-                "Audiobooks - Young Adult"
-                "Audiobooks - True Crime" # True Crime is audiobook-only on MAM
-                "Audiobooks - Urban Fantasy"
-                "Audiobooks - Literary Classics"
-                "Audiobooks - History"
-                "Audiobooks - General Fiction"
-                "Audiobooks - Historical Fiction"
-                "Audiobooks - Action/Adventure"
-                "Audiobooks - Crime/Thriller"
-                "Audiobooks - Mystery"
-                "Ebooks - Science Fiction"
-                "Ebooks - Fantasy"
-                "Ebooks - Horror"
-                "Ebooks - Comics/Graphic novels" # ebooks only
-                "Ebooks - Young Adult"
-                "Ebooks - Urban Fantasy"
-                "Ebooks - Literary Classics"
-                "Ebooks - History"
-                "Ebooks - General Fiction"
-                "Ebooks - Historical Fiction"
-                "Ebooks - Action/Adventure"
-                "Ebooks - Crime/Thriller"
-                "Ebooks - Mystery"
+                "Action/Adventure"
+                "Contemporary Fiction"
+                "Crime"
+                "Fantasy"
+                "Historical"
+                "Horror"
+                "LitRPG"
+                "Literary Classics"
+                "Mystery"
+                "Paranormal"
+                "Progression Fantasy"
+                "Science Fiction"
+                "Superheroes"
+                "Thriller/Suspense"
+                "Urban Fantasy"
               ];
               categoriesDeny = [ ];
-              # exact match on the announce filetype tag (single-format in practice)
+              # Filetypes are multi-valued too ("azw3, epub") and match on ANY listed
+              # format. Exact whole-string matching used to reject 7 of the first 1236
+              # announces that carried an allowed format alongside another.
               filetypesAllow = [
                 "m4b"
                 "mp3"
                 "epub"
+                # Comics/manga. 80 of the 95 filetype rejects in the week to 2026-08-13
+                # arrive as media type Ebook rather than Comic Book / Graphic Novel, so
+                # the mediaTypes list above never gated them — this rule did. Worth
+                # 7.3/day (34 of 51 VIP-freeleech), 25 GiB/week. Satisfy is seedtime-only,
+                # so a comic occupies an unsat slot exactly as long as an ebook and pays
+                # the same satisfied-torrent points: size is free, disk is not scarce.
+                "cbr"
+                "cbz"
               ];
               filetypesDeny = [ ];
+              # Fiction only. Categories alone cannot express this — of the 22 non-fiction
+              # announces in the first 12h after the format change, 3 carried a category
+              # from the allowlist above (Crime; Historical; Paranormal) and would have
+              # been accepted. Torznab search results carry no flag and are unaffected.
+              fictionTypes = [ "Fiction" ];
               languagesAllow = [ "english" ]; # substring, case-insensitive; empty-language announces reject
               sizeMinBytes = 0; # no floor
               sizeMaxBytes = 0; # no ceiling
@@ -175,8 +227,15 @@
               enable = true;
               reserve = 2; # keep at least 2 wedges in reserve
               # B — proactive: always wedge big audiobooks (400 MB ≈ median; ratio-first)
-              proactiveKinds = [ "audiobook" ];
+              proactiveMediaTypes = [ "Audiobook" ];
               proactiveMinSizeBytes = 400000000; # 400 MB
+              # Strict: a big audiobook with no wedge spendable is skipped, not bought
+              # at full ratio. Wedge income arrives ~10 per 4.75 days and demand runs
+              # ~4x that, so the stock sits at the reserve for most of each cycle —
+              # this is the brake for that stretch, not a permanent exclusion.
+              # Deliberately scoped by proactiveMinSizeBytes: anything under 400 MB
+              # (and every non-Audiobook type) keeps grabbing at ratio as before.
+              requireWedge = true;
               # A — rescue: wedge a would-be buffer hold on anything ≥ 100 MB
               rescueEnable = true;
               rescueMinSizeBytes = 100000000; # 100 MB

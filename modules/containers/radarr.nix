@@ -7,8 +7,18 @@
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
+        # Resolved in the HOST's package set. pkgs inside a container
+        # body is the container's own and carries no overlays, so
+        # pkgs.homelab there fails with "attribute 'homelab' missing".
+        # The store path is what crosses the boundary.
+        managarrSidecarExe = lib.getExe pkgs.homelab.managarr-radarr;
         hostConfig = config;
       in
       {
@@ -93,6 +103,26 @@
                 };
               };
             };
+            apiPort = lib.mkOption {
+              type = lib.types.port;
+              default = 9910;
+              description = ''
+                Port for managarr-radarr, the sidecar serving this service's
+                records to managarr.
+
+                9910 on every managarr-* sidecar. Each container has its own
+                IP, so one number is unambiguous everywhere and there is no
+                per-service arithmetic to get wrong.
+              '';
+            };
+            managarrUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                managarr base URL the sidecar relays events to; empty disables
+                relaying and leaves the read half working.
+              '';
+            };
           };
 
         config = {
@@ -131,6 +161,47 @@
                 }:
                 {
                   imports = [
+                    {
+                      networking.firewall.allowedTCPPorts = [ cfg.apiPort ];
+
+                      systemd.services.managarr-radarr = {
+                        description = "Serve Radarr's history and notifications to managarr";
+                        after = [ "radarr.service" ];
+                        wantedBy = [ "multi-user.target" ];
+                        wants = [ "radarr.service" ];
+
+                        script = ''
+                          export HOMELAB_MANAGARR_RADARR_API_KEY="''${RADARR__AUTH__APIKEY:-}"
+                        ''
+                        + "exec "
+                        + lib.concatStringsSep " " (
+                          [
+                            managarrSidecarExe
+                            "--addr :${toString cfg.apiPort}"
+                            "--metrics.addr 127.0.0.1:9909"
+                          ]
+                          ++ lib.optional (cfg.managarrUrl != "") "--managarr-url ${cfg.managarrUrl}"
+                          ++ [ "--upstream-url http://127.0.0.1:7878" ]
+                        );
+
+                        serviceConfig = {
+                          User = "radarr";
+                          Group = "radarr";
+                          EnvironmentFile = "/run/secrets/radarr-env";
+                          Restart = "on-failure";
+                          RestartSec = 5;
+                          ProtectSystem = "strict";
+                          ProtectHome = true;
+                          PrivateDevices = true;
+                          PrivateTmp = true;
+                          NoNewPrivileges = true;
+                          RestrictAddressFamilies = [
+                            "AF_INET"
+                            "AF_INET6"
+                          ];
+                        };
+                      };
+                    }
                     (import ./_base.nix { inherit lib cfg; })
                     inputs.configuratarr.nixosModules.default
                   ];

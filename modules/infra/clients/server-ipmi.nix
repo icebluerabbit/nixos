@@ -1,8 +1,15 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Server IPMI";
-  mac = "9c:6b:00:d2:25:5f";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "server-ipmi";
+    resourceName = "server_ipmi";
+    name = "Server IPMI";
+    mac = "9c:6b:00:d2:25:5f";
+    vlan = "mgmt";
+    kind = "physical";
+    portProfile = "mgmt-server-ipmi";
+  };
 in
 {
   den.aspects.infra._.clients._.server-ipmi = {
@@ -10,53 +17,11 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
-
+      den.aspects.infra._.networks._.mgmt
+      den.aspects.infra._.ports._.mgmt-server-ipmi
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.mgmt.staticAddresses.server-ipmi;
-      in
-      {
-        infra.clients.server-ipmi = {
-          inherit
-            name
-            mac
-            ip
-            ;
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.mgmt.staticAddresses.server-ipmi;
-      in
-      {
-        infra.clients.server-ipmi = {
-          inherit
-            name
-            mac
-            ip
-            ;
-        };
-
-        resource.unifi_client.server_ipmi = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.server_ipmi";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.mgmt.staticAddresses.server-ipmi;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.mgmt.staticAddresses.server-ipmi;
   };
 }

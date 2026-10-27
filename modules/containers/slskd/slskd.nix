@@ -8,7 +8,12 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       {
         options.containerConfigs.slskd =
           (import ../_options.nix {
@@ -52,6 +57,13 @@ _: {
               type = lib.types.int;
               default = 21;
               description = "Age (mtime, days) a failed_imports/ entry must reach before deletion. soularr denylists what it moves there, so nothing ever retries it.";
+            };
+
+            # ── search history pruning (slskd-search-prune) ──
+            searchRetentionDays = lib.mkOption {
+              type = lib.types.int;
+              default = 7;
+              description = "Age (startedAt, days) a stored search must reach before deletion. slskd has retention for transfers/files/logs/share-cache but none for searches, so search.db grows without bound.";
             };
             listenPortSeed = lib.mkOption {
               type = lib.types.port;
@@ -185,11 +197,40 @@ _: {
               default = [ ];
               description = "VPN tunnel pool wiring (decoupled from vpn-gw); the broker selects among these";
             };
+            apiPort = lib.mkOption {
+              type = lib.types.port;
+              default = 9910;
+              description = ''
+                Port for managarr-slskd, the sidecar serving this service's
+                records to managarr.
+
+                9910 on every managarr-* sidecar. Each container has its own
+                IP, so one number is unambiguous everywhere and there is no
+                per-service arithmetic to get wrong.
+              '';
+            };
+            managarrUrl = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+              description = ''
+                managarr base URL the sidecar relays events to; empty disables
+                relaying and leaves the read half working.
+              '';
+            };
           };
 
         config.containers.slskd =
           let
+            # Resolved in the HOST's package set. pkgs inside a container
+            # body is the container's own and carries no overlays, so
+            # pkgs.homelab there fails with "attribute 'homelab' missing".
+            # The store path is what crosses the boundary.
+            managarrSidecarExe = lib.getExe pkgs.homelab.managarr-slskd;
             cfg = config.containerConfigs.slskd;
+            # Resolved from host pkgs so the homelab overlay is in scope; the
+            # store path pulls into the container closure via ExecStart.
+            brokerClient = lib.getExe pkgs.homelab.vpn-broker-client-slskd;
+            pruneClient = lib.getExe pkgs.homelab.slskd-prune;
           in
           {
             inherit (cfg) autoStart;
@@ -238,10 +279,50 @@ _: {
                     );
                   }
                 );
-                brokerClient = "${lib.getExe pkgs.python3} ${./slskd_broker_client.py}";
+                inherit brokerClient;
               in
               {
-                imports = [ (import ../_base.nix { inherit lib cfg; }) ]; # opens cfg.port (web) on LAN
+                imports = [
+                  {
+                    networking.firewall.allowedTCPPorts = [ cfg.apiPort ];
+
+                    systemd.services.managarr-slskd = {
+                      description = "Serve slskd's event log to managarr";
+                      after = [ "slskd.service" ];
+                      wantedBy = [ "multi-user.target" ];
+                      wants = [ "slskd.service" ];
+
+                      script =
+                        "exec "
+                        + lib.concatStringsSep " " (
+                          [
+                            managarrSidecarExe
+                            "--addr :${toString cfg.apiPort}"
+                            "--metrics.addr 127.0.0.1:9909"
+                          ]
+                          ++ lib.optional (cfg.managarrUrl != "") "--managarr-url ${cfg.managarrUrl}"
+                          ++ [ "--upstream-url http://127.0.0.1:5030" ]
+                        );
+
+                      serviceConfig = {
+                        User = "slskd";
+                        Group = "slskd";
+                        Restart = "on-failure";
+                        RestartSec = 5;
+                        ProtectSystem = "strict";
+                        ProtectHome = true;
+                        PrivateDevices = true;
+                        PrivateTmp = true;
+                        NoNewPrivileges = true;
+                        RestrictAddressFamilies = [
+                          "AF_INET"
+                          "AF_INET6"
+                        ];
+                      };
+                    };
+                  }
+                  (import ../_base.nix { inherit lib cfg; })
+                ]; # opens cfg.port (web) on LAN
 
                 # asymmetric-ish paths (inbound via DNAT'd veth, egress via default veth) — like
                 # vpn-gw/qbt, disable strict reverse-path filtering.
@@ -422,6 +503,21 @@ _: {
                         IOSchedulingClass = "idle";
                       };
                     };
+
+                    # ── search history pruning ──────────────────────────────────────────────
+                    # slskd has no search retention of its own and soularr searches
+                    # continuously, so search.db only grows — and the UI's search view loads
+                    # every record in one response, so it stalls long before the API does.
+                    slskd-search-prune = {
+                      description = "Delete slskd searches older than ${toString cfg.searchRetentionDays} days";
+                      after = [ "slskd.service" ];
+                      serviceConfig = {
+                        Type = "oneshot";
+                        ExecStart = "${pruneClient} --base http://127.0.0.1:${toString cfg.port} --retention-days ${toString cfg.searchRetentionDays}";
+                        Nice = 19;
+                        IOSchedulingClass = "idle";
+                      };
+                    };
                   };
 
                   timers = {
@@ -449,6 +545,16 @@ _: {
                       wantedBy = [ "timers.target" ];
                       timerConfig = {
                         OnCalendar = "05:00";
+                        Persistent = true;
+                      };
+                    };
+
+                    # 30min behind soulseek-reap so the two housekeeping jobs don't contend
+                    # for slskd's SQLite and the NFS share at the same moment.
+                    slskd-search-prune = {
+                      wantedBy = [ "timers.target" ];
+                      timerConfig = {
+                        OnCalendar = "05:30";
                         Persistent = true;
                       };
                     };

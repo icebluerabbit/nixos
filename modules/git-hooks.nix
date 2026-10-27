@@ -21,6 +21,7 @@
 
   perSystem =
     {
+      config,
       pkgs,
       ...
     }:
@@ -46,13 +47,20 @@
                 entry = "${pkgs.statix}/bin/statix check";
                 pass_filenames = false;
               };
-              nixfmt-tree-check = {
+              # The project formatter itself (see modules/formatter.nix): nixfmt
+              # for Nix, ruff for Python, gofmt for Go. Running the same wrapper
+              # `nix fmt` uses means the hook and the formatter cannot disagree.
+              treefmt-check = {
                 enable = true;
-                name = "nixfmt-tree";
-                description = "Format Nix files using the project formatter";
-                entry = "${pkgs.nixfmt-tree}/bin/treefmt";
+                name = "treefmt";
+                description = "Format Nix, Python, Go, shell, Lua and markdown using the project formatter";
+                entry =
+                  if config ? treefmt then
+                    "${config.treefmt.build.wrapper}/bin/treefmt"
+                  else
+                    "${pkgs.nixfmt-tree}/bin/treefmt";
                 args = [ "--no-cache" ];
-                files = "\\.nix$";
+                files = "\\.(nix|py|go|sh|md)$";
               };
             };
           };

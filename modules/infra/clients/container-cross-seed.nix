@@ -1,8 +1,25 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "cross-seed Container";
-  mac = "62:f5:a4:5b:20:b3";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-cross-seed";
+    resourceName = "container_cross_seed";
+    name = "cross-seed Container";
+    mac = "62:f5:a4:5b:20:b3";
+    vlan = "media";
+    kind = "virtual";
+    ports.default = 2468;
+    # managarr-crossseed, the read-only sidecar serving cross-seed's decision
+    # log. cross-seed's own API has no decisions route and its webhook fires
+    # only on a match, so the rejections — most of the record — are reachable no
+    # other way. The sidecar runs in this container because that is where the
+    # database file is; serving it is what spares every consumer a bind mount.
+    #
+    # 9910 is the shared managarr-* sidecar port: every container has its own
+    # IP, so one number carries across all of them.
+    ports.api = 9910;
+    proxy.port = "default";
+  };
 in
 {
   den.aspects.infra._.clients._.container-cross-seed = {
@@ -10,60 +27,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.media
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.media.staticAddresses.cross-seed;
-      in
-      {
-        infra.clients.container-cross-seed = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 2468;
-          };
-          proxy.port = "default";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.media.staticAddresses.cross-seed;
-      in
-      {
-        infra.clients.container-cross-seed = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 2468;
-          };
-          proxy.port = "default";
-        };
-
-        resource.unifi_client.container_cross_seed = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_cross_seed";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.media.staticAddresses.cross-seed;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.media.staticAddresses.cross-seed;
   };
 }

@@ -1,11 +1,20 @@
 # modules/infra/clients/container-bazarr.nix
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Bazarr Container";
-  # index 60 (0xb4) — media's deterministic index range (vlanId 120 + idx)
-  # overflows into other VLANs' byte range past idx ~9, so overflow media
-  # containers (flaresolverr, autobrr, cross-seed) jump to a high free byte.
-  mac = "62:f5:a4:5b:20:b4";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-bazarr";
+    resourceName = "container_bazarr";
+    name = "Bazarr Container";
+    mac = "62:f5:a4:5b:20:b4";
+    vlan = "media";
+    kind = "virtual";
+    ports.default = 6767;
+    # managarr-bazarr, the sidecar serving this service's records to managarr.
+    # 9910 on every managarr-* sidecar: each container has its own IP, so one
+    # number carries across all of them with no per-service arithmetic.
+    ports.api = 9910;
+    proxy.port = "default";
+  };
 in
 {
   den.aspects.infra._.clients._.container-bazarr = {
@@ -13,60 +22,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.media
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.media.staticAddresses.bazarr;
-      in
-      {
-        infra.clients.container-bazarr = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 6767;
-          };
-          proxy.port = "default";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.media.staticAddresses.bazarr;
-      in
-      {
-        infra.clients.container-bazarr = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 6767;
-          };
-          proxy.port = "default";
-        };
-
-        resource.unifi_client.container_bazarr = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_bazarr";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.media.staticAddresses.bazarr;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.media.staticAddresses.bazarr;
   };
 }

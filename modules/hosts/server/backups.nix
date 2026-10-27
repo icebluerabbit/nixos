@@ -19,10 +19,18 @@
         snap = "/var/lib/appdata-snapshot";
         repo = "/mnt/data/backups/appdata";
         btrfs = lib.getExe pkgs.btrfs-progs;
-        restic = lib.getExe pkgs.restic;
-        jq = lib.getExe pkgs.jq;
         mq = config.infra.clients.container-mosquitto;
-        pub = "${pkgs.mosquitto}/bin/mosquitto_pub -h ${mq.ip} -p ${toString mq.ports.default} -q 1 -t homelab/notify/backups -m";
+        # restic-backup is multi-binary, so no mainProgram to getExe.
+        backup = "${pkgs.homelab.restic-backup}/bin/restic-backup";
+        notifyFail = "${pkgs.homelab.restic-backup}/bin/restic-backup-notify-fail";
+        mqttArgs = [
+          "--mqtt-host"
+          mq.ip
+          "--mqtt-port"
+          (toString mq.ports.default)
+          "--topic"
+          "homelab/notify/backups"
+        ];
       in
       {
         sops.secrets."restic-appdata-password" = { };
@@ -55,34 +63,37 @@
                   ${btrfs} subvolume delete ${snap} 2>/dev/null || true
                   ${btrfs} subvolume snapshot -r ${source} ${snap}
                 '';
-                ExecStart = pkgs.writeShellScript "appdata-backup" ''
-                  set -euo pipefail
-                  ${restic} cat config >/dev/null 2>&1 || ${restic} init
-                  # exclude reconstructible caches/churn: metrics/log/trace stores,
-                  # esphome toolchains, jellyfin metadata images, *arr MediaCover,
-                  # and youtarr's hoarded yt-dlp .info.json sidecars (9G of scrape cruft)
-                  summary=$(${restic} backup --tag appdata --json \
-                    --exclude=${snap}/loki \
-                    --exclude=${snap}/tempo \
-                    --exclude=${snap}/esphome/.platformio \
-                    --exclude=${snap}/esphome/.cache \
-                    --exclude=${snap}/jellyfin/metadata \
-                    --exclude=${snap}/jellyfin/log \
-                    --exclude=${snap}/youtarr/config/jobs/info \
-                    --exclude=${snap}/youtarr/.cache \
-                    --exclude='**/MediaCover' \
-                    ${snap} | tail -n1)
-                  ${restic} forget --tag appdata \
-                    --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
-                  payload=$(${jq} -nc \
-                    --arg host "$(uname -n)" --arg repo "${repo}" --argjson s "$summary" '{
-                      event:"backup", host:$host, result:"success", repo:$repo,
-                      snapshot:($s.snapshot_id[0:8]),
-                      files_new:$s.files_new, files_changed:$s.files_changed,
-                      data_added:$s.data_added, duration:($s.total_duration|floor)
-                    }')
-                  ${pub} "$payload"
-                '';
+                # exclude reconstructible caches/churn: metrics/log/trace stores,
+                # esphome toolchains, jellyfin metadata images and HLS segments,
+                # *arr MediaCover, and youtarr's hoarded yt-dlp .info.json sidecars
+                # (9G of scrape cruft)
+                ExecStart = lib.escapeShellArgs (
+                  [
+                    backup
+                    "--tag"
+                    "appdata"
+                  ]
+                  ++
+                    lib.concatMap
+                      (p: [
+                        "--exclude"
+                        p
+                      ])
+                      [
+                        "${snap}/loki"
+                        "${snap}/tempo"
+                        "${snap}/esphome/.platformio"
+                        "${snap}/esphome/.cache"
+                        "${snap}/jellyfin/metadata"
+                        "${snap}/jellyfin/log"
+                        "${snap}/jellyfin/transcodes"
+                        "${snap}/youtarr/config/jobs/info"
+                        "${snap}/youtarr/.cache"
+                        "**/MediaCover"
+                      ]
+                  ++ mqttArgs
+                  ++ [ snap ]
+                );
                 # always drop the snapshot, even on failure
                 ExecStopPost = "-${btrfs} subvolume delete ${snap}";
               };
@@ -93,14 +104,17 @@
               description = "report failed appdata backup to Matrix";
               serviceConfig = {
                 Type = "oneshot";
-                ExecStart = pkgs.writeShellScript "appdata-backup-fail" ''
-                  err=$(${pkgs.systemd}/bin/journalctl -u restic-appdata.service -o cat -n 3 \
-                        | tail -n1 || true)
-                  payload=$(${jq} -nc \
-                    --arg host "$(uname -n)" --arg repo "${repo}" --arg err "$err" \
-                    '{event:"backup",host:$host,result:"failed",repo:$repo,error:$err}')
-                  ${pub} "$payload"
-                '';
+                # No RESTIC_REPOSITORY in this unit's environment, so name the repo.
+                ExecStart = lib.escapeShellArgs (
+                  [
+                    notifyFail
+                    "--unit"
+                    "restic-appdata.service"
+                    "--repo"
+                    repo
+                  ]
+                  ++ mqttArgs
+                );
               };
             };
           };

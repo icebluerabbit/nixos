@@ -1,9 +1,14 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Server Storage";
-  mac = "62:f5:a4:5b:20:32";
-  ip = null;
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "server-vlan-storage";
+    resourceName = "server_vlan_storage";
+    name = "Server Storage";
+    mac = "62:f5:a4:5b:20:32";
+    vlan = "storage";
+    kind = "virtual";
+  };
 in
 {
   den.aspects.infra._.clients._.server-vlan-storage = {
@@ -11,35 +16,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
-
+      den.aspects.infra._.networks._.storage
     ];
 
-    os = _: {
-      infra.clients.server-vlan-storage = {
-        inherit
-          name
-          mac
-          ip
-          ;
-      };
-    };
-
-    terranix = {
-      resource.unifi_client.server_vlan_storage = {
-        inherit mac name;
-        fixed_ip = ip;
-        allow_existing = true;
-        blocked = false;
-        site = "default";
-        skip_forget_on_destroy = false;
-      };
-
-      import = [
-        {
-          to = "unifi_client.server_vlan_storage";
-          id = mac;
-        }
-      ];
-    };
+    os = _: client.mkOs null;
+    terranix = _: client.mkTerranix null;
   };
 }

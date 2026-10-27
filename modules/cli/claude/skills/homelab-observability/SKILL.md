@@ -1,59 +1,143 @@
 ---
 name: homelab-observability
-description: Investigate homelab metrics, logs, and traces via the Grafana stack (Loki / Prometheus / Tempo) — "why is X slow", "find errors in service Y", query logs/metrics, inspect dashboards, error patterns, or latency. Use whenever the user asks to query Loki/Prometheus, search logs across services, find slow requests or error spikes, check a Grafana dashboard, or correlate a runtime issue with metrics. Complements nixos-container-debug (which handles per-container journals/status). Also load homelab-topology to resolve targets and nixos-vector-logging when the issue is missing or misconfigured shipping.
+description: Investigate or tune anything on this homelab using measured evidence — metrics, logs and traces via the Grafana stack (Loki / Prometheus / Tempo) plus the sys-mcp observability tools. Use for "why is X slow", "should I change setting Y", "find errors in service Z", query logs/metrics, correlate a runtime issue, or judge whether a value is healthy. Every container, host and network device is instrumented, and that telemetry — not config comments, not prior reasoning — is the authority for any tuning or debugging decision. Also load homelab-topology to resolve targets and nixos-vector-logging when shipping itself is misconfigured.
 ---
 
-# Homelab Observability (Grafana / Loki / Prometheus / Tempo)
+# Homelab Observability
 
-Every container ships logs/metrics/traces via a Vector sidecar (wired by `_base.nix` from `cfg.logging`) to Loki + Prometheus + Tempo. Query the aggregate via the `grafana` MCP server.
+Every container and host ships logs, metrics and traces via a Vector sidecar
+to Loki + Prometheus + Tempo. ~200k series across ~50 reporting entities,
+~3000 distinct metric names, 70+ provisioned alert rules, 38 dashboards.
 
-## When to use this vs `nixos-container-debug`
-- **This skill**: cross-service questions, time-range analysis, metrics, traces, error-pattern detection, dashboards.
-- **container-debug**: live state of one container — is it up, raw journal, exec inside it.
+**The telemetry is the authority.** Not comments, not README claims, not what
+a previous session concluded. If a decision can be measured, measure it.
 
-Often: start broad here (which service is erroring / when), then drill into one container with `container_journal` / `container_exec`.
+## Doctrine
 
-## Orientation
-```
-list_datasources                      # find Loki / Prometheus / Tempo datasource UIDs
-search_dashboards <query>             # existing dashboards
-list_loki_label_names                 # what log labels exist (service, container, host…)
-list_loki_label_values <label>
-list_prometheus_metric_names
-```
-Map a service name to its log labels via the Vector `hostType`/labels (`"container"`, `"host"`, `"network"`).
+1. **A config comment is a hypothesis, never evidence.** Comments record what
+   someone believed when they wrote them. Verify before repeating one. A
+   comment in `_bittorrent.nix` asserted a "~30 MB/s BDP wall"; measurement
+   showed 110 MB/s peaks. It had been wrong for months and was steering
+   tuning decisions the whole time.
+2. **No claim without a query, a window and a number.** "Should help",
+   "seems high", "probably fine" are not conclusions. Quote the metric, the
+   time range, and the value.
+3. **Check whether "bad" is already defined** before calling any value high
+   or low. 70+ alert rules carry committed thresholds. `get_metric` returns
+   the governing rule and its exact number — use it instead of inventing one.
+4. **Say when a judgement is yours.** If a metric has no alert governing it,
+   any threshold you apply is your invention. State that plainly.
+5. **Report what the data shows, including when it refutes the plan.** A
+   measurement that kills the proposed change is the most valuable result
+   available, not a failure.
 
-## Logs (Loki / LogQL)
-```
-query_loki_logs        '{service="radarr"} |= "error"'   (with datasource UID + time range)
-query_loki_stats / query_loki_patterns
-find_error_pattern_logs        # auto error-pattern detection for a service/time window
-```
-LogQL essentials: `{label="x"}` stream selector, `|= "str"` / `!= "str"` line filter, `| json` / `| logfmt` parsers, `| pattern`, rate via `count_over_time({...}[5m])`.
+## Orient first — sys-mcp tools
 
-## Metrics (Prometheus / PromQL)
+Start here. These answer "what evidence exists" before you go looking for it.
+
 ```
-query_prometheus               instant or range PromQL
-query_prometheus_histogram     latency/duration histograms (p50/p95/p99)
-list_prometheus_label_values <metric> <label>
-find_slow_requests             # surface slow requests for a service
+describe_observability <host|container>   # families, logs, alerts, dashboards
+get_metric <name>                         # current value + governing threshold
+list_metric_families [host]               # what is instrumented
+list_alert_thresholds [category] [metric] # the agreed definitions of bad
+check_signal_coverage                     # gaps: what is NOT measured
 ```
 
-## Investigation pattern — "service X is slow / erroring"
-1. `list_datasources` → grab Loki + Prometheus UIDs.
-2. `find_error_pattern_logs` (or `query_loki_logs '{service="X"} |~ "(?i)error|panic|fatal"'`) over the suspect window.
-3. `query_prometheus_histogram` / `find_slow_requests` for latency on X.
-4. Correlate timestamps; if it's one container, drill: `container_journal X unit=<svc> lines=300`, `container_status X`.
-5. Check resource/network: `get_container X` for VLAN/bridge; UniFi (`list_unifi_firewall_policies`) if cross-VLAN reachability is suspect.
+`get_metric` is the workhorse. One call returns the live value, the alert
+rule governing it with its exact threshold and duration, and the dashboard
+aspect charting it — which is where panel `description` fields define what
+the metric actually means.
 
-## Dashboards (read; create/update only if asked)
+Then use the `grafana` MCP server to run the real queries.
+
+## The label backbone
+
+Prometheus and Loki carry the same `host` and `host_type` labels, so a host
+name moves between PromQL and LogQL unchanged. `host_type` is `container`,
+`host`, or `network`.
+
+Two traps, both confirmed live:
+
+- **`service_name` is unpopulated.** Its only value estate-wide is
+  `unknown_service`. Selecting on it matches nothing. Use `host`.
+- **The join is not symmetric.** UniFi gear ships syslog to Loki under its
+  device name (`UNAS-Pro`, `USW-Pro-HD-24-PoE`, …) while its metrics arrive
+  via the unpoller exporter under a different host entirely. Joining those on
+  `host` returns an empty result, not an error. `check_signal_coverage` lists
+  the current mismatches.
+
+An empty result never means healthy. It means empty. Distinguish "no series"
+from "series reading zero" before concluding anything.
+
+## Query technique
+
+**Always pull avg, p95 and max together.** Averages hide binding behaviour.
+`qbt_peers_uploading` averaged 62 against a cap of 100 — which reads slack —
+while its max was 102, pinned at the ceiling with 224 peers queued behind it.
+
+```promql
+avg_over_time(m[7d])  quantile_over_time(0.95, m[7d])  max_over_time(m[7d])
 ```
-search_dashboards / get_dashboard_by_uid / get_dashboard_panel_queries
-get_panel_image            # render a panel PNG for visual confirmation
-generate_deeplink          # shareable Explore/dashboard URL
+
+**Conditional slicing** — compare a metric's behaviour under a condition on a
+_different_ metric. This is how you test whether X actually drives Y instead
+of eyeballing two lines on a dashboard:
+
+```promql
+avg_over_time((qbt_peers_uploading and on()
+  (rate(node_pressure_io_stalled_seconds_total{host="server"}[5m]) > 0.2))[7d:5m])
 ```
+
+Run it again with the condition inverted (`< 0.05`) and compare. A weak split
+is evidence _against_ the causal story — that query returned 66 vs 52, which
+is what killed the theory that upload slots were driving the IO stalls.
+
+**Duty cycle** — what fraction of the time a condition holds:
+
+```promql
+avg_over_time((metric >= bool threshold)[7d:5m])
+```
+
+**Cross-entity joins need `on()`.** Metrics from different hosts carry
+different `host` values, so an unqualified `and` matches nothing.
+
+**`A or B` short-circuits.** If A returns any series, B never evaluates.
+Combining two probes with `or` to save a round trip silently returns only the
+first. Issue them separately.
+
+## Investigation workflow
+
+1. `describe_observability <target>` — what signal exists at all.
+2. `get_metric` on the metrics that matter — current values and the
+   thresholds already agreed for them.
+3. Form a hypothesis and state it explicitly.
+4. Query the `grafana` MCP server over an explicit window. Pull avg/p95/max,
+   not just current.
+5. Try to **refute** the hypothesis with conditional slicing. Correlation
+   under one condition proves little; a clean split under the inverse is
+   what makes it real.
+6. Cross-reference: container journal (`container_journal`), host PSI
+   (`node_pressure_*`), NFS (`node_nfs_*`), the alert history.
+7. Report numbers with their windows. Name what stayed unverified.
+
+## Logs (LogQL)
+
+```
+query_loki_logs '{host="radarr"} |~ "(?i)error|panic|fatal"'
+query_loki_patterns / query_loki_stats / find_error_pattern_logs
+```
+
+Selector `{host="…"}` (**not** `service`), `|=` / `!=` line filters, `| json`
+/ `| logfmt` parsers, rate via `count_over_time({…}[5m])`.
 
 ## Guards
-- This is read/analysis. Creating dashboards, annotations, alert rules, or incidents mutates Grafana — only when explicitly asked, and state it before doing so.
-- Grafana itself is a container; if the MCP can't reach it, resolve + check it with `get_container grafana` → `container_status grafana` (see nixos-container-debug).
-- Always pass an explicit time range; default windows can miss the event.
+
+- Read and analysis only. Creating dashboards, annotations, alert rules or
+  incidents mutates Grafana — only when explicitly asked, and say so first.
+- Always pass an explicit time range. Default windows miss the event.
+- Grafana, Prometheus and Loki are themselves containers. If a datasource is
+  unreachable the sys-mcp tools degrade to static config and say so — that
+  says nothing about the target's health. Check the datasource container via
+  `container_status` (see `nixos-container-debug`).
+- Tuning changes to container configs still need turn-by-turn approval, and
+  `switch`/`apply` is always handed to the user.

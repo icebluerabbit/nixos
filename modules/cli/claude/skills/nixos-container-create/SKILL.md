@@ -6,6 +6,7 @@ description: Create or scaffold a new systemd-nspawn container in this NixOS hom
 # Create a NixOS Container
 
 End-to-end procedure. The rules behind each step live in knowledge skills — load them as needed:
+
 - **`nixos-container-conventions`** — `_base.nix`/`_options.nix`, port/UID/tmpfiles/firewall/glue invariants.
 - **`homelab-networking`** — VLAN/bridge architecture + MAC formula.
 - **`homelab-topology`** — resolving hosts/IPs/clients.
@@ -13,62 +14,76 @@ End-to-end procedure. The rules behind each step live in knowledge skills — lo
 ## ⛔ Hard gates — read before any file write
 
 Override everything (also in CLAUDE.md):
+
 1. **VLAN selection** — if the target VLAN isn't explicitly stated, STOP and ask. Suggest, but approval is not implied.
-2. **Turn-by-turn authorization** — before any file write, output the exact proposed changes + justification and ask *"Do you authorize these changes for this turn?"*. Wait for `"lgtm"`/`"sgtm"` — no other phrasing.
+2. **Turn-by-turn authorization** — before any file write, output the exact proposed changes + justification and ask _"Do you authorize these changes for this turn?"_. Wait for `"lgtm"`/`"sgtm"` — no other phrasing.
 3. **Dialogue gating** — any question/design discussion in the request → dialogue only, no writes that turn.
 
 ## Step 0 — Allocations (tools, not guesses)
 
 ```
-next_free_ip <vlan>     → lowest unused host IP ≥ .3
-next_free_mac <vlan>    → deterministic container MAC + expected bridge MAC
+next_free_ip <vlan>     → highest static + 1, within .3-.99
+next_free_mac <vlan>    → highest index + 1 → container MAC + expected bridge MAC
 ```
+
+Both allocate from the high-water mark. **Never fill a gap** — gaps are reservations (media's `.12`) or recently-freed addresses still live in a lease or ARP table. Take what the tool returns.
+
 Pick a **unique** static UID/GID — search first: `grep -rn "defaultUid\|defaultGid" modules/containers/`. (MAC scheme → `homelab-networking`; UID/port/no-magic rules → `nixos-container-conventions`.)
 
 ## Step 1 — VLAN static address — `modules/infra/networks/<vlan>.nix`
+
 ```nix
 staticAddresses = { gateway = "10.10.120.1"; server = "10.10.120.2"; radarr = "10.10.120.3"; };  # ← from next_free_ip
 ```
+
 Only place an IP literal appears.
 
 ## Step 2 — Infra client — `modules/infra/clients/container-<name>.nix`
-Both `nixos` and `terranix` sections, kept identical. Register MAC/IP/named ports (+ `proxy.port` if web-facing → `nixos-web-expose`).
+
+The aspect owns its identity, its `includes` and its `config` reads. `_mk-client.nix` only builds the two engine bodies — it takes plain data, returns `{ mkOs, mkTerranix }`, and never sees an aspect or `config`.
+
 ```nix
-{ den, ... }:
-let name = "Radarr Container"; mac = "62:f5:a4:5b:20:79"; in   # mac from next_free_mac
+{ den, lib, ... }:
+let
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-radarr";
+    resourceName = "container_radarr";  # Terraform address — state key, never rename
+    name = "Radarr Container";
+    mac = "62:f5:a4:5b:20:79";          # from next_free_mac
+    vlan = "media";
+    kind = "virtual";
+    ports.default = 7878;               # named ports = single source of truth
+    proxy.port = "default";             # web-facing only — auto Caddy vhost
+  };
+in
 {
   den.aspects.infra._.clients._.container-radarr = {
-    includes = [ den.aspects.infra._.providers._.unifi den.aspects.infra._.options ];
-    nixos = { config, ... }: {
-      infra.clients.container-radarr = {
-        inherit name mac;
-        ip = config.infra.vlans.media.staticAddresses.radarr;
-        ports = { default = 7878; };
-        proxy.port = "default";        # web-facing only — auto Caddy vhost
-      };
-    };
-    terranix = { config, ... }: {
-      infra.clients.container-radarr = {
-        inherit name mac;
-        ip = config.infra.vlans.media.staticAddresses.radarr;
-        ports = { default = 7878; };
-        proxy.port = "default";
-      };
-      resource.unifi_client.container_radarr = {
-        inherit mac name;
-        fixed_ip = config.infra.vlans.media.staticAddresses.radarr;
-        allow_existing = true; blocked = false; site = "default";
-        skip_forget_on_destroy = false;
-      };
-      # import = [ { to = "unifi_client.container_radarr"; id = mac; } ];  # uncomment AFTER user's first apply
-    };
+    aspect-name = "infra.clients.container-radarr";
+    includes = [
+      den.aspects.infra._.providers._.unifi
+      den.aspects.infra._.options
+      den.aspects.infra._.networks._.media
+    ];
+
+    os = { config, ... }: client.mkOs config.infra.vlans.media.staticAddresses.radarr;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.media.staticAddresses.radarr;
   };
 }
 ```
-Named ports = single source of truth; `import` stays commented until applied (→ `nixos-infra-provision`).
+
+**Rules, and they are not negotiable:**
+
+- **Aspects are referenced only in aspect files.** Never pass an aspect or an `includes` list into a helper, and never let a helper build one.
+- **`config` is read only in aspect files.** The address is looked up where `config` is already in scope and passed in as a value. Never hand a helper a `config: …` lambda.
+- **Dependencies are strict.** The aspect includes every aspect it reads: its VLAN here, and for other kinds `container-dns` (networks, vpn), the VLAN (ports, wlans), the port profile (devices), the zone (DNS records).
+- Pass `null` to `mkOs`/`mkTerranix` for a client with no fixed address.
+
+Same shape for every sibling in `modules/infra/`: `_mk-network`, `_mk-port-profile`, `_mk-device`, `_mk-wlan`, `_mk-wan`, `_mk-vpn`, `_mk-dyndns`, `_mk-usergroup`, `_mk-setting`, `_mk-dns-record`, `_mk-zone`, `_mk-gitea-repo`, `_mk-provider`.
 
 ## Step 3 — Container aspect — `modules/containers/<name>.nix`
+
 Declares host options via `provides.to-hosts.nixos` (imports `_options.nix`), then the nspawn container importing `_base.nix` (what it provides → `nixos-container-conventions`).
+
 ```nix
 { den, lib, ... }:
 {
@@ -97,7 +112,9 @@ Declares host options via `provides.to-hosts.nixos` (imports `_options.nix`), th
 ```
 
 ## Step 4 — Host override — `modules/hosts/server/containers/<name>.nix`
+
 Network-specific values, storage, secrets, logging. All inter-container glue lives here (→ `nixos-container-conventions`; logging → `nixos-vector-logging`).
+
 ```nix
 { den, ... }:
 {
@@ -142,27 +159,34 @@ Network-specific values, storage, secrets, logging. All inter-container glue liv
   };
 }
 ```
+
 Startup deps (e.g. needs postgres): add the provider aspect to `includes` and
+
 ```nix
 systemd.services."container@radarr" = { wants = [ "container@postgresql.service" ]; after = [ "container@postgresql.service" ]; };
 ```
 
 ## Step 5 — Register
+
 - `modules/hosts/server/host.nix` → add `den.aspects.hosts._.server._.containers._.radarr` to `includes`.
 - `modules/infra/homelab.nix` → add `den.aspects.infra._.clients._.container-radarr` to `includes`.
 - New VLAN? bridge aspect must exist + be registered (→ `homelab-networking`).
 
 ## Step 6 — Web-facing? → `nixos-web-expose`
+
 Set `proxy.port` on the infra client (step 2) → Caddy auto-proxies; DNS is automatic. Homepage card + Caddy `includes` are the `nixos-web-expose` skill.
 
 ## Step 7 — Stage, format, validate (zero-effect commands)
+
 ```bash
 git add modules/infra/clients/container-radarr.nix modules/containers/radarr.nix \
         modules/hosts/server/containers/radarr.nix    # flakes ignore untracked files
 just flake && nix fmt
 validate_container radarr     # vlan addr, client, ports, IP/VLAN match, MAC formula, host decl, sources
 just eval-server              # fast eval — fix every failing check before handing off
+just topology                 # README VLAN tables; CI fails if stale
 ```
+
 **Deploy is human-only.** The assistant never runs `switch*`/`test*`/`infra-apply`. After eval passes, hand the user `just switch-server`.
 
 All invariants referenced above are detailed in `nixos-container-conventions` — follow them exactly.

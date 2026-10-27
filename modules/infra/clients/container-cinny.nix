@@ -1,7 +1,16 @@
-{ den, ... }:
+# modules/infra/clients/container-cinny.nix
+{ den, lib, ... }:
 let
-  name = "Cinny Container";
-  mac = "62:f5:a4:5b:20:74";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-cinny";
+    resourceName = "container_cinny";
+    name = "Cinny Container";
+    mac = "62:f5:a4:5b:20:74";
+    vlan = "apps";
+    kind = "virtual";
+    ports.default = 80;
+    proxy.port = "default";
+  };
 in
 {
   den.aspects.infra._.clients._.container-cinny = {
@@ -9,46 +18,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.apps
     ];
 
-    os =
-      { config, ... }:
-      {
-        infra.clients.container-cinny = {
-          inherit name mac;
-          ip = config.infra.vlans.apps.staticAddresses.cinny;
-          ports = {
-            default = 80;
-          };
-          proxy.port = "default";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      {
-        infra.clients.container-cinny = {
-          inherit name mac;
-          ip = config.infra.vlans.apps.staticAddresses.cinny;
-          ports = {
-            default = 80;
-          };
-          proxy.port = "default";
-        };
-        resource.unifi_client.container_cinny = {
-          inherit mac name;
-          fixed_ip = config.infra.vlans.apps.staticAddresses.cinny;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-        import = [
-          {
-            to = "unifi_client.container_cinny";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.apps.staticAddresses.cinny;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.apps.staticAddresses.cinny;
   };
 }

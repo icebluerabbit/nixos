@@ -15,13 +15,33 @@
   den.aspects.apps._.firefox = {
     aspect-name = "apps.firefox";
     homeManager =
-      { pkgs, ... }:
+      { pkgs, lib, ... }:
       let
         system = pkgs.stdenv.hostPlatform.system;
+        inherit (pkgs.stdenv.hostPlatform) isLinux;
+
+        # Wayland handoff, VA-API decode and the DMA-BUF/WebRender tuning
+        # below all describe the desktop's Wayland + NVIDIA stack. On macOS
+        # Firefox uses Core Animation and VideoToolbox, so these prefs are
+        # either ignored or actively wrong — keep them off darwin.
+        linuxGraphicsPrefs = {
+          "media.ffmpeg.vaapi.enabled" = true;
+          "widget.dmabuf.force-enabled" = true;
+          "layers.gpu-process.enabled" = true;
+          "gfx.webrender.all" = true;
+          "gfx.webrender.compositor" = true;
+        };
+
+        # Sized for the desktop's RAM and core count, not a laptop.
+        desktopPerfPrefs = {
+          "dom.ipc.processCount" = 16;
+          "browser.cache.disk.enable" = false;
+          "browser.cache.memory.capacity" = 1048576;
+        };
       in
       {
         stylix.targets.firefox.profileNames = [ "default" ];
-        home.sessionVariables = {
+        home.sessionVariables = lib.mkIf isLinux {
           MOZ_USE_XINPUT2 = "1";
           MOZ_DBUS_REMOTE = "1";
           MOZ_ENABLE_WAYLAND = "1";
@@ -61,24 +81,16 @@
                 "toolkit.telemetry.unified" = false;
                 "toolkit.telemetry.updatePing.enabled" = false;
                 "browser.startup.page" = 3;
-                "media.ffmpeg.vaapi.enabled" = true;
+                # Both platforms: forces decode past Firefox's own blocklist.
+                # VideoToolbox on macOS, VA-API on Linux — the backend differs
+                # but the pref is recognised by both builds.
                 "media.hardware-video-decoding.force-enabled" = true;
                 "media.av1.enabled" = true;
                 "media.eme.enabled" = true;
                 "media.gmp-widevinecdm.enabled" = true;
                 "media.gmp-manager.updateEnabled" = true;
-                # Wayland DMA-BUF — GPU buffer sharing, reduces copies
-                "widget.dmabuf.force-enabled" = true;
-                # GPU process + content process parallelism
-                "layers.gpu-process.enabled" = true;
-                "dom.ipc.processCount" = 16;
                 # memory cache (disabled by default in LibreWolf)
                 "browser.cache.memory.enable" = true;
-                "browser.cache.disk.enable" = false; # memory-only cache (you have RAM)
-                "browser.cache.memory.capacity" = 1048576; # 1GB memory cache
-                # WebRender (GPU compositor) — should be auto on NVIDIA but explicit is safe
-                "gfx.webrender.all" = true;
-                "gfx.webrender.compositor" = true;
                 # WebGL
                 "webgl.disabled" = false;
                 # DNS over HTTPS
@@ -89,7 +101,8 @@
                 "network.prefetch-next" = true;
                 "network.predictor.enabled" = true;
                 "security.enterprise_roots.enabled" = true;
-              };
+              }
+              // lib.optionalAttrs isLinux (linuxGraphicsPrefs // desktopPerfPrefs);
             };
           };
         };

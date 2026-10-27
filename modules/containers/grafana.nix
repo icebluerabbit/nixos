@@ -114,6 +114,18 @@ _: {
                   };
                   users.groups.grafana.gid = lib.mkForce cfg.gid;
 
+                  # Server-side PNG rendering of dashboards, consumed by the
+                  # e-paper display over HTTP. provisionGrafana is deliberately
+                  # left off: it derives callback_url from http_addr, which is
+                  # 0.0.0.0 here, so the renderer would call back to 0.0.0.0.
+                  services.grafana-image-renderer = {
+                    enable = true;
+                    provisionGrafana = false;
+                    # Must match rendering.renderer_token below; Grafana refuses
+                    # to start if the token is left at its default "-".
+                    settings.server.auth-token = "homelab-grafana-renderer-token";
+                  };
+
                   services.grafana = {
                     enable = true;
                     declarativePlugins = with pkgs.grafanaPlugins; [
@@ -147,6 +159,11 @@ _: {
                       "tracing.opentelemetry.otlp" = lib.mkIf cfg.enableTelemetry {
                         address = "127.0.0.1:4317";
                         propagation = "w3c";
+                      };
+                      rendering = {
+                        server_url = "http://localhost:8081/render";
+                        callback_url = "http://127.0.0.1:${toString cfg.port}";
+                        renderer_token = "homelab-grafana-renderer-token";
                       };
                     } cfg.settings;
                     # Datasources, dashboards, and alerting are all provided per-host via

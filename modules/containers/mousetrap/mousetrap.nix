@@ -4,7 +4,7 @@
   the *arr ecosystem), /refresh/* + /shop (data collectors + shop policy) and /metrics.
   systemd timers (built from settings.refresh) POST to the /refresh|/shop endpoints on
   a schedule; all policy/params come from flags (settings below), so the timer bodies
-  are bare. Binary is pkgs.homelab.mousetrap (see packages/mousetrap).
+  are bare. Binary is pkgs.homelab.mousetrap (see packages/go/mousetrap).
 */
 _: {
   den.aspects.containers._.mousetrap = {
@@ -59,6 +59,17 @@ _: {
                           default = "/run/secrets/mam-api-id";
                           description = "In-container path to the mam_id seed cookie (sops, bind-mounted). Only wired when enable = true; otherwise MAM fails closed";
                         };
+                        mediaTypeNames = lib.mkOption {
+                          type = lib.types.attrsOf lib.types.str;
+                          default = { };
+                          description = ''
+                            MAM search-API mediatype id → the name its IRC announce uses, so both
+                            sources key policy on one vocabulary, e.g. { "2" = "Ebook"; }. MAM ships
+                            ids we have no name for until one is announced; leave those out and they
+                            stay their raw id — matching no policy list and showing up untranslated
+                            in the metrics rather than being silently mislabeled.
+                          '';
+                        };
                       };
                     };
                   };
@@ -76,7 +87,7 @@ _: {
                         categories = lib.mkOption {
                           type = lib.types.attrsOf lib.types.str;
                           default = { };
-                          description = ''kind → client category, e.g. { ebook = "books"; audiobook = "audiobooks"; }'';
+                          description = ''MAM media type → client category, e.g. { Ebook = "books"; Audiobook = "audiobooks"; }. An unlisted media type delivers uncategorized'';
                         };
                         addPaused = lib.mkOption {
                           type = lib.types.bool;
@@ -96,30 +107,35 @@ _: {
                     '';
                     type = lib.types.submodule {
                       options = {
-                        kinds = lib.mkOption {
+                        mediaTypes = lib.mkOption {
                           type = lib.types.listOf lib.types.str;
                           default = [ ];
-                          description = "allowed media kinds (ebook|audiobook|other); empty = any";
+                          description = ''allowed MAM media types, matched case-insensitively (e.g. [ "Ebook" "Audiobook" "Manga" ]); empty = any'';
                         };
                         categoriesAllow = lib.mkOption {
                           type = lib.types.listOf lib.types.str;
                           default = [ ];
-                          description = ''exact MAM category allowlist (e.g. "Ebooks - Romance"); empty = any'';
+                          description = ''MAM category allowlist (e.g. "Romance"); a release passes if it carries ANY listed category; empty = any'';
                         };
                         categoriesDeny = lib.mkOption {
                           type = lib.types.listOf lib.types.str;
                           default = [ ];
-                          description = "exact MAM category denylist (takes precedence over allow)";
+                          description = "MAM category denylist; a release is rejected if it carries ANY listed category (takes precedence over allow)";
                         };
                         filetypesAllow = lib.mkOption {
                           type = lib.types.listOf lib.types.str;
                           default = [ ];
-                          description = "filetype allowlist (epub|m4b|mp3|pdf|cbz|cbr); empty = any";
+                          description = "filetype allowlist (epub|m4b|mp3|pdf|cbz|cbr); a release passes if it announces ANY listed format; empty = any";
                         };
                         filetypesDeny = lib.mkOption {
                           type = lib.types.listOf lib.types.str;
                           default = [ ];
-                          description = "filetype denylist (takes precedence over allow)";
+                          description = "filetype denylist; a release is rejected if it announces ANY listed format (takes precedence over allow)";
+                        };
+                        fictionTypes = lib.mkOption {
+                          type = lib.types.listOf lib.types.str;
+                          default = [ ];
+                          description = ''MAM fiction flags to allow ("Fiction" / "Non-Fiction"); empty = any. MAM reuses category names on both sides of the line (Crime, Historical and Paranormal all appear as each), so this is the only rule that separates them. Releases carrying no flag — every torznab search result — always pass'';
                         };
                         languagesAllow = lib.mkOption {
                           type = lib.types.listOf lib.types.str;
@@ -216,15 +232,20 @@ _: {
                           default = 0;
                           description = "never spend below this many wedges (effective = real − in-flight)";
                         };
-                        proactiveKinds = lib.mkOption {
+                        proactiveMediaTypes = lib.mkOption {
                           type = lib.types.listOf lib.types.str;
                           default = [ ];
-                          description = "B: kinds to always wedge when large (e.g. [ \"audiobook\" ])";
+                          description = "B: MAM media types to always wedge when large (e.g. [ \"Audiobook\" ])";
                         };
                         proactiveMinSizeBytes = lib.mkOption {
                           type = lib.types.int;
                           default = 0;
                           description = "B: only proactively wedge grabs ≥ this size";
+                        };
+                        requireWedge = lib.mkOption {
+                          type = lib.types.bool;
+                          default = false;
+                          description = "B: skip a proactive match when no wedge is spendable, instead of grabbing it at full ratio (small/non-proactive releases unaffected)";
                         };
                         rescueEnable = lib.mkOption {
                           type = lib.types.bool;
@@ -469,16 +490,18 @@ _: {
                   # mam (source)
                   ++ f.str "mam-api-base" s.mam.apiBase
                   ++ f.str "mam-seed-path" (lib.optionalString s.enable s.mam.seedSecretPath)
+                  ++ f.kv "mam-media-type-name" s.mam.mediaTypeNames
                   # client (delivery)
                   ++ f.str "client-url" s.client.url
                   ++ f.kv "client-category" s.client.categories
                   ++ f.boolE "client-paused" s.client.addPaused
                   # accept (Layer-1)
-                  ++ f.list "accept-kind" s.accept.kinds
+                  ++ f.list "accept-media-type" s.accept.mediaTypes
                   ++ f.list "accept-category-allow" s.accept.categoriesAllow
                   ++ f.list "accept-category-deny" s.accept.categoriesDeny
                   ++ f.list "accept-filetype-allow" s.accept.filetypesAllow
                   ++ f.list "accept-filetype-deny" s.accept.filetypesDeny
+                  ++ f.list "accept-fiction-type" s.accept.fictionTypes
                   ++ f.list "accept-language" s.accept.languagesAllow
                   ++ f.int "accept-size-min" s.accept.sizeMinBytes
                   ++ f.int "accept-size-max" s.accept.sizeMaxBytes
@@ -495,8 +518,9 @@ _: {
                   # wedge
                   ++ f.boolE "wedge-enable" s.wedge.enable
                   ++ f.int "wedge-reserve" s.wedge.reserve
-                  ++ f.list "wedge-proactive-kind" s.wedge.proactiveKinds
+                  ++ f.list "wedge-proactive-media-type" s.wedge.proactiveMediaTypes
                   ++ f.int "wedge-proactive-min-size" s.wedge.proactiveMinSizeBytes
+                  ++ f.boolE "wedge-require" s.wedge.requireWedge
                   ++ f.boolE "wedge-rescue" s.wedge.rescueEnable
                   ++ f.int "wedge-rescue-min-size" s.wedge.rescueMinSizeBytes
                   # shop

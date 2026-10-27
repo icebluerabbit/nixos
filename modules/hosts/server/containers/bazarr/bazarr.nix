@@ -27,6 +27,10 @@
       in
       {
         containerConfigs.bazarr = {
+          # Where managarr-bazarr relays what it sees. The read half works
+          # without this; relaying is what makes an event reach managarr in
+          # seconds rather than at the next hourly pass.
+          managarrUrl = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}";
 
           lldpd.enable = true;
           hostBridge = "br-media";
@@ -139,6 +143,7 @@
             prometheusInputs = [
               "bazarr_badges_metrics"
               "bazarr_history_metrics"
+              "managarr_bazarr"
             ];
             extraSettings =
               lib.recursiveUpdate
@@ -146,6 +151,17 @@
                   port = config.infra.clients.container-bazarr.ports.default;
                 })
                 {
+                  # The managarr-bazarr sidecar in this container. Its
+                  # collectors sit on the loopback: the framework serves
+                  # /metrics on a separate address from the contract routes, so
+                  # the sidecar's own port answers /healthz and /changes but
+                  # never this.
+                  sources.managarr_bazarr = {
+                    type = "prometheus_scrape";
+                    endpoints = [ "http://127.0.0.1:9909/metrics" ];
+                    scrape_interval_secs = 30;
+                  };
+
                   # bazarr's Apprise "JSON" provider POSTs here on loopback; the sidecar
                   # republishes verbatim to MQTT so HA consumes via an mqtt trigger
                   # instead of a direct webhook — no notify-time dependency on HA.

@@ -1,0 +1,5 @@
+{%- set g = gravity.content.data.result | default([]) -%}
+<b>🛡️ Pi-hole</b> · <font color="#57f287">gravity refreshed</font>
+<ul>
+<li><b>Blocklist:</b> {% if g | count > 0 %}{{ '{:,}'.format(g[0].value[1] | float | round | int) }} domains{% else %}unknown{% endif %}</li>
+</ul>

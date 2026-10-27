@@ -5,7 +5,11 @@
 _: {
   den.aspects.fonts._.jetbrains-mono = {
     aspect-name = "fonts.jetbrains-mono";
-    nixos =
+
+    # `os` forwards into both nixos and darwin, and its route policy fires in
+    # user scopes too — so reaching this from a user aspect (via style.stylix)
+    # still lands in the host's system-level fonts.packages.
+    os =
       { pkgs, ... }:
       {
         fonts.packages = [

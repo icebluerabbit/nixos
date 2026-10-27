@@ -1,5 +1,16 @@
 # home network
 { den, ... }:
+let
+  provider = (import ../_mk-provider.nix null) {
+    secrets = {
+      unifi-api-key = { };
+      unifi-local-api-key = { };
+      wifi-passphrase = { };
+      radius-secret = { };
+      dyndns-password = { };
+    };
+  };
+in
 {
   den.aspects.infra._.providers._.unifi = {
     aspect-name = "infra.providers.unifi";
@@ -7,15 +18,7 @@
       den.aspects.security._.sops
     ];
 
-    provides.to-users.homeManager = _: {
-      sops.secrets = {
-        unifi-api-key = { };
-        unifi-local-api-key = { };
-        wifi-passphrase = { };
-        radius-secret = { };
-        dyndns-password = { };
-      };
-    };
+    provides = provider.mkProvides;
 
     terranix = {
       terraform.required_providers.unifi = {

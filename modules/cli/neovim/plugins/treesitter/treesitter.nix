@@ -30,6 +30,10 @@
 
           grammarPackages = with grammars; [
             bash
+            go
+            gomod
+            gosum
+            gowork
             json
             just
             lua

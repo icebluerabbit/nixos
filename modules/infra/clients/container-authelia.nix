@@ -1,8 +1,19 @@
 # authelia — forward authentication service
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Authelia Container";
-  mac = "62:f5:a4:5b:20:8f";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-authelia";
+    resourceName = "container_authelia";
+    name = "Authelia Container";
+    mac = "62:f5:a4:5b:20:8f";
+    vlan = "services";
+    kind = "virtual";
+    ports = {
+      default = 9091;
+      metrics = 9959;
+    };
+    proxy.port = "default";
+  };
 in
 {
   den.aspects.infra._.clients._.container-authelia = {
@@ -10,54 +21,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.services
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.services.staticAddresses.authelia;
-      in
-      {
-        infra.clients.container-authelia = {
-          inherit name mac ip;
-          ports = {
-            default = 9091;
-            metrics = 9959;
-          };
-          proxy.port = "default";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.services.staticAddresses.authelia;
-      in
-      {
-        infra.clients.container-authelia = {
-          inherit name mac ip;
-          ports = {
-            default = 9091;
-            metrics = 9959;
-          };
-          proxy.port = "default";
-        };
-
-        resource.unifi_client.container_authelia = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_authelia";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.services.staticAddresses.authelia;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.services.staticAddresses.authelia;
   };
 }

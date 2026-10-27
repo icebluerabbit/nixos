@@ -6,9 +6,17 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         hostConfig = config;
+        # Resolved from host pkgs so the homelab overlay is in scope; the store
+        # path pulls into the container closure via opencode.json.
+        otelPlugin = "${pkgs.homelab.opencode-plugin-otel}/dist/index.js";
       in
       {
         options.containerConfigs.opencode =
@@ -77,42 +85,6 @@ _: {
                   ...
                 }:
                 let
-                  opencode-plugin-otel = pkgs.stdenv.mkDerivation {
-                    pname = "opencode-plugin-otel";
-                    version = "1.2.1";
-
-                    src = pkgs.fetchFromGitHub {
-                      owner = "DEVtheOPS";
-                      repo = "opencode-plugin-otel";
-                      rev = "09b039d0d42034f375b1aa33b4e2c81cc9204de6";
-                      hash = "sha256-jZ/h7gmQAIHozSRFucnSUoDQCzSaed1EMtRAe1KxReI=";
-                    };
-
-                    nativeBuildInputs = [ pkgs.bun ];
-
-                    impureEnvVars = lib.fetchers.proxyImpureEnvVars;
-
-                    buildPhase = ''
-                      runHook preBuild
-                      export HOME=$(mktemp -d)
-                      export BUN_INSTALL_CACHE_DIR=$(mktemp -d)
-                      bun install --frozen-lockfile --ignore-scripts --no-progress
-                      bun build src/index.ts --outdir=./dist --target=node
-                      runHook postBuild
-                    '';
-
-                    installPhase = ''
-                      runHook preInstall
-                      mkdir -p $out/dist
-                      cp dist/index.js $out/dist/
-                      runHook postInstall
-                    '';
-
-                    outputHashAlgo = "sha256";
-                    outputHashMode = "recursive";
-                    outputHash = "sha256-UKm8ZE0J0pQqmOrDawOOdcGp714h1K869Xnny89Bneo=";
-                  };
-
                   # opencode runs every agent command as `$shell -c "<cmd>"`, which is
                   # non-interactive — direnv's shell hook never fires. Loading it here
                   # puts each command in its project's devshell with nothing for the
@@ -180,7 +152,7 @@ _: {
                         shell = "${opencodeShell}/bin/bash";
                       }
                       // lib.optionalAttrs (cfg.otlpEndpoint != null) {
-                        plugin = [ "${opencode-plugin-otel}/dist/index.js" ];
+                        plugin = [ otelPlugin ];
                       }
                       // cfg.settings
                     );

@@ -35,7 +35,23 @@
       { pkgs, ... }:
       {
         imports = [ inputs.niri-flake.nixosModules.niri ];
-        nixpkgs.overlays = [ inputs.niri-flake.overlays.niri ];
+        nixpkgs.overlays = [
+          inputs.niri-flake.overlays.niri
+
+          # niri-flake's builder asserts libdisplay-info_0_2.version == "0.2.0",
+          # but nixpkgs replaced that attribute with a removal `throw`, so the
+          # assert detonates instead of falling back to its own default. The pin
+          # is stale either way: niri's Cargo.toml requires libdisplay-info
+          # 0.3.0 and nixpkgs' own niri builds against libdisplay-info_0_3.
+          # `//` rewrites only the attribute the assert reads — the derivation,
+          # its store path and its real 0.3.0 version are untouched. Drop this
+          # once niri-flake stops asserting.
+          (_final: prev: {
+            libdisplay-info_0_2 = prev.libdisplay-info_0_3 // {
+              version = "0.2.0";
+            };
+          })
+        ];
         programs.niri = {
           enable = true;
           package = pkgs.niri-unstable;

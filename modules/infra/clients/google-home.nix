@@ -1,9 +1,14 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Google Home";
-  mac = "f4:f5:d8:b4:ff:78";
-  ip = "10.10.30.188";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "google-home";
+    resourceName = "google_home";
+    name = "Google Home";
+    mac = "f4:f5:d8:b4:ff:78";
+    vlan = "iot";
+    kind = "physical";
+  };
 in
 {
   den.aspects.infra._.clients._.google-home = {
@@ -11,30 +16,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.iot
     ];
 
-    os = _: {
-      infra.clients.google-home = {
-        inherit name mac ip;
-      };
-    };
-
-    terranix = {
-      resource.unifi_client.google_home = {
-        inherit mac name;
-        fixed_ip = ip;
-        allow_existing = true;
-        blocked = false;
-        site = "default";
-        skip_forget_on_destroy = false;
-      };
-
-      import = [
-        {
-          to = "unifi_client.google_home";
-          id = mac;
-        }
-      ];
-    };
+    os = _: client.mkOs "10.10.30.188";
+    terranix = _: client.mkTerranix "10.10.30.188";
   };
 }

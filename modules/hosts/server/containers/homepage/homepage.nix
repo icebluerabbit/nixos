@@ -50,7 +50,6 @@
       den.aspects.infra._.clients._.container-cinny
       den.aspects.infra._.clients._.container-code-server
       den.aspects.infra._.clients._.container-cross-seed
-      den.aspects.infra._.clients._.container-cleanuparr
       den.aspects.infra._.clients._.container-dns
       den.aspects.infra._.clients._.container-flaresolverr
       den.aspects.infra._.clients._.container-gitea
@@ -59,7 +58,9 @@
       den.aspects.infra._.clients._.container-home-assistant
       den.aspects.infra._.clients._.container-jellyfin
       den.aspects.infra._.clients._.container-kiwix
-      den.aspects.infra._.clients._.container-lazylibrarian
+      den.aspects.infra._.clients._.container-bindery
+      den.aspects.infra._.clients._.container-komga
+      den.aspects.infra._.clients._.container-audiobookshelf
       den.aspects.infra._.clients._.container-lidarr
       den.aspects.infra._.clients._.container-lldap
       den.aspects.infra._.clients._.container-loki

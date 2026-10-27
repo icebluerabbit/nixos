@@ -1,9 +1,14 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Server Game";
-  mac = "62:f5:a4:5b:20:50";
-  ip = null;
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "server-vlan-game";
+    resourceName = "server_vlan_game";
+    name = "Server Game";
+    mac = "62:f5:a4:5b:20:50";
+    vlan = "game";
+    kind = "virtual";
+  };
 in
 {
   den.aspects.infra._.clients._.server-vlan-game = {
@@ -11,35 +16,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
-
+      den.aspects.infra._.networks._.game
     ];
 
-    os = _: {
-      infra.clients.server-vlan-game = {
-        inherit
-          name
-          mac
-          ip
-          ;
-      };
-    };
-
-    terranix = {
-      resource.unifi_client.server_vlan_game = {
-        inherit mac name;
-        fixed_ip = ip;
-        allow_existing = true;
-        blocked = false;
-        site = "default";
-        skip_forget_on_destroy = false;
-      };
-
-      import = [
-        {
-          to = "unifi_client.server_vlan_game";
-          id = mac;
-        }
-      ];
-    };
+    os = _: client.mkOs null;
+    terranix = _: client.mkTerranix null;
   };
 }

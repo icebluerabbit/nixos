@@ -9,22 +9,23 @@ Every container and host can ship logs/metrics/traces via a [Vector](https://vec
 
 ## Options (`modules/logging/_options.nix`)
 
-| Option | Type | Purpose |
-|:---|:---|:---|
-| `enable` | bool | Enable the Vector sidecar |
-| `lokiAddress` | str | Loki push URL |
-| `prometheusAddress` | str | Prometheus remote-write URL |
-| `tempoAddress` | str | Tempo OTLP HTTP URL |
-| `lokiInputs` | list str | Vector source IDs pushed to Loki (default `["journal"]`) |
-| `prometheusInputs` | list str | Vector source IDs pushed to Prometheus |
-| `hostType` | str | Log-classification label (`"container"`, `"host"`, `"network"`) |
-| `extraSettings` | attrs | Raw Vector config (sources/transforms/sinks) merged in |
-| `environmentFile` | path | Env file for the Vector unit (runtime secrets) |
-| `validateConfig` | bool | Build-time config validation (disable when using runtime env vars) |
+| Option              | Type     | Purpose                                                            |
+| :------------------ | :------- | :----------------------------------------------------------------- |
+| `enable`            | bool     | Enable the Vector sidecar                                          |
+| `lokiAddress`       | str      | Loki push URL                                                      |
+| `prometheusAddress` | str      | Prometheus remote-write URL                                        |
+| `tempoAddress`      | str      | Tempo OTLP HTTP URL                                                |
+| `lokiInputs`        | list str | Vector source IDs pushed to Loki (default `["journal"]`)           |
+| `prometheusInputs`  | list str | Vector source IDs pushed to Prometheus                             |
+| `hostType`          | str      | Log-classification label (`"container"`, `"host"`, `"network"`)    |
+| `extraSettings`     | attrs    | Raw Vector config (sources/transforms/sinks) merged in             |
+| `environmentFile`   | path     | Env file for the Vector unit (runtime secrets)                     |
+| `validateConfig`    | bool     | Build-time config validation (disable when using runtime env vars) |
 
 ## Wiring (host-side container config)
 
 Addresses always come from the observability containers' infra clients — never hardcoded:
+
 ```nix
 containerConfigs.radarr.logging = {
   enable = true;
@@ -37,6 +38,7 @@ containerConfigs.radarr.logging = {
 ## Custom source / scrape (extraSettings)
 
 Example — scrape a service's own Prometheus metrics and push them (from Caddy's host config):
+
 ```nix
 logging = {
   prometheusInputs = [ "caddy_metrics" ];
@@ -48,6 +50,7 @@ logging = {
 ```
 
 ## Troubleshooting
+
 - Not in Loki/Prometheus → check `enable`, that the address resolves (infra client IP/port), and that the source ID is in `lokiInputs`/`prometheusInputs`.
 - Build fails validating config that uses runtime env vars → set `validateConfig = false` and supply `environmentFile`.
 - Query the resulting data with `homelab-observability`.

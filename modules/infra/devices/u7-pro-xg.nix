@@ -1,10 +1,35 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "U7 Pro XG";
-  mac = "90:41:b2:ce:6e:f4";
-  ip = "10.100.134.21";
-  type = "dhcp";
+  device = (import ../_mk-device.nix { inherit lib; }) {
+    id = "u7-pro-xg";
+    resourceName = "ap_u7";
+    name = "U7 Pro XG";
+    mac = "90:41:b2:ce:6e:f4";
+    ip = "10.100.134.21";
+    # Uplink: USW Pro HD 24 PoE port 1.
+    portProfile = "ap-trunk";
+    extra = {
+      switch_vlan_enabled = false;
+      radio_table = [
+        {
+          channel = "auto";
+          name = "wifi0";
+          radio = "ng";
+        }
+        {
+          channel = "auto";
+          name = "wifi1";
+          radio = "na";
+        }
+        {
+          channel = "auto";
+          name = "wifi2";
+          radio = "6e";
+        }
+      ];
+    };
+  };
 in
 {
   den.aspects.infra._.devices._.u7-pro-xg = {
@@ -12,61 +37,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.ports._.ap-trunk
     ];
 
-    os = _: {
-      infra.devices.u7-pro-xg = {
-        inherit
-          name
-          mac
-          ip
-          type
-          ;
-      };
-    };
-
-    terranix = {
-      resource.unifi_device.ap_u7 = {
-        inherit mac name;
-        allow_adoption = true;
-        forget_on_destroy = true;
-        site = "default";
-        disabled = false;
-        flowctrl_enabled = false;
-        jumboframe_enabled = false;
-        lcm_brightness_override = false;
-        lcm_idle_timeout_override = false;
-        outlet_enabled = false;
-        switch_vlan_enabled = false;
-        config_network = {
-          bonding_enabled = false;
-          inherit ip type;
-        };
-        radio_table = [
-          {
-            channel = "auto";
-            name = "wifi0";
-            radio = "ng";
-          }
-          {
-            channel = "auto";
-            name = "wifi1";
-            radio = "na";
-          }
-          {
-            channel = "auto";
-            name = "wifi2";
-            radio = "6e";
-          }
-        ];
-      };
-
-      import = [
-        {
-          to = "unifi_device.ap_u7";
-          id = mac;
-        }
-      ];
-    };
+    os = _: device.mkOs;
+    terranix = { config, ... }: device.mkTerranix config.infra.ports;
   };
 }

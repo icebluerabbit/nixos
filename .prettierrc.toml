@@ -1,0 +1,14 @@
+# prettier — markdown formatting (see modules/formatter.nix)
+#
+# Scoped to *.md by treefmt; prettier is not used for JSON/YAML/CSS here because
+# those files are either generated (Grafana dashboards, flake.nix) or
+# sops-encrypted. Values below are prettier's defaults, stated explicitly.
+printWidth = 80
+tabWidth = 2
+useTabs = false
+# "preserve" leaves existing line breaks in prose alone — markdown here is
+# hand-wrapped (CLAUDE.md, SKILL.md) and reflowing it would churn every file.
+proseWrap = "preserve"
+# YAML frontmatter in modules/cli/claude/skills/*/SKILL.md is load-bearing;
+# prettier keeps it intact but does normalise the block, so it stays formatted.
+embeddedLanguageFormatting = "auto"

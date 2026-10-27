@@ -51,24 +51,6 @@
             "retrans=3"
           ];
         };
-        "/mnt/projects" = {
-          device = "${config.infra.clients.unas-pro.ip}:/var/nfs/shared/Projects";
-          fsType = "nfs";
-          options = [
-            "x-systemd.automount"
-            "noauto"
-            "nfsvers=3"
-            "rsize=131072"
-            "wsize=131072"
-            "nconnect=8"
-            "noatime"
-            "nodiratime"
-            "actimeo=10"
-            "hard"
-            "timeo=150"
-            "retrans=3"
-          ];
-        };
       };
 
       disko.devices = {

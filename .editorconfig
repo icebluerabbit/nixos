@@ -1,0 +1,45 @@
+# editorconfig — indentation contract shared by editors and shfmt.
+#
+# shfmt reads this file for shell indent width (see modules/formatter.nix); the
+# treefmt module deliberately sets no `indent` option so this stays the single
+# source of truth. gofmt and nixfmt are non-configurable by design and ignore it.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.sh]
+indent_style = space
+indent_size = 2
+# shfmt: keep `then`/`do` on the same line as `if`/`for`, and indent switch cases
+# — matches how the existing scripts are written.
+switch_case_indent = true
+
+[*.nix]
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+# StyLua does not read this file; keep in sync with stylua.toml at the root.
+[*.lua]
+indent_style = space
+indent_size = 2
+
+[*.go]
+indent_style = tab
+indent_size = 4
+
+[*.md]
+indent_style = space
+indent_size = 2
+# Markdown uses trailing double-space for hard line breaks.
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab

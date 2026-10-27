@@ -36,7 +36,6 @@
           port = config.infra.clients.container-thelounge.ports.default;
           ldapUrl = "ldap://${config.infra.clients.container-lldap.ip}:${toString config.infra.clients.container-lldap.ports.ldap}";
           ldapBaseDN = "ou=people,dc=homelab";
-          seedScript = ./_seed.py;
           # Networks enforced into users/<name>.json every boot. Edit freely.
           # nick is a sops secret (per-tracker, shared IRC identity with autobrr);
           # host/port/channels are not secret.
@@ -44,14 +43,18 @@
             {
               name = "admin";
               networks = [
-                (import ./networks/_pretome.nix)
+                # PreToMe disabled 2026-08-11 — indexer off, see
+                # ../prowlarr/indexers/_pretome.nix. thelounge-seed rewrites
+                # .networks wholesale, so this drops the network from
+                # users/admin.json. The uuid is derived from (user, name), so
+                # re-enabling restores the same scrollback.
+                # (import ./networks/_pretome.nix)
                 (import ./networks/_torrentleech.nix)
                 (import ./networks/_myanonamouse.nix)
-                (import ./networks/_digitalcore.nix)
                 (import ./networks/_retrotoon.nix)
-                (import ./networks/_libera.nix)
-                (import ./networks/_rizon.nix)
-                (import ./networks/_snoonet.nix)
+                (import ./networks/_darkpeers.nix)
+                (import ./networks/_yuscene.nix)
+                (import ./networks/_seedpool.nix)
               ];
               # Enforced into users/admin.json clientSettings every boot (merged —
               # declared keys win, other UI tweaks preserved). Theme CSS is read
@@ -81,26 +84,6 @@
               hostPath = config.sops.secrets."mam-irc-password".path;
               isReadOnly = true;
             };
-            "/run/secrets/libera-username" = {
-              hostPath = config.sops.secrets."libera-username".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/rizon-username" = {
-              hostPath = config.sops.secrets."rizon-username".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/libera-nickserv-password" = {
-              hostPath = config.sops.secrets."libera-nickserv-password".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/rizon-nickserv-password" = {
-              hostPath = config.sops.secrets."rizon-nickserv-password".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/snoonet-username" = {
-              hostPath = config.sops.secrets."snoonet-username".path;
-              isReadOnly = true;
-            };
             "/run/secrets/torrentleech-username" = {
               hostPath = config.sops.secrets."torrentleech-username".path;
               isReadOnly = true;
@@ -113,20 +96,40 @@
               hostPath = config.sops.secrets."torrentleech-irc-key".path;
               isReadOnly = true;
             };
-            "/run/secrets/digitalcore-username" = {
-              hostPath = config.sops.secrets."digitalcore-username".path;
-              isReadOnly = true;
-            };
-            "/run/secrets/digitalcore-irc-key" = {
-              hostPath = config.sops.secrets."digitalcore-irc-key".path;
-              isReadOnly = true;
-            };
             "/run/secrets/retrotoon-username" = {
               hostPath = config.sops.secrets."retrotoon-username".path;
               isReadOnly = true;
             };
             "/run/secrets/retrotoon-irc-password" = {
               hostPath = config.sops.secrets."retrotoon-irc-password".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/darkpeers-username" = {
+              hostPath = config.sops.secrets."darkpeers-username".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/darkpeers-irc-password" = {
+              hostPath = config.sops.secrets."darkpeers-irc-password".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/darkpeers-irckey" = {
+              hostPath = config.sops.secrets."darkpeers-irckey".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/yuscene-username" = {
+              hostPath = config.sops.secrets."yuscene-username".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/yuscene-irckey" = {
+              hostPath = config.sops.secrets."yuscene-irckey".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/seedpool-username" = {
+              hostPath = config.sops.secrets."seedpool-username".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/seedpool-passkey" = {
+              hostPath = config.sops.secrets."seedpool-passkey".path;
               isReadOnly = true;
             };
           };

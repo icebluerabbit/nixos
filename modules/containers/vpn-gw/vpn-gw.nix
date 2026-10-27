@@ -4,9 +4,17 @@ _: {
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         cfg = config.containerConfigs."vpn-gw";
+        # Resolved from host pkgs so the homelab overlay is in scope; the store
+        # path pulls into the container closure via ExecStart.
+        brokerExe = lib.getExe pkgs.homelab.vpn-broker;
       in
       {
         options.containerConfigs."vpn-gw" = (import ../_options.nix { inherit lib; }) // {
@@ -93,8 +101,8 @@ _: {
           };
           failThreshold = lib.mkOption {
             type = lib.types.int;
-            default = 3;
-            description = "Consecutive health-fails before a tunnel is marked unhealthy + its claim voided";
+            default = 5;
+            description = "Consecutive health-fails before a tunnel is marked unhealthy + its claim voided. At the 30s probe interval this is 2.5min of sustained failure — deliberately long, because the probe shares the tunnel with saturating torrent traffic and a short threshold turned load into a false liveness failure";
           };
           flapWindowSeconds = lib.mkOption {
             type = lib.types.int;
@@ -105,6 +113,43 @@ _: {
             type = lib.types.int;
             default = 120;
             description = "Lifetime of a forced-rotation exclusion (POST /rotate): how long a client is steered off the tunnel it just held before its saved preference can re-grab it. Must exceed the client keepalive cadence so the next tick lands elsewhere. In-memory; NOT a health signal";
+          };
+
+          # Route-flap damping (RFC 2439) applied to VPN exits instead of BGP
+          # prefixes: each outage episode charges a penalty that decays with a
+          # fixed half-life, and a tunnel above `dampSuppress` is skipped by
+          # selection until decay carries it under `dampReuse`. The gap between
+          # the two thresholds is the hysteresis that stops an oscillating
+          # tunnel being re-picked on the upswing of every cycle.
+          dampHalfLifeSeconds = lib.mkOption {
+            type = lib.types.int;
+            default = 900;
+            description = "Half-life of the flap-damping penalty (RFC 2439 default 15 min). Longer = a flapper stays deprioritized for longer";
+          };
+          dampPenalty = lib.mkOption {
+            type = lib.types.int;
+            default = 1000;
+            description = "Penalty charged per outage episode (one per down-transition, not per failed probe)";
+          };
+          dampSuppress = lib.mkOption {
+            type = lib.types.int;
+            default = 1900;
+            description = "Penalty at or above which a tunnel is suppressed from selection — two outages inside a half-life at the default dampPenalty. Deliberately just under 2×dampPenalty: the penalty decays continuously, so two 1000-charges accumulate to 1999.99…, and a threshold of exactly 2000 would be unreachable in principle";
+          };
+          dampReuse = lib.mkOption {
+            type = lib.types.int;
+            default = 750;
+            description = "Penalty below which a suppressed tunnel re-enters selection, and below which a healthy tunnel may be called `stable`. Must be under dampSuppress — the gap is the hysteresis";
+          };
+          dampMaxSuppressSeconds = lib.mkOption {
+            type = lib.types.int;
+            default = 3600;
+            description = "Hard ceiling on how long damping may suppress a tunnel, so a pathological penalty cannot strand one forever";
+          };
+          stableAfterSeconds = lib.mkOption {
+            type = lib.types.int;
+            default = 300;
+            description = "Continuous uptime before a healthy, undamped tunnel is reported `stable` rather than `connected`. Clients whose exit IP carries an expensive side effect (the MAM dynamic-seedbox re-lock, limited to ~1 change/hr) commit only on `stable`";
           };
 
           nodeExporterPort = lib.mkOption {
@@ -178,7 +223,6 @@ _: {
               config =
                 { pkgs, lib, ... }:
                 let
-                  pythonEnv = pkgs.python3.withPackages (ps: [ ps.flask ]);
                   brokerConfig = pkgs.writeText "vpn-broker.json" (
                     builtins.toJSON {
                       control_port = cfg.controlPort;
@@ -187,6 +231,12 @@ _: {
                       fail_threshold = cfg.failThreshold;
                       flap_window_seconds = cfg.flapWindowSeconds;
                       exclude_seconds = cfg.excludeSeconds;
+                      damp_half_life_seconds = cfg.dampHalfLifeSeconds;
+                      damp_penalty = cfg.dampPenalty;
+                      damp_suppress = cfg.dampSuppress;
+                      damp_reuse = cfg.dampReuse;
+                      damp_max_suppress_seconds = cfg.dampMaxSuppressSeconds;
+                      stable_after_seconds = cfg.stableAfterSeconds;
                       tunnels = lib.listToAttrs (
                         map (
                           t:
@@ -356,7 +406,7 @@ _: {
                             BROKER_IP = "${pkgs.iproute2}/bin/ip";
                           };
                           serviceConfig = {
-                            ExecStart = "${pythonEnv}/bin/python3 ${./broker.py}";
+                            ExecStart = brokerExe;
                             Restart = "on-failure";
                             RestartSec = "5s";
                           };
@@ -395,7 +445,15 @@ _: {
                             ];
                             serviceConfig.Type = "oneshot";
                             script = ''
-                              ip=$(curl --interface ${t.name} -4 -fsS --max-time 8 https://api.ipify.org 2>/dev/null || true)
+                              # --max-time 20, not 8: this probe shares the tunnel with the
+                              # client's torrent traffic. A tunnel seeding at 200-370 Mbit/s
+                              # has a deep enough queue that an 8s HTTP probe times out, and
+                              # three of those in a row marked a perfectly live tunnel down —
+                              # the client then moved to a fresh tunnel, saturated that one,
+                              # and walked the whole pool (observed 2026-08-12 and 2026-08-13).
+                              # The probe must measure liveness, not load. Stays under the 30s
+                              # timer interval even with the 5s ping below.
+                              ip=$(curl --interface ${t.name} -4 -fsS --max-time 20 https://api.ipify.org 2>/dev/null || true)
                               if [ -n "$ip" ]; then
                                 # tunnel RTT: ICMP to 1.1.1.1 bound to this wg iface (Proton's gw
                                 # doesn't answer ping). Parse avg from `rtt min/avg/max/mdev = …`.
@@ -450,7 +508,12 @@ _: {
                             description = "Periodic ${t.name} health probe → broker";
                             wantedBy = [ "timers.target" ];
                             timerConfig = {
-                              OnBootSec = "45s";
+                              # 5s, not 45s: the broker's /ready gates qBittorrent's
+                              # ExecStartPre, so a late first probe stalls container startup
+                              # for the whole interval and trips the switch's start timeout
+                              # when both containers restart together. A failed first probe
+                              # costs nothing — failThreshold absorbs it.
+                              OnBootSec = "5s";
                               OnUnitActiveSec = "30s";
                             };
                           }

@@ -1,8 +1,20 @@
 # modules/infra/clients/container-tempo.nix
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Tempo Container";
-  mac = "62:f5:a4:5b:20:98";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-tempo";
+    resourceName = "container_tempo";
+    name = "Tempo Container";
+    mac = "62:f5:a4:5b:20:98";
+    vlan = "services";
+    kind = "virtual";
+    ports = {
+      default = 3200;
+      otlp-grpc = 4317;
+      otlp-http = 4318;
+    };
+    proxy.port = "default";
+  };
 in
 {
   den.aspects.infra._.clients._.container-tempo = {
@@ -10,56 +22,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.services
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.services.staticAddresses.tempo;
-      in
-      {
-        infra.clients.container-tempo = {
-          inherit name mac ip;
-          ports = {
-            default = 3200;
-            otlp-grpc = 4317;
-            otlp-http = 4318;
-          };
-          proxy.port = "default";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.services.staticAddresses.tempo;
-      in
-      {
-        infra.clients.container-tempo = {
-          inherit name mac ip;
-          ports = {
-            default = 3200;
-            otlp-grpc = 4317;
-            otlp-http = 4318;
-          };
-          proxy.port = "default";
-        };
-
-        resource.unifi_client.container_tempo = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_tempo";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.services.staticAddresses.tempo;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.services.staticAddresses.tempo;
   };
 }

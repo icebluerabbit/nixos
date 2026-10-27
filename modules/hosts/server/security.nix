@@ -22,7 +22,6 @@ _: {
             # addic7ed-password = { };
             lidarr-apikey = { };
             readarr-apikey = { };
-            lazylibrarian-apikey = { };
             prowlarr-apikey = { };
             mam-username = {
               mode = "0444";
@@ -36,23 +35,6 @@ _: {
             # mousetrap's MAM API session cookie (jsonLoad poller; rotating, sole owner).
             # 0444: read directly by the mousetrap container's non-root service user.
             mam-api-id.mode = "0444";
-            # Public-network IRC nicks (Libera.Chat, Rizon). Not sensitive like a
-            # tracker username, but kept out of the Nix store for the same reason.
-            libera-nickserv-password = {
-              mode = "0444";
-            };
-            rizon-nickserv-password = {
-              mode = "0444";
-            };
-            libera-username = {
-              mode = "0444";
-            };
-            rizon-username = {
-              mode = "0444";
-            };
-            snoonet-username = {
-              mode = "0444";
-            };
             pretome-username = {
               mode = "0444";
             };
@@ -141,27 +123,77 @@ _: {
             };
             torrentleech-password = { };
             torrentleech-rss-key = { };
-            digitalcore-apikey = { };
-            digitalcore-passkey = { };
             retrotoon-passkey = { };
-            digitalcore-username = {
-              mode = "0444";
-            };
-            digitalcore-irc-key = {
-              mode = "0444";
-            };
+            darkpeers-apikey = { };
+            darkpeers-rsskey = { };
+            yuscene-apikey = { };
+            yuscene-rsskey = { };
+            seedpool-apikey = { };
+            seedpool-rsskey = { };
             retrotoon-username = {
               mode = "0444";
             };
             retrotoon-irc-password = {
               mode = "0444";
             };
+            darkpeers-username = {
+              mode = "0444";
+            };
+            darkpeers-irc-password = {
+              mode = "0444";
+            };
+            darkpeers-irckey = {
+              mode = "0444";
+            };
+            yuscene-username = {
+              mode = "0444";
+            };
+            yuscene-irckey = {
+              mode = "0444";
+            };
+            # SeedPool authenticates IRC with the site passkey as the server
+            # PASS — there is no separate IRC key — so the passkey is 0444 like
+            # every other secret thelounge reads as its own user, not just the
+            # username.
+            seedpool-username = {
+              mode = "0444";
+            };
+            seedpool-passkey = {
+              mode = "0444";
+            };
             autobrr-session-secret = { };
             autobrr-api-token = { };
-            # Cleanuparr mints its API key with the admin account during first-run
-            # setup and only serves it from the API, so the password is needed on
-            # every boot to log in and re-read the key — not just once.
-            cleanuparr-admin-password = { };
+            # Bearer token for seasonpackarr's /api/pack and /api/parse. autobrr
+            # is the only caller; it passes the token as ?apikey= on both, so the
+            # value is needed in autobrr-env as well as seasonpackarr's config.
+            seasonpackarr-api-token = { };
+            # Komga and Audiobookshelf both mint their API keys against an admin
+            # account and only return the plaintext on create, so the password is
+            # needed on every boot to log in and remint — not just once.
+            komga-admin-password = { };
+            audiobookshelf-admin-password = { };
+            # OIDC client secrets. Each is consumed twice: as a file by Authelia
+            # (via its `{{ secret }}` config template filter, so the value never
+            # lands in the nix store) and as an env var by the app itself.
+            # 0444 like every other authelia-* secret above: Authelia's config
+            # template filter reads these at start-up as its own non-root service
+            # user, and the default 0400/root mode makes the whole config fail to
+            # load ("error calling secret: … permission denied"), which takes
+            # forward-auth — and therefore every vhost — down with it.
+            audiobookshelf-oidc-client-secret = {
+              mode = "0444";
+            };
+            komga-oidc-client-secret = {
+              mode = "0444";
+            };
+            # Seeds Bindery's initial API key on first launch (BINDERY_API_KEY is
+            # seed-only upstream); afterwards the key lives in Bindery's database
+            # and this value is what configuratarr authenticates with.
+            bindery-apikey = { };
+            # Hardcover metadata provider token. Bindery has no env var for it —
+            # the value lives in bindery.db, so it reaches the DB via
+            # configuratarr's hardcover_api_token setting, not the process env.
+            hardcover-apikey = { };
             # gitea token for the forgejo-vscode extension in code-server (browse/clone
             # in the IDE); pushes go over SSH. Host-decryptable copy of the same value
             # the user-secret holds for Terraform. 0400 → read via LoadCredential.
@@ -209,6 +241,10 @@ _: {
               HOMEPAGE_VAR_LIDARR_KEY=${config.sops.placeholder.lidarr-apikey}
               HOMEPAGE_VAR_READARR_KEY=${config.sops.placeholder.readarr-apikey}
               HOMEPAGE_VAR_PROWLARR_KEY=${config.sops.placeholder.prowlarr-apikey}
+              # Komga's Homepage widget authenticates as the admin user, not with
+              # an API key — the minted key lives inside the Komga container.
+              HOMEPAGE_VAR_KOMGA_USERNAME=admin@media.internal
+              HOMEPAGE_VAR_KOMGA_PASSWORD=${config.sops.placeholder.komga-admin-password}
               HOMEPAGE_VAR_CROSSSEED_KEY=${config.sops.placeholder.cross-seed-apikey}
               HOMEPAGE_VAR_AUTOBRR_KEY=${config.sops.placeholder.autobrr-api-token}
               HOMEPAGE_VAR_LATITUDE=${config.sops.placeholder.home-latitude}
@@ -226,19 +262,25 @@ _: {
               UP_UNIFI_DEFAULT_USER=${config.sops.placeholder.unifi-controller-username}
               UP_UNIFI_DEFAULT_PASS=${config.sops.placeholder.unifi-controller-password}
             '';
+            # The Jellyfin key reaches jellyfin-refresh — the CustomScript hook
+            # that replaced the *arr's own Jellyfin connection — through that
+            # tool's own environment prefix, so it is never passed on argv. The
+            # hook inherits it from the *arr service, which is the only route
+            # available: the rendered env file is root-only and the *arr runs as
+            # its own user.
             "sonarr-env".content = ''
               SONARR__AUTH__APIKEY=${config.sops.placeholder.sonarr-apikey}
               SONARR__AUTH__METHOD=External
               APIKEY=${config.sops.placeholder.sonarr-apikey}
               TRAKT_AUTH_USER=${config.sops.placeholder.trakt-auth-user}
-              JELLYFIN_API_KEY=${config.sops.placeholder.jellyfin-apikey}
+              HOMELAB_JELLYFIN_REFRESH_API_KEY=${config.sops.placeholder.jellyfin-apikey}
             '';
             "radarr-env".content = ''
               RADARR__AUTH__APIKEY=${config.sops.placeholder.radarr-apikey}
               RADARR__AUTH__METHOD=External
               APIKEY=${config.sops.placeholder.radarr-apikey}
               TRAKT_AUTH_USER=${config.sops.placeholder.trakt-auth-user}
-              JELLYFIN_API_KEY=${config.sops.placeholder.jellyfin-apikey}
+              HOMELAB_JELLYFIN_REFRESH_API_KEY=${config.sops.placeholder.jellyfin-apikey}
             '';
             "bazarr-env".content = ''
               DYNACONF_AUTH__APIKEY=${config.sops.placeholder.bazarr-apikey}
@@ -249,11 +291,17 @@ _: {
               OPENSUBTITLES_PASSWORD=${config.sops.placeholder.opensubtitles-password}
               SUBDL_API_KEY=${config.sops.placeholder.subdl-api-key}
             '';
+            # beets hands finished albums to Lidarr for import, so it needs
+            # Lidarr's key. No new secret material — the same key, rendered for
+            # a second consumer.
+            "beets-env".content = ''
+              LIDARR_API_KEY=${config.sops.placeholder.lidarr-apikey}
+            '';
             "lidarr-env".content = ''
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}
               LIDARR__AUTH__METHOD=External
               APIKEY=${config.sops.placeholder.lidarr-apikey}
-              JELLYFIN_API_KEY=${config.sops.placeholder.jellyfin-apikey}
+              HOMELAB_JELLYFIN_REFRESH_API_KEY=${config.sops.placeholder.jellyfin-apikey}
             '';
             "slskd-env".content = ''
               SLSKD_SLSK_USERNAME=${config.sops.placeholder.slskd-slsk-username}
@@ -262,10 +310,6 @@ _: {
             "readarr-env".content = ''
               READARR__AUTH__APIKEY=${config.sops.placeholder.readarr-apikey}
               READARR__AUTH__METHOD=External
-            '';
-            "lazylibrarian-env".content = ''
-              LAZYLIBRARIAN_API_KEY=${config.sops.placeholder.lazylibrarian-apikey}
-              PROWLARR_API_KEY=${config.sops.placeholder.prowlarr-apikey}
             '';
             "autobrr-env".content = ''
               AUTOBRR_API_TOKEN=${config.sops.placeholder.autobrr-api-token}
@@ -282,19 +326,56 @@ _: {
               MAM_NICK=${config.sops.placeholder.mam-username}
               MAM_IRC_PASSWORD=${config.sops.placeholder.mam-irc-password}
               MAM_ID=${config.sops.placeholder.mam-autobrr-id}
-              DIGITALCORE_PASSKEY=${config.sops.placeholder.digitalcore-passkey}
-              DIGITALCORE_NICK=${config.sops.placeholder.digitalcore-username}
-              DIGITALCORE_IRC_KEY=${config.sops.placeholder.digitalcore-irc-key}
               RETROTOON_PASSKEY=${config.sops.placeholder.retrotoon-passkey}
               RETROTOON_NICK=${config.sops.placeholder.retrotoon-username}
               RETROTOON_IRC_PASSWORD=${config.sops.placeholder.retrotoon-irc-password}
+              DARKPEERS_RSSKEY=${config.sops.placeholder.darkpeers-rsskey}
+              DARKPEERS_NICK=${config.sops.placeholder.darkpeers-username}
+              YUSCENE_RSSKEY=${config.sops.placeholder.yuscene-rsskey}
+              YUSCENE_NICK=${config.sops.placeholder.yuscene-username}
+              YUSCENE_IRCKEY=${config.sops.placeholder.yuscene-irckey}
+              SEEDPOOL_RSSKEY=${config.sops.placeholder.seedpool-rsskey}
+              SEEDPOOL_NICK=${config.sops.placeholder.seedpool-username}
+              SEEDPOOL_PASSKEY=${config.sops.placeholder.seedpool-passkey}
+              SEASONPACKARR_API_TOKEN=${config.sops.placeholder.seasonpackarr-api-token}
             '';
-            "cleanuparr-env".content = ''
-              CLEANUPARR_ADMIN_USER=admin
-              CLEANUPARR_ADMIN_PASSWORD=${config.sops.placeholder.cleanuparr-admin-password}
+            # Every other seasonpackarr setting is a typed option generated into
+            # the store; only the token can't be. New() applies the environment
+            # after the config file, so this is what supplies apiToken.
+            "seasonpackarr-env".content = ''
+              SEASONPACKARR__API_TOKEN=${config.sops.placeholder.seasonpackarr-api-token}
+            '';
+            "komga-env".content = ''
+              KOMGA_ADMIN_USER=admin@media.internal
+              KOMGA_ADMIN_PASSWORD=${config.sops.placeholder.komga-admin-password}
+              KOMGA_OIDC_CLIENT_SECRET=${config.sops.placeholder.komga-oidc-client-secret}
+            '';
+            "audiobookshelf-env".content = ''
+              AUDIOBOOKSHELF_ADMIN_USER=admin
+              AUDIOBOOKSHELF_ADMIN_PASSWORD=${config.sops.placeholder.audiobookshelf-admin-password}
+              AUDIOBOOKSHELF_OIDC_CLIENT_SECRET=${config.sops.placeholder.audiobookshelf-oidc-client-secret}
+            '';
+            "bindery-env".content = ''
+              BINDERY_API_KEY=${config.sops.placeholder.bindery-apikey}
+              HARDCOVER_API_KEY=${config.sops.placeholder.hardcover-apikey}
+            '';
+            # managarr reads the *arr histories to backfill the library side of
+            # its model. Keys only — the URLs are plain config, and there is no
+            # database credential because pg_hba grants it trust by IP.
+            #
+            # autobrr's token is the same one the UI and Homepage use: it is the
+            # only source of announcements and of the per-action rejections that
+            # say why an approved release never reached an *arr. managarr fails
+            # to start if --autobrr-url is set without it, deliberately — a
+            # silently skipped source leaves those tables empty with nothing to
+            # explain it.
+            "managarr-env".content = ''
               SONARR_APIKEY=${config.sops.placeholder.sonarr-apikey}
               RADARR_APIKEY=${config.sops.placeholder.radarr-apikey}
               LIDARR_APIKEY=${config.sops.placeholder.lidarr-apikey}
+              BAZARR_APIKEY=${config.sops.placeholder.bazarr-apikey}
+              AUTOBRR_APIKEY=${config.sops.placeholder.autobrr-api-token}
+              PROWLARR_APIKEY=${config.sops.placeholder.prowlarr-apikey}
             '';
             "prowlarr-env".content = ''
               PROWLARR__AUTH__APIKEY=${config.sops.placeholder.prowlarr-apikey}
@@ -305,8 +386,10 @@ _: {
               PRETOME_PIN=${config.sops.placeholder.pretome-pin}
               TORRENTLEECH_USERNAME=${config.sops.placeholder.torrentleech-username}
               TORRENTLEECH_PASSWORD=${config.sops.placeholder.torrentleech-password}
-              DIGITALCORE_APIKEY=${config.sops.placeholder.digitalcore-apikey}
               RETROTOON_PASSKEY=${config.sops.placeholder.retrotoon-passkey}
+              DARKPEERS_APIKEY=${config.sops.placeholder.darkpeers-apikey}
+              YUSCENE_APIKEY=${config.sops.placeholder.yuscene-apikey}
+              SEEDPOOL_APIKEY=${config.sops.placeholder.seedpool-apikey}
               RADARR__AUTH__APIKEY=${config.sops.placeholder.radarr-apikey}
               SONARR__AUTH__APIKEY=${config.sops.placeholder.sonarr-apikey}
               LIDARR__AUTH__APIKEY=${config.sops.placeholder.lidarr-apikey}

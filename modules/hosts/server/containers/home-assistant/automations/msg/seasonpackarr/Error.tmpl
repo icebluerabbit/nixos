@@ -1,0 +1,9 @@
+{% set e = trigger.payload_json.embeds[0] -%}
+{% set f = e.fields | default([]) -%}
+{% set err = f | selectattr('name', 'eq', 'Error') | map(attribute='value') | first | default('') -%}
+❌ <b>seasonpackarr · {{ e.title | default('error') | lower }}</b>
+<b>{{ f | selectattr('name', 'eq', 'Release Name') | map(attribute='value') | first | default('—') }}</b>
+<ul>
+<li><b>Client:</b> {{ f | selectattr('name', 'eq', 'Client') | map(attribute='value') | first | default('—') }}</li>
+<li><b>Error:</b> {% if err %}<code>{{ err | replace('```', '') | trim }}</code>{% else %}—{% endif %}</li>
+</ul>

@@ -1,8 +1,16 @@
 # modules/infra/clients/container-home-assistant.nix
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Home Assistant Container";
-  mac = "62:f5:a4:5b:20:1f";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-home-assistant";
+    resourceName = "container_home_assistant";
+    name = "Home Assistant Container";
+    mac = "62:f5:a4:5b:20:1f";
+    vlan = "iot";
+    kind = "virtual";
+    ports.http = 8123;
+    proxy.port = "http";
+  };
 in
 {
   den.aspects.infra._.clients._.container-home-assistant = {
@@ -10,60 +18,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.iot
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.iot.staticAddresses.home-assistant;
-      in
-      {
-        infra.clients.container-home-assistant = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            http = 8123;
-          };
-          proxy.port = "http";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.iot.staticAddresses.home-assistant;
-      in
-      {
-        infra.clients.container-home-assistant = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            http = 8123;
-          };
-          proxy.port = "http";
-        };
-
-        resource.unifi_client.container_home_assistant = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_home_assistant";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.iot.staticAddresses.home-assistant;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.iot.staticAddresses.home-assistant;
   };
 }

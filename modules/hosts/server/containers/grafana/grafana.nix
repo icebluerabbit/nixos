@@ -97,7 +97,12 @@
               auto_sign_up = true;
               sync_ttl = 720;
             };
-            "auth.anonymous".enabled = false;
+            # Anonymous read-only access so the e-paper display can fetch
+            # /render PNGs without a service account token.
+            "auth.anonymous" = {
+              enabled = true;
+              org_role = "Viewer";
+            };
           };
 
           provision = {
@@ -122,23 +127,29 @@
               (import ./dashboards/_container_metrics.nix)
               (import ./dashboards/_cross-seed.nix)
               (import ./dashboards/_dnsmasq.nix)
+              (import ./dashboards/_epaper_server.nix)
               (import ./dashboards/_flaresolverr.nix)
               (import ./dashboards/_home_sensors.nix)
               (import ./dashboards/_host_logs.nix)
               (import ./dashboards/_host_metrics.nix)
               (import ./dashboards/_jellyfin.nix)
-              (import ./dashboards/_lazylibrarian.nix)
+              (import ./dashboards/_bindery.nix)
+              (import ./dashboards/_komga.nix)
+              (import ./dashboards/_audiobookshelf.nix)
               (import ./dashboards/_lidarr.nix)
               (import ./dashboards/_mam.nix)
+              (import ./dashboards/_managarr.nix)
               (import ./dashboards/_mosquitto.nix)
               (import ./dashboards/_network_logs.nix)
               (import ./dashboards/_network_metrics.nix)
               (import ./dashboards/_nfs.nix)
               (import ./dashboards/_opencode.nix)
+              (import ./dashboards/_pi-hole.nix)
               (import ./dashboards/_postgres.nix)
               (import ./dashboards/_prowlarr.nix)
               (import ./dashboards/_qbittorrent.nix)
               (import ./dashboards/_radarr.nix)
+              (import ./dashboards/_seasonpackarr.nix)
               (import ./dashboards/_smart.nix)
               (import ./dashboards/_sonarr.nix)
               (import ./dashboards/_soularr.nix)
@@ -252,6 +263,10 @@
                   ./alerts/_nfs_retransmissions.nix
                   ./alerts/_no_healthy_tunnels.nix
                   ./alerts/_oom_kill.nix
+                  ./alerts/_pihole_down.nix
+                  ./alerts/_pihole_gravity_empty.nix
+                  ./alerts/_pihole_internal_split_broken.nix
+                  ./alerts/_pihole_upstream_slow.nix
                   ./alerts/_postgres_connections_high.nix
                   ./alerts/_postgres_deadlocks.nix
                   ./alerts/_postgres_down.nix
@@ -260,6 +275,7 @@
                   ./alerts/_qbt_disk_queue.nix
                   ./alerts/_qbt_vpn_disconnected.nix
                   ./alerts/_root_disk_low.nix
+                  ./alerts/_run_tmpfs_low.nix
                   ./alerts/_smart_critical_warning.nix
                   ./alerts/_smart_spare_low.nix
                   ./alerts/_smart_wearout.nix

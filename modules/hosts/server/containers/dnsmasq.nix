@@ -35,7 +35,14 @@
           before = [ "container-wave-foundation.target" ];
           # Weight the whole resolver container above noisy neighbours (qbt, CPUWeight=30)
           # at the machine.slice level so it wins CPU contention when the host is loaded.
-          serviceConfig.CPUWeight = 9000;
+          # IOWeight and MemoryMin matter as much as CPU here: the resolver was inheriting
+          # the default IO weight and a reclaimable working set, so a loaded host could
+          # stall or shrink its cache regardless of CPU priority.
+          serviceConfig = {
+            CPUWeight = 9000;
+            IOWeight = 1000;
+            MemoryMin = "256M";
+          };
         };
 
         containerConfigs.dnsmasq = {

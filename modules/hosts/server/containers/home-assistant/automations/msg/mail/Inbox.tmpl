@@ -1,2 +1,11 @@
+{%- set c = trigger.event.data.custom -%}
+{%- if c is string and c -%}{%- set c = c | from_json -%}{%- endif -%}
+{%- set c = c | default({}, true) -%}
 📬 <b>[{{ account }}]</b> {{ trigger.event.data.subject | e }}
 <br><i>{{ trigger.event.data.sender | e }}</i>
+{%- if c.preview %}
+<br>{{ c.preview | e }}
+{%- endif %}
+{%- if c.unsub %}
+<br>🔕 <b>unsubscribable</b> · <i>👍 to unsubscribe</i><!-- Unsub: {{ trigger.event.data.entry_id }}|{{ trigger.event.data.uid }}|{{ c.unsub }} -->
+{%- endif %}

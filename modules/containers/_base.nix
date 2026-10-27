@@ -10,6 +10,18 @@
   imports = [ ../logging/_vector.nix ];
   logging.vector = cfg.logging;
 
+  # Containers run ephemeral roots, so /var/log/journal is not storage — it is host
+  # RAM, charged to the host's /run tmpfs. journald's default (Storage=persistent,
+  # SystemMaxUse=10% of the filesystem) therefore lets every container claim ~2.3 GB
+  # of a 23 GB /run; ~50 containers exhausted it, and journald and logind both start
+  # failing with ENOSPC (new logins get no session scope). Storage=volatile states
+  # what is actually happening and moves the cap onto RuntimeMaxUse. 64 MB is a
+  # debugging window, not retention: vector ships everything to Loki regardless.
+  services.journald.settings.Journal = {
+    Storage = "volatile";
+    RuntimeMaxUse = "64M";
+  };
+
   networking = {
     enableIPv6 = false;
     useHostResolvConf = lib.mkForce false;

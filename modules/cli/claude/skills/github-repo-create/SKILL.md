@@ -11,12 +11,12 @@ Account is `icebluerabbit`. The traps below are real, not theoretical — each o
 
 Archetype is mechanical, from the name and what the repo ships.
 
-| Archetype | Marker | Ships | Example |
-|:---|:---|:---|:---|
+| Archetype       | Marker             | Ships                                               | Example            |
+| :-------------- | :----------------- | :-------------------------------------------------- | :----------------- |
 | `flake-wrapper` | name ends `-flake` | Packages upstream software; version tracks upstream | `cleanuparr-flake` |
-| `authored-bin` | no suffix | A binary written here; ships release assets | `configuratarr` |
-| `flake-lib` | no suffix | A flake-parts module, no derivation | `denful-networks` |
-| `nix-config` | — | A system config, consumed by nothing | `nixos` |
+| `authored-bin`  | no suffix          | A binary written here; ships release assets         | `configuratarr`    |
+| `flake-lib`     | no suffix          | A flake-parts module, no derivation                 | `denful-networks`  |
+| `nix-config`    | —                  | A system config, consumed by nothing                | `nixos`            |
 
 **A `-flake` suffix means the artifact is fetched, not authored.** Check for `fetchFromGitHub` /
 `fetchFromGitLab` / `fetchPypi` before deciding — that is the ground truth.
@@ -32,8 +32,8 @@ gh repo create icebluerabbit/<name> --public --disable-wiki
 PATs cannot reliably create repos under a personal account — use the classic one here.
 
 **⚠ Then open the repo's Actions tab in a browser and enable Actions.** The REST API reports
-`actions/permissions → {"enabled": true}` on a brand-new repo *even when the UI still shows
-"GitHub Actions is not currently enabled on this repository"*. Until you click enable, `push`
+`actions/permissions → {"enabled": true}` on a brand-new repo _even when the UI still shows
+"GitHub Actions is not currently enabled on this repository"_. Until you click enable, `push`
 events silently never trigger a workflow, while `workflow_dispatch` works normally — which makes
 the failure look like a workflow-trigger bug rather than a disabled feature. **Do not trust the API
 for this.**
@@ -95,34 +95,34 @@ without it — `GraphQL: GitHub Actions is not permitted to create or approve pu
 
 Branch protection on **both** branches, required check `Lint & Verify`:
 
-| Branch | `strict` | Why |
-|:---|:---|:---|
-| `dev` | **false** | Multiple weekly automations would otherwise perpetually invalidate each other's PRs |
-| `main` | **true** | Only moves by promote-merge, so `dev` always contains it |
+| Branch | `strict`  | Why                                                                                 |
+| :----- | :-------- | :---------------------------------------------------------------------------------- |
+| `dev`  | **false** | Multiple weekly automations would otherwise perpetually invalidate each other's PRs |
+| `main` | **true**  | Only moves by promote-merge, so `dev` always contains it                            |
 
 `strict: true` on `main` **stalls any repo running release-please**, because release-please pushes
 version bumps directly to `main`, leaving `dev` behind and blocking every later promote PR pending
 a back-merge nobody performs. Use `strict: false` there.
 
-Protecting `dev` is not cosmetic: `gh pr merge --auto` waits only for *required* checks, so on an
+Protecting `dev` is not cosmetic: `gh pr merge --auto` waits only for _required_ checks, so on an
 unprotected branch auto-merge lands the PR immediately — including red ones.
 
 ## 6. The three flake contracts
 
 Every repo implements all three, so no repo-specific step ever appears in YAML.
 
-| Contract | Meaning | No-op when |
-|:---|:---|:---|
-| `.#update-package` | Track upstream version | nothing upstream to track |
-| `.#generate-docs` | Regenerate `docs/` | no docs |
-| `flake.checks` | **Cover everything the repo ships** | — |
+| Contract           | Meaning                             | No-op when                |
+| :----------------- | :---------------------------------- | :------------------------ |
+| `.#update-package` | Track upstream version              | nothing upstream to track |
+| `.#generate-docs`  | Regenerate `docs/`                  | no docs                   |
+| `flake.checks`     | **Cover everything the repo ships** | —                         |
 
-The third is the one that bites. **`nix flake check` builds `checks.*` but only *evaluates*
+The third is the one that bites. **`nix flake check` builds `checks.*` but only _evaluates_
 `packages.*`** — a package whose `src` 404s passes. That is exactly how `unifly-flake` shipped an
 unbuildable package for two months behind a green `Lint & Verify`. So:
 
-- **artifact repos** — `checks` must transitively *build* every artifact shipped
-- **library repos** — no derivation exists, so `checks` must *exercise the module* (see
+- **artifact repos** — `checks` must transitively _build_ every artifact shipped
+- **library repos** — no derivation exists, so `checks` must _exercise the module_ (see
   `denful-networks`' `test/` sub-flake)
 
 Do not build the shipped artifact by a different route than the tested one. `configuratarr` built
@@ -131,18 +131,18 @@ binary was compiled by a different toolchain, from a separately resolved depende
 zero tests.
 
 **Rust repos use crane**, not `buildRustPackage`. `buildRustPackage` is the nixpkgs convention for
-packaging *third-party* Rust; crane is the convention for a project shipping its own flake, and it
+packaging _third-party_ Rust; crane is the convention for a project shipping its own flake, and it
 gives package and checks one dependency build.
 
 ## 7. Workflow set
 
-| Workflow | Trigger | Purpose |
-|:---|:---|:---|
-| `ci.yml` | push/PR on `main`,`dev` | `nix flake check -L`; `nix fmt` diff-clean; docs diff-clean |
-| `flake-update.yml` | cron Sun 03:00 UTC | `nix flake update` → `.#update-package` → `.#generate-docs` → PR to `dev` → auto-merge |
-| `promote.yml` | push to `dev` | Maintain the standing `dev` → `main` PR. **Merged by hand** |
-| `dependabot.yml` + `dependabot-auto-merge.yml` | — | Actions deps, plus language ecosystem |
-| `release-please.yml` | push to `main` | Authored-binary repos only |
+| Workflow                                       | Trigger                 | Purpose                                                                                |
+| :--------------------------------------------- | :---------------------- | :------------------------------------------------------------------------------------- |
+| `ci.yml`                                       | push/PR on `main`,`dev` | `nix flake check -L`; `nix fmt` diff-clean; docs diff-clean                            |
+| `flake-update.yml`                             | cron Sun 03:00 UTC      | `nix flake update` → `.#update-package` → `.#generate-docs` → PR to `dev` → auto-merge |
+| `promote.yml`                                  | push to `dev`           | Maintain the standing `dev` → `main` PR. **Merged by hand**                            |
+| `dependabot.yml` + `dependabot-auto-merge.yml` | —                       | Actions deps, plus language ecosystem                                                  |
+| `release-please.yml`                           | push to `main`          | Authored-binary repos only                                                             |
 
 Action pins, one set everywhere:
 

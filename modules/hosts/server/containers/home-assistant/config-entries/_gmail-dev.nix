@@ -14,8 +14,9 @@ _: {
     ssl_cipher_list = "python_default";
     folder = "INBOX";
     search = "UnSeen UnDeleted";
-    event_message_data = [ ];
+    event_message_data = [ "headers" ];
     max_message_size = 2048;
+    custom_event_data_template = import ./_mail-custom-template.nix;
     enable_push = true;
   };
 }

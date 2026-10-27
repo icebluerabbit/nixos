@@ -1,8 +1,16 @@
 # modules/infra/clients/container-openchamber.nix
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "OpenChamber Container";
-  mac = "62:f5:a4:5b:20:76";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-openchamber";
+    resourceName = "container_openchamber";
+    name = "OpenChamber Container";
+    mac = "62:f5:a4:5b:20:76";
+    vlan = "apps";
+    kind = "virtual";
+    ports.default = 3000;
+    proxy.port = "default";
+  };
 in
 {
   den.aspects.infra._.clients._.container-openchamber = {
@@ -10,60 +18,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.apps
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.apps.staticAddresses.openchamber;
-      in
-      {
-        infra.clients.container-openchamber = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 3000;
-          };
-          proxy.port = "default";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.apps.staticAddresses.openchamber;
-      in
-      {
-        infra.clients.container-openchamber = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            default = 3000;
-          };
-          proxy.port = "default";
-        };
-
-        resource.unifi_client.container_openchamber = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_openchamber";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.apps.staticAddresses.openchamber;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.apps.staticAddresses.openchamber;
   };
 }

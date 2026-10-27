@@ -1,8 +1,15 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "UNAS-Pro";
-  mac = "6c:63:f8:10:41:a2";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "unas-pro";
+    resourceName = "unas_pro";
+    name = "UNAS-Pro";
+    mac = "6c:63:f8:10:41:a2";
+    vlan = "storage";
+    kind = "physical";
+    portProfile = "storage-unas-pro";
+  };
 in
 {
   den.aspects.infra._.clients._.unas-pro = {
@@ -11,42 +18,10 @@ in
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
       den.aspects.infra._.networks._.storage
+      den.aspects.infra._.ports._.storage-unas-pro
     ];
 
-    os =
-      { config, ... }:
-      {
-        infra.clients.unas-pro = {
-          inherit name mac;
-          ip = config.infra.vlans.storage.staticAddresses.unas-pro;
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.storage.staticAddresses.unas-pro;
-      in
-      {
-        infra.clients.unas-pro = {
-          inherit name mac ip;
-        };
-
-        resource.unifi_client.unas_pro = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.unas_pro";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.storage.staticAddresses.unas-pro;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.storage.staticAddresses.unas-pro;
   };
 }

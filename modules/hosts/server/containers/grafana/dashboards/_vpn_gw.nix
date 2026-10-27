@@ -814,5 +814,43 @@ in
         (target "vpngw_tunnel_latency_seconds{${host}}" "{{tunnel}}" "A")
       ];
     })
+
+    # ── Row 9: route-flap damping / tri-state (RFC 2439) ──────────────────
+    (ts {
+      id = 72;
+      title = "Pool State (failing / connected / stable)";
+      description = "Tunnel count per tri-state. `failing` = down or damping-suppressed (never selected); `connected` = up but young or still carrying penalty; `stable` = up past stableAfterSeconds with the penalty decayed under dampReuse. Only `stable` is allowed to consume a MAM dynamic-seedbox IP change. Watch for `stable` collapsing toward 0 — that is the shape of a provider-wide outage (2026-08-12: 4 of 10 down for an hour, discovered only via the tracker's reject log).";
+      x = 0;
+      y = 67;
+      w = 12;
+      unit = "short";
+      targets = [
+        (target "sum by (state) (vpngw_tunnel_state{${host}})" "{{state}}" "A")
+      ];
+    })
+    (ts {
+      id = 73;
+      title = "Damping Penalty (RFC 2439)";
+      description = "Per-tunnel flap-damping penalty. Each outage episode charges dampPenalty (1000) and decays with a 15min half-life. Above dampSuppress (2000 — two outages inside a half-life) the tunnel is skipped by selection until decay carries it under dampReuse (750); the gap between the two is the hysteresis that stops an oscillating tunnel being re-picked on every upswing. A line parked above 2000 = a server worth regenerating.";
+      x = 12;
+      y = 67;
+      w = 12;
+      unit = "short";
+      targets = [
+        (target "vpngw_tunnel_penalty{${host}}" "{{tunnel}}" "A")
+      ];
+    })
+    (ts {
+      id = 74;
+      title = "Tunnel Dwell (continuous uptime)";
+      description = "Time since each tunnel's last up-transition; resets to 0 on every outage episode. This is the clock behind `stable` — a tunnel must hold stableAfterSeconds (5min) before a client will commit an expensive side effect to its exit IP. Absent series = tunnel currently down.";
+      x = 0;
+      y = 75;
+      w = 24;
+      unit = "s";
+      targets = [
+        (target "vpngw_tunnel_uptime_seconds{${host}}" "{{tunnel}}" "A")
+      ];
+    })
   ];
 }

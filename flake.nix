@@ -1,4 +1,4 @@
-# DO-NOT-EDIT. This file was auto-generated using github:vic/flake-file.
+# DO-NOT-EDIT. This file was auto-generated using github:denful/flake-file.
 # Use `nix run .#write-flake` to regenerate it.
 {
   outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (inputs.import-tree ./modules);
@@ -16,10 +16,6 @@
     claude-plugins = {
       url = "github:anthropics/claude-plugins-official";
       flake = false;
-    };
-    cleanuparr-flake = {
-      url = "github:icebluerabbit/cleanuparr-flake/dev";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
     configuratarr = {
       url = "github:icebluerabbit/configuratarr/dev";
@@ -63,9 +59,9 @@
         nixpkgs.follows = "nixpkgs";
       };
     };
-    import-tree.url = "github:vic/import-tree";
-    lazylibrarian-flake = {
-      url = "github:icebluerabbit/lazylibrarian-flake/dev";
+    import-tree.url = "github:denful/import-tree";
+    mac-app-util = {
+      url = "github:hraban/mac-app-util";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     matt-pocock-skills = {
@@ -108,12 +104,12 @@
       url = "github:nix-community/stylix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    tabline-wez = {
-      url = "github:michaelbrusegard/tabline.wez";
-      flake = false;
-    };
     terranix = {
       url = "github:terranix/terranix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     youtarr-flake = {

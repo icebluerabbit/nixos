@@ -1,8 +1,15 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Server Guest Bridge";
-  mac = "82:13:8a:a0:4f:48";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "server-bridge-guest";
+    resourceName = "server_bridge_guest";
+    name = "Server Guest Bridge";
+    mac = "82:13:8a:a0:4f:48";
+    vlan = "guest";
+    kind = "virtual";
+    dependsOn = [ "server_vlan_guest" ];
+  };
 in
 {
   den.aspects.infra._.clients._.server-bridge-guest = {
@@ -10,54 +17,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
-
+      den.aspects.infra._.networks._.guest
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.guest.staticAddresses.server;
-      in
-      {
-        infra.clients.server-bridge-guest = {
-          inherit
-            name
-            mac
-            ip
-            ;
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.guest.staticAddresses.server;
-      in
-      {
-        infra.clients.server-bridge-guest = {
-          inherit
-            name
-            mac
-            ip
-            ;
-        };
-
-        resource.unifi_client.server_bridge_guest = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-          depends_on = [ "unifi_client.server_vlan_guest" ];
-        };
-
-        import = [
-          {
-            to = "unifi_client.server_bridge_guest";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.guest.staticAddresses.server;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.guest.staticAddresses.server;
   };
 }

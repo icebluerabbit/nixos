@@ -1,9 +1,15 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Hue Hub";
-  mac = "00:17:88:79:81:e0";
-  ip = "10.10.30.33";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "hue-hub";
+    resourceName = "hue_hub";
+    name = "Hue Hub";
+    mac = "00:17:88:79:81:e0";
+    vlan = "iot";
+    kind = "physical";
+    portProfile = "iot-hue-hub";
+  };
 in
 {
   den.aspects.infra._.clients._.hue-hub = {
@@ -11,30 +17,11 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.iot
+      den.aspects.infra._.ports._.iot-hue-hub
     ];
 
-    os = _: {
-      infra.clients.hue-hub = {
-        inherit name mac ip;
-      };
-    };
-
-    terranix = {
-      resource.unifi_client.hue_hub = {
-        inherit mac name;
-        fixed_ip = ip;
-        allow_existing = true;
-        blocked = false;
-        site = "default";
-        skip_forget_on_destroy = false;
-      };
-
-      import = [
-        {
-          to = "unifi_client.hue_hub";
-          id = mac;
-        }
-      ];
-    };
+    os = _: client.mkOs "10.10.30.33";
+    terranix = _: client.mkTerranix "10.10.30.33";
   };
 }

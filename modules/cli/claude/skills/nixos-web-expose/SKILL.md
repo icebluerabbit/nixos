@@ -14,31 +14,39 @@ The wiring is largely **automated**. Do not hand-write DNS records or Caddy virt
 ## 2. Caddy — set `proxy` on the infra client
 
 Caddy auto-generates a virtualHost for **every** infra client that has a `proxy` set:
+
 ```nix
 # caddy.nix (do NOT edit): virtualHosts = filterAttrs (c: c.proxy != null) infra.clients
 #   → subdomain = client name minus "container-",  port = client.ports.${client.proxy.port}
 ```
 
-So to proxy a service, edit its infra client `modules/infra/clients/container-<name>.nix` and add `proxy.port` (the named port **key** from `ports`) — in **both** the `nixos` and `terranix` sections:
+So to proxy a service, edit its infra client `modules/infra/clients/container-<name>.nix` and add `proxy.port` (the named port **key** from `ports`) to the `_mk-client.nix` call. One line — the constructor feeds both engines:
+
 ```nix
-infra.clients.container-radarr = {
-  inherit name mac ip;
-  ports = { default = 7878; };
-  proxy.port = "default";        # ← key into ports; exposes radarr.caddy.<apps-domain>
-};
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-radarr";
+    resourceName = "container_radarr";
+    # …
+    ports.default = 7878;
+    proxy.port = "default";      # ← key into ports; exposes radarr.caddy.<apps-domain>
+  };
 ```
+
 Multi-port: point at the right key, e.g. `proxy.port = "http";` or `"web"` / `"ui"`.
 
 Then add the service to Caddy's `includes` in `modules/hosts/server/containers/caddy.nix` so its client enters `config.infra.clients` scope — follow the existing pattern, **both** lines:
+
 ```nix
 den.aspects.containers._.radarr
 den.aspects.infra._.clients._.container-radarr
 ```
+
 Result: `http://radarr.caddy.<apps-domain>/` → `http://<ip>:<port>`. (The client/proxy is what drives the vhost; the container-aspect line matches the established convention.)
 
 ## 3. Homepage — still manual
 
 `modules/hosts/server/containers/homepage.nix` is a hand-curated `services` list. To add a card:
+
 1. Add the service's container + infra client to homepage's `includes` (both lines, as in caddy).
 2. Add an entry under the right group (`Apps`/`Network`/`Services`/`Media`) in `containerConfigs.homepage.services`:
    ```nix
@@ -59,21 +67,25 @@ Result: `http://radarr.caddy.<apps-domain>/` → `http://<ip>:<port>`. (The clie
    Widget API keys are injected via `HOMEPAGE_VAR_*` from the `homepage-env` sops template — add the secret with `nixos-secret-add` if using a widget. Plain `href`+`description` cards need no secret.
 
 ## Finish (zero-effect commands only)
+
 ```bash
 git add -N <changed files>
 nix fmt
 just eval-server        # validate
 just build-server       # optional dry-run build
 ```
+
 **Deploy is human-only.** The assistant never runs `switch`/`test`/`apply` — hand the user `just switch-server`.
 
 ## Verify after the user deploys
+
 ```bash
 curl -s http://<container-ip>:<port>/          # bridged IP, routable from any LAN host
 # or, once live:  http://<name>.caddy.<apps-domain>/
 ```
 
 ## Gotchas
+
 - Name doesn't resolve → the static IP/VLAN isn't registered, or a new VLAN missing from dnsmasq `includes`.
 - Resolves but 502 → `proxy.port` points at a wrong/undeclared port key, or the service isn't in Caddy's `includes`.
 - `proxy.port` is a **string key** into `ports`, not a number.

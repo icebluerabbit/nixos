@@ -1,8 +1,23 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "qBittorrent Container";
-  mac = "62:f5:a4:5b:20:85";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-qbittorrent";
+    resourceName = "container_qbittorrent";
+    name = "qBittorrent Container";
+    mac = "62:f5:a4:5b:20:85";
+    vlan = "download";
+    kind = "virtual";
+    ports = {
+      exporter = 8090;
+      webui = 8080;
+    };
+    # managarr-qbittorrent, the sidecar serving this service's records to managarr.
+    # 9910 on every managarr-* sidecar: each container has its own IP, so one
+    # number carries across all of them with no per-service arithmetic.
+    ports.api = 9910;
+    proxy.port = "webui";
+  };
 in
 {
   den.aspects.infra._.clients._.container-qbittorrent = {
@@ -10,61 +25,11 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.download
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.download.staticAddresses.qbittorrent;
-      in
-      {
-        infra.clients.container-qbittorrent = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            webui = 8080;
-            exporter = 8090;
-          };
-          proxy.port = "webui";
-        };
-      };
-
+    os = { config, ... }: client.mkOs config.infra.vlans.download.staticAddresses.qbittorrent;
     terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.download.staticAddresses.qbittorrent;
-      in
-      {
-        infra.clients.container-qbittorrent = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            webui = 8080;
-            exporter = 8090;
-          };
-        };
-
-        resource.unifi_client.container_qbittorrent = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_qbittorrent";
-            id = mac;
-          }
-        ];
-      };
+      { config, ... }: client.mkTerranix config.infra.vlans.download.staticAddresses.qbittorrent;
   };
 }

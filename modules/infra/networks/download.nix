@@ -1,26 +1,20 @@
 # modules/infra/networks/download.nix
-{ den, ... }:
+{ den, lib, ... }:
 let
-  vlanId = 130;
-  subnet = "10.10.130.0";
-  subnetPrefix = 24;
-  staticAddresses = {
-    gateway = "10.10.130.1";
-    server = "10.10.130.2";
-    vpnGw = "10.10.130.4";
-    qbittorrent = "10.10.130.5";
-    slskd = "10.10.130.6";
-  };
-  domain = "download.internal";
-
-  vlanConfig = {
-    inherit
-      vlanId
-      subnet
-      subnetPrefix
-      domain
-      staticAddresses
-      ;
+  network = (import ../_mk-network.nix { inherit lib; }) {
+    id = "download";
+    resourceName = "download";
+    displayName = "DOWNLOAD";
+    vlanId = 130;
+    subnet = "10.10.130.0";
+    domain = "download.internal";
+    staticAddresses = {
+      gateway = "10.10.130.1";
+      server = "10.10.130.2";
+      vpnGw = "10.10.130.4";
+      qbittorrent = "10.10.130.5";
+      slskd = "10.10.130.6";
+    };
   };
 in
 {
@@ -29,59 +23,14 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.clients._.container-dns
     ];
 
-    os = _: {
-      infra.vlans.download = vlanConfig;
-    };
-
+    os =
+      { config, ... }:
+      network.mkOs [ config.infra.clients.container-dns.ip ];
     terranix =
       { config, ... }:
-      {
-        infra.vlans.download = vlanConfig;
-
-        resource.unifi_network.download = {
-          name = "DOWNLOAD";
-          vlan = vlanId;
-          subnet = "${staticAddresses.gateway}/${toString subnetPrefix}";
-          domain_name = domain;
-          auto_scale = false;
-          enabled = true;
-          gateway_type = "default";
-          igmp_snooping = false;
-          internet_access = true;
-          ipv6_interface_type = "none";
-          multicast_dns = true;
-          network_isolation = false;
-          setting_preference = "manual";
-          third_party_gateway = false;
-          site = "default";
-          dhcp_server = {
-            boot = {
-              enabled = false;
-            };
-            conflict_checking = true;
-            dns_enabled = true;
-            dns_servers = [ config.infra.clients.container-dns.ip ];
-            enabled = true;
-            gateway_enabled = false;
-            leasetime = 86400;
-            ntp_enabled = false;
-            start = "10.10.${toString vlanId}.100";
-            stop = "10.10.${toString vlanId}.200";
-            time_offset_enabled = false;
-            wins = {
-              enabled = false;
-            };
-          };
-        };
-
-        import = [
-          {
-            to = "unifi_network.download";
-            id = "DOWNLOAD";
-          }
-        ];
-      };
+      network.mkTerranix [ config.infra.clients.container-dns.ip ];
   };
 }

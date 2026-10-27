@@ -1,19 +1,46 @@
 ---
 name: nix-style
-description: Knowledge reference for writing Nix in this repo so the pre-commit linters don't rewrite or reject it afterward. Covers the three gating tools — nixfmt-rfc-style (format), statix (antipattern lint), deadnix (dead-code lint) — with the concrete rewrites each one forces, plus the repo's non-enforced conventions (no `with lib;`, `lib.mkOption`/`mkIf`, file-header block comment, `lib.getExe`, no magic numbers). Load before writing or editing ANY `.nix` file, when a diff came back reformatted or a commit hook failed, or when unsure how nixfmt/statix/deadnix will treat something. Pairs with den-aspects and nixos-container-conventions.
+description: Knowledge reference for writing Nix in this repo so the pre-commit linters don't rewrite or reject it afterward. Covers the gating tools — nixfmt-rfc-style (format), statix (antipattern lint), deadnix (dead-code lint) — with the concrete rewrites each one forces, plus the repo's non-enforced conventions (no `with lib;`, `lib.mkOption`/`mkIf`, file-header block comment, `lib.getExe`, no magic numbers). Also covers the non-Nix formatters `nix fmt` drives (ruff, gofmt, shfmt, shellcheck, prettier) and the 79-column rule that Python packages must satisfy to build. Load before writing or editing ANY `.nix` file, before touching a script under `packages/`, when a diff came back reformatted or a commit hook failed, or when unsure how nixfmt/statix/deadnix will treat something. Pairs with den-aspects and nixos-container-conventions.
 ---
 
 # Nix Style (reference)
 
-Three tools gate every commit via `git-hooks.nix` (see `modules/git-hooks.nix`). All are deterministic and will rewrite or reject non-conforming code — write it right the first time.
+Three tools gate every commit for Nix specifically, via `git-hooks.nix` (see `modules/git-hooks.nix`). All are deterministic and will rewrite or reject non-conforming code — write it right the first time.
 
-| Tool | Job | Fails commit on |
-|:--|:--|:--|
-| **nixfmt-rfc-style** 1.4.0 (`nix fmt` / treefmt) | formatting | any unformatted file |
-| **statix** (`statix check`) | antipatterns | manual-inherit, useless parens, bool compares, … |
-| **deadnix** (`deadnix --fail`) | dead code | unused bindings / function args |
+| Tool                                             | Job          | Fails commit on                                  |
+| :----------------------------------------------- | :----------- | :----------------------------------------------- |
+| **nixfmt-rfc-style** 1.4.0 (`nix fmt` / treefmt) | formatting   | any unformatted file                             |
+| **statix** (`statix check`)                      | antipatterns | manual-inherit, useless parens, bool compares, … |
+| **deadnix** (`deadnix --fail`)                   | dead code    | unused bindings / function args                  |
 
 Always `nix fmt` before evaluating. `just format` runs `git add -N .` first (flakes ignore untracked files).
+
+## `nix fmt` is not Nix-only
+
+`modules/formatter.nix` drives treefmt across five languages, and the pre-commit hook runs that same wrapper — so the hook and `nix fmt` can never disagree. Each formatter reads an explicit config at the repo root.
+
+| Language | Tool                     | Config                                    |
+| :------- | :----------------------- | :---------------------------------------- |
+| nix      | nixfmt-rfc-style         | none (non-configurable by design)         |
+| python   | ruff-format + ruff-check | `ruff.toml`                               |
+| go       | gofmt                    | none (non-configurable by design)         |
+| shell    | shfmt + shellcheck       | `.editorconfig` (indent), `.shellcheckrc` |
+| markdown | prettier (`*.md` only)   | `.prettierrc.toml`                        |
+
+Excluded globally: `flake.nix` (generated), `.pre-commit-config.yaml` and `result` (store symlinks), `secrets/**` (reformatting invalidates the sops MAC), `homelab/.terraform/**`.
+
+Prettier is deliberately restricted to `*.md`. Unrestricted it would also rewrite every JSON/YAML in the tree — including sops files and the generated Grafana dashboards.
+
+## Python in `packages/` — 79 columns is a build gate
+
+Python packages are built with `pkgs.writers.writePython3Bin`, which runs **flake8 with no ignores** as part of the build. flake8's default `max-line-length` is 79, so an 80-column line does not merely lint badly — **the package fails to build**. `ruff.toml` pins `line-length = 79` so the formatter targets the same width the builder enforces.
+
+Two consequences when adding or editing a script:
+
+- **No shebang.** `writePython3Bin` emits its own; a leftover `#!/usr/bin/env python3` lands on line 2 and fails `E265`.
+- **Comments and docstrings are yours to wrap.** ruff-format splits code but never reflows a comment, docstring or string literal, so an over-long one survives the formatter and then fails the build. Wrap prose by hand; split long f-strings into adjacent literals.
+
+Shell fragments that are `readFile`'d into `writeShellApplication` have no shebang either, so they carry `# shellcheck shell=bash` on line 1 instead.
 
 ## nixfmt — write the shape it emits
 

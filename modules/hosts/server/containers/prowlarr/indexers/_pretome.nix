@@ -2,7 +2,13 @@ _: {
   name = "PreToMe";
   implementation = "PreToMe";
   config_contract = "PreToMeSettings";
-  enable = true;
+  # Disabled 2026-08-11: 185 of the 187 PreToMe torrents held were RARed scene
+  # releases (99%), i.e. 76% of every archive-bearing torrent in the client.
+  # Kept declared rather than removed — configuratarr runs with prune = false
+  # (modules/containers/prowlarr.nix:64), so an undeclared indexer would simply
+  # stay enabled in Prowlarr's DB. Disabling also 410s this indexer's Torznab
+  # feed, hence the matching gate in cross-seed.nix.
+  enable = false;
   redirect = false;
   priority = 40;
   protocol = "torrent";

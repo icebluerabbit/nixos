@@ -18,9 +18,17 @@
     includes = [ ];
 
     provides.to-hosts.nixos =
-      { config, lib, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       let
         hostConfig = config;
+        # Resolved from host pkgs so the homelab overlay is in scope; the store
+        # path pulls into the container closure via ExecStart.
+        resolveRooms = lib.getExe pkgs.homelab.hermes-resolve-rooms;
       in
       {
         options.containerConfigs.hermes =
@@ -120,16 +128,13 @@
                 });
 
               config =
-                { pkgs, lib, ... }:
+                { lib, ... }:
                 let
                   stateDir = "/var/lib/hermes";
                   envFile = "${stateDir}/.hermes/.env";
                   roomAlias = alias: "#${alias}:${cfg.matrixServerName}";
 
-                  resolveRoomsScript = pkgs.writeTextFile {
-                    name = "hermes-resolve-rooms.py";
-                    text = builtins.readFile ./resolve_rooms.py;
-                  };
+                  resolveRoomsScript = resolveRooms;
                 in
                 {
                   imports = [
@@ -208,7 +213,6 @@
                           Group = "hermes";
                           ExecStart = lib.concatStringsSep " " (
                             [
-                              (lib.getExe pkgs.python3)
                               resolveRoomsScript
                               cfg.matrixHomeserver
                               envFile

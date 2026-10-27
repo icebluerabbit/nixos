@@ -9,7 +9,12 @@
     ];
 
     nixos =
-      { config, pkgs, ... }:
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
       {
         fileSystems = {
           "/mnt/media" = {
@@ -29,9 +34,9 @@
               "rsize=1048576"
               "wsize=1048576"
               # nconnect is PER client↔server TRANSPORT, fixed by the first mount to the
-              # server. All three shares below hit 10.10.50.222, so they share ONE
-              # transport — every mount must agree on nconnect or the first-mounted wins
-              # (kernel silently ignores later differing values). Keep all at 16.
+              # server. Both shares below hit 10.10.50.222, so they share ONE transport
+              # — every mount must agree on nconnect or the first-mounted wins (kernel
+              # silently ignores later differing values). Keep both at 16.
               "nconnect=16"
               "noatime"
               "nodiratime"
@@ -71,26 +76,6 @@
               "retrans=3"
             ];
           };
-          "/mnt/projects" = {
-            device = "${config.infra.clients.unas-pro.ip}:/var/nfs/shared/Projects";
-            fsType = "nfs";
-            options = [
-              "x-systemd.requires=network-addresses-br-storage.service" # see /mnt/media
-              "x-systemd.after=network-addresses-br-storage.service"
-              "x-systemd.automount"
-              "noauto"
-              "nfsvers=3"
-              "rsize=131072"
-              "wsize=131072"
-              "nconnect=16" # shared transport w/ /mnt/media — must match (see above)
-              "noatime"
-              "nodiratime"
-              "actimeo=10"
-              "hard"
-              "timeo=150"
-              "retrans=3"
-            ];
-          };
           # Dedicated WD SN580 (xfs) fscache drive. nofail: the cache is optional — a dead
           # or flapping WD must never block boot; cachefilesd just won't start.
           "/var/cache/fscache" = {
@@ -109,8 +94,28 @@
         services.cachefilesd = {
           enable = true;
           cacheDir = "/var/cache/fscache";
-          # Dedicated drive: cachefilesd defaults (cull <7% free, hard-stop <3%) let the
-          # cache use nearly the whole 2TB. No pool-sharing watermarks needed.
+          # Watermarks are percent-FREE, not percent-used: above brun the cache grows
+          # freely, below bcull the culler runs, below bstop allocations are refused.
+          # The `%` is load-bearing — fs/cachefiles/daemon.c rejects a bare integer with
+          # EINVAL ("CacheFiles gave config error: Invalid argument"), which fails the
+          # unit at start and takes the switch down with it.
+          #
+          # These are set explicitly because cachefilesd's built-in stop is 1%, not the
+          # 3% previously claimed here — left to itself the cache ran the drive to 1.02%
+          # free and sat there, refusing 60M cache writes (fscache `NoSpace: nwr`). A
+          # DRAM-less TLC SSD with no free blocks has no spare area to garbage-collect
+          # into, and fstrim can discard nothing, so every write amplifies.
+          #
+          # Holding ~8-10% free costs 10% of a cache measured at a ~2% hit rate (see the
+          # io_stalled alert) — i.e. nothing — and buys the controller room to work.
+          extraConfig = ''
+            brun 10%
+            bcull 8%
+            bstop 6%
+            frun 10%
+            fcull 8%
+            fstop 6%
+          '';
         };
 
         # Ship fscache hit/miss counters to Grafana. fscache has no exporter, so parse
@@ -143,42 +148,10 @@
 
             fscache-textfile = {
               description = "Export fscache stats to the node-exporter textfile collector";
-              path = [
-                pkgs.gawk
-                pkgs.coreutils
-              ];
-              serviceConfig.Type = "oneshot";
-              # Atomic write (tmp + rename) so node-exporter never scrapes a partial file.
-              # No-op if cachefiles isn't loaded (stats file absent).
-              script = ''
-                dir=/var/lib/node-exporter-textfile
-                src=/proc/fs/fscache/stats
-                [ -r "$src" ] || exit 0
-                mkdir -p "$dir"
-                tmp=$(mktemp "$dir/.fscache.prom.XXXXXX")
-                awk '
-                  /^Cookies/{for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="n")c=a[2]}}
-                  /^DownOps/{for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="DL")dl=a[2]}}
-                  /^CaRdOps/{for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="RD")rd=a[2]}}
-                  /^CaWrOps/{for(i=1;i<=NF;i++){split($i,a,"=");if(a[1]=="WR")wr=a[2]}}
-                  END{
-                    print "# HELP fscache_read_hits_total Reads served from local fscache (cache hits)."
-                    print "# TYPE fscache_read_hits_total counter"
-                    printf "fscache_read_hits_total %d\n", rd+0
-                    print "# HELP fscache_downloads_total Reads fetched from the NFS server (cache misses)."
-                    print "# TYPE fscache_downloads_total counter"
-                    printf "fscache_downloads_total %d\n", dl+0
-                    print "# HELP fscache_writes_total Objects written into local fscache."
-                    print "# TYPE fscache_writes_total counter"
-                    printf "fscache_writes_total %d\n", wr+0
-                    print "# HELP fscache_cookies Active fscache cookies (objects tracked)."
-                    print "# TYPE fscache_cookies gauge"
-                    printf "fscache_cookies %d\n", c+0
-                  }
-                ' "$src" > "$tmp"
-                chmod 0644 "$tmp"
-                mv -f "$tmp" "$dir/fscache.prom"
-              '';
+              serviceConfig = {
+                Type = "oneshot";
+                ExecStart = lib.getExe pkgs.homelab.fscache-textfile;
+              };
             };
           };
 

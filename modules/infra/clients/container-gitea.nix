@@ -1,8 +1,19 @@
 # modules/infra/clients/container-gitea.nix
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Gitea Container";
-  mac = "62:f5:a4:5b:20:73";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-gitea";
+    resourceName = "container_gitea";
+    name = "Gitea Container";
+    mac = "62:f5:a4:5b:20:73";
+    vlan = "apps";
+    kind = "virtual";
+    ports = {
+      ssh = 2222;
+      web = 3000;
+    };
+    proxy.port = "web";
+  };
 in
 {
   den.aspects.infra._.clients._.container-gitea = {
@@ -10,62 +21,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.apps
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.apps.staticAddresses.gitea;
-      in
-      {
-        infra.clients.container-gitea = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            web = 3000;
-            ssh = 2222; # gitea builtin SSH; high port avoids privileged bind under PrivateUsers
-          };
-          proxy.port = "web";
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.apps.staticAddresses.gitea;
-      in
-      {
-        infra.clients.container-gitea = {
-          inherit
-            name
-            mac
-            ip
-            ;
-          ports = {
-            web = 3000;
-            ssh = 2222; # gitea builtin SSH; high port avoids privileged bind under PrivateUsers
-          };
-          proxy.port = "web";
-        };
-
-        resource.unifi_client.container_gitea = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_gitea";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.apps.staticAddresses.gitea;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.apps.staticAddresses.gitea;
   };
 }

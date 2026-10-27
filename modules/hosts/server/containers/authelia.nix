@@ -63,6 +63,58 @@
                 "https://home-assistant.caddy.${config.infra.vlans.apps.domain}/auth/oidc/callback"
               ];
             }
+            # Komga and Audiobookshelf are server-side apps, so unlike Home
+            # Assistant above they are confidential clients with a secret rather
+            # than public+PKCE. The secret is read from a file at start-up by the
+            # config template filter (X_AUTHELIA_CONFIG_FILTERS=template), so it
+            # never enters the nix store; `$plaintext$` is Authelia's marker for
+            # an unhashed value. consent_mode=implicit means no approval prompt —
+            # with an existing Authelia session the login is a silent redirect.
+            {
+              client_id = "komga";
+              client_name = "Komga";
+              # Renders as: $plaintext${{ secret "…" }}
+              # `''$` escapes the leading dollar and `''${` the one that opens the
+              # Go template. Writing `''$plaintext$''${{` emits TWO dollars, which
+              # silently stores the secret as "$<value>" and fails every token
+              # exchange with "provided client secret did not match".
+              client_secret = ''$plaintext''${{ secret "/run/secrets/komga-oidc-client-secret" }}'';
+              public = false;
+              consent_mode = "implicit";
+              authorization_policy = "one_factor";
+              scopes = [
+                "openid"
+                "profile"
+                "email"
+                "groups"
+              ];
+              # Spring Security's fixed callback shape: /login/oauth2/code/<registrationId>
+              redirect_uris = [
+                "https://komga.caddy.${config.infra.vlans.apps.domain}/login/oauth2/code/authelia"
+              ];
+            }
+            {
+              client_id = "audiobookshelf";
+              client_name = "Audiobookshelf";
+              client_secret = ''$plaintext''${{ secret "/run/secrets/audiobookshelf-oidc-client-secret" }}'';
+              public = false;
+              consent_mode = "implicit";
+              authorization_policy = "one_factor";
+              scopes = [
+                "openid"
+                "profile"
+                "email"
+                "groups"
+              ];
+              # nixpkgs bakes the Nuxt base path /audiobookshelf into the
+              # frontend, and the container sets ROUTER_BASE_PATH to match, so
+              # every server route — including the OIDC callback — carries that
+              # prefix. The unprefixed form is kept for a bare-root deployment.
+              redirect_uris = [
+                "https://audiobookshelf.caddy.${config.infra.vlans.apps.domain}/audiobookshelf/auth/openid/callback"
+                "https://audiobookshelf.caddy.${config.infra.vlans.apps.domain}/auth/openid/callback"
+              ];
+            }
           ];
           accessRules = [
             {
@@ -85,6 +137,15 @@
             };
             "/run/secrets/authelia-oidc-hmac-secret" = {
               hostPath = config.sops.secrets."authelia-oidc-hmac-secret".path;
+              isReadOnly = true;
+            };
+            # Read by the config template filter at start-up, not by the app.
+            "/run/secrets/audiobookshelf-oidc-client-secret" = {
+              hostPath = config.sops.secrets."audiobookshelf-oidc-client-secret".path;
+              isReadOnly = true;
+            };
+            "/run/secrets/komga-oidc-client-secret" = {
+              hostPath = config.sops.secrets."komga-oidc-client-secret".path;
               isReadOnly = true;
             };
             "/run/secrets/authelia-oidc-jwk-rsa-key" = {

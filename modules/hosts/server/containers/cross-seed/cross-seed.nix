@@ -12,6 +12,7 @@
       den.aspects.infra._.clients._.container-qbittorrent
       den.aspects.infra._.clients._.container-mosquitto
       den.aspects.infra._.clients._.container-dns
+      den.aspects.infra._.clients._.container-managarr
       den.aspects.infra._.networks._.media
       den.aspects.infra._.networks._.download
       den.aspects.hosts._.server._.security
@@ -29,7 +30,11 @@
         sonarr = config.infra.clients.container-sonarr;
         radarr = config.infra.clients.container-radarr;
         qbit = config.infra.clients.container-qbittorrent;
-        exporter = import ./_exporter.nix;
+        # Reads the infra client rather than cfg.port: cfg is the option set
+        # this module is defining, so going through it here would be a cycle.
+        exporter = import ./_exporter.nix {
+          port = config.infra.clients.container-cross-seed.ports.default;
+        };
       in
       {
         # cross-seed's own daemon API key + the secret indexer/client URLs
@@ -42,14 +47,18 @@
             content = builtins.toJSON {
               apiKey = config.sops.placeholder.cross-seed-apikey;
               # Prowlarr per-indexer Torznab feeds (id 1 = PreToMe, 2 = TorrentLeech,
-              # 3 = DigitalCore, 4 = RetroToon). Only *enabled* indexers belong here:
+              # 4 = RetroToon, 5 = DarkPeers, 6 = YU-Scene, 7 = SeedPool). Only
+              # *enabled* indexers belong here:
               # Prowlarr answers a disabled indexer's feed with 410 Gone, which fails
-              # every updateIndexerCaps run.
+              # every updateIndexerCaps run — hence PreToMe is commented out rather
+              # than left in place. See prowlarr/indexers/_pretome.nix.
               torznab = [
-                "http://${prowlarr.ip}:${toString prowlarr.ports.default}/1/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
+                # "http://${prowlarr.ip}:${toString prowlarr.ports.default}/1/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
                 "http://${prowlarr.ip}:${toString prowlarr.ports.default}/2/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
-                "http://${prowlarr.ip}:${toString prowlarr.ports.default}/3/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
                 "http://${prowlarr.ip}:${toString prowlarr.ports.default}/4/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
+                "http://${prowlarr.ip}:${toString prowlarr.ports.default}/5/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
+                "http://${prowlarr.ip}:${toString prowlarr.ports.default}/6/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
+                "http://${prowlarr.ip}:${toString prowlarr.ports.default}/7/api?apikey=${config.sops.placeholder.prowlarr-apikey}"
               ];
               # No creds: cross-seed's media-VLAN IP is in qBittorrent's
               # authSubnetWhitelist, so its WebUI bypasses auth for us.
@@ -137,8 +146,13 @@
             outputDir = null;
             # cross-seed POSTs its own result/inject notifications ({title,body,extra})
             # here → HA webhook → #cross-seed. Distinct from autobrr's announce POST-ack.
+            # The second URL records the same notifications with managarr. A
+            # cross-seed inject is the one way a torrent enters the client with
+            # no *arr grab behind it, so without this leg those appear in the
+            # corpus as an unexplained qBittorrent add.
             notificationWebhookUrls = [
               "http://127.0.0.1:9001/"
+              "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}/hook/cross-seed"
             ];
           };
           bindMounts = {

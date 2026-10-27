@@ -1,9 +1,14 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "MacBookPro (work, wifi)";
-  mac = "ee:17:4a:7c:e1:18";
-  ip = "10.10.70.42";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "macbookpro-work-2";
+    resourceName = "macbookpro_work_2";
+    name = "MacBookPro (work, wifi)";
+    mac = "ee:17:4a:7c:e1:18";
+    vlan = "work";
+    kind = "physical";
+  };
 in
 {
   den.aspects.infra._.clients._.macbookpro-work-2 = {
@@ -11,34 +16,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.work
     ];
 
-    os = _: {
-      infra.clients.macbookpro-work-2 = {
-        inherit
-          name
-          mac
-          ip
-          ;
-      };
-    };
-
-    terranix = {
-      resource.unifi_client.macbookpro_work_2 = {
-        inherit mac name;
-        fixed_ip = ip;
-        allow_existing = true;
-        blocked = false;
-        site = "default";
-        skip_forget_on_destroy = false;
-      };
-
-      import = [
-        {
-          to = "unifi_client.macbookpro_work_2";
-          id = mac;
-        }
-      ];
-    };
+    os = _: client.mkOs "10.10.70.42";
+    terranix = _: client.mkTerranix "10.10.70.42";
   };
 }

@@ -1,9 +1,14 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "iPhone";
-  mac = "d6:c8:14:8c:ab:3e";
-  ip = "10.10.20.60";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "iphone";
+    resourceName = "iphone";
+    name = "iPhone";
+    mac = "d6:c8:14:8c:ab:3e";
+    vlan = "trust";
+    kind = "physical";
+  };
 in
 {
   den.aspects.infra._.clients._.iphone = {
@@ -11,30 +16,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.trust
     ];
 
-    os = _: {
-      infra.clients.iphone = {
-        inherit name mac ip;
-      };
-    };
-
-    terranix = {
-      resource.unifi_client.iphone = {
-        inherit mac name;
-        fixed_ip = ip;
-        allow_existing = true;
-        blocked = false;
-        site = "default";
-        skip_forget_on_destroy = false;
-      };
-
-      import = [
-        {
-          to = "unifi_client.iphone";
-          id = mac;
-        }
-      ];
-    };
+    os = _: client.mkOs "10.10.20.60";
+    terranix = _: client.mkTerranix "10.10.20.60";
   };
 }

@@ -1,5 +1,17 @@
 # Cloudflare provider configuration
 { den, ... }:
+let
+  provider = (import ../_mk-provider.nix null) {
+    secrets = {
+      cloudflare-api-token = { };
+      cloudflare-zone-name = { };
+      cloudflare-record-name = { };
+      cloudflare-account-id = { };
+      cloudflare-zone-id = { };
+      wan-ip = { };
+    };
+  };
+in
 {
   den.aspects.infra._.providers._.cloudflare = {
     aspect-name = "infra.providers.cloudflare";
@@ -7,16 +19,7 @@
       den.aspects.security._.sops
     ];
 
-    provides.to-users.homeManager = _: {
-      sops.secrets = {
-        cloudflare-api-token = { };
-        cloudflare-zone-name = { };
-        cloudflare-record-name = { };
-        cloudflare-account-id = { };
-        cloudflare-zone-id = { };
-        wan-ip = { };
-      };
-    };
+    provides = provider.mkProvides;
 
     terranix = {
       terraform.required_providers.cloudflare = {

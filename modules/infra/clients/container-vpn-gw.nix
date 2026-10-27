@@ -1,7 +1,19 @@
-{ den, ... }:
+# modules/infra/clients/container-vpn-gw.nix
+{ den, lib, ... }:
 let
-  name = "VPN Gateway Container";
-  mac = "62:f5:a4:5b:20:84";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "container-vpn-gw";
+    resourceName = "container_vpn_gw";
+    name = "VPN Gateway Container";
+    mac = "62:f5:a4:5b:20:84";
+    vlan = "download";
+    kind = "virtual";
+    ports = {
+      control = 9099;
+      nodeExporter = 9100;
+      wireguardExporter = 9586;
+    };
+  };
 in
 {
   den.aspects.infra._.clients._.container-vpn-gw = {
@@ -9,50 +21,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.download
     ];
 
-    os =
-      { config, ... }:
-      {
-        infra.clients.container-vpn-gw = {
-          inherit name mac;
-          ip = config.infra.vlans.download.staticAddresses.vpnGw;
-          ports = {
-            nodeExporter = 9100;
-            wireguardExporter = 9586;
-            control = 9099;
-          };
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      {
-        infra.clients.container-vpn-gw = {
-          inherit name mac;
-          ip = config.infra.vlans.download.staticAddresses.vpnGw;
-          ports = {
-            nodeExporter = 9100;
-            wireguardExporter = 9586;
-            control = 9099;
-          };
-        };
-
-        resource.unifi_client.container_vpn_gw = {
-          inherit mac name;
-          fixed_ip = config.infra.vlans.download.staticAddresses.vpnGw;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.container_vpn_gw";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.download.staticAddresses.vpnGw;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.download.staticAddresses.vpnGw;
   };
 }

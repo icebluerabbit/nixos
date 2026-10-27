@@ -1,0 +1,21 @@
+{%- set ns = namespace(q=0, blocked=0, pct=0, gravity=0, clients=0) -%}
+{%- for s in (stats.content.data.result | default([])) -%}
+  {%- if s.metric.__name__ == 'pihole_dns_queries_today' -%}{% set ns.q = s.value[1] | float %}
+  {%- elif s.metric.__name__ == 'pihole_ads_blocked_today' -%}{% set ns.blocked = s.value[1] | float %}
+  {%- elif s.metric.__name__ == 'pihole_ads_percentage_today' -%}{% set ns.pct = s.value[1] | float %}
+  {%- elif s.metric.__name__ == 'pihole_domains_being_blocked' -%}{% set ns.gravity = s.value[1] | float %}
+  {%- elif s.metric.__name__ == 'pihole_unique_clients' -%}{% set ns.clients = s.value[1] | float %}
+  {%- endif -%}
+{%- endfor -%}
+<b>🛡️ DNS daily</b> · {{ '{:,}'.format(ns.q | round | int) }} queries · {{ ns.pct | round(1) }}% blocked
+<ul>
+<li><b>Blocked:</b> {{ '{:,}'.format(ns.blocked | round | int) }} of {{ '{:,}'.format(ns.q | round | int) }} · <b>Clients:</b> {{ ns.clients | round | int }} · <b>Gravity:</b> {{ '{:,}'.format(ns.gravity | round | int) }} domains</li>
+{%- set ads = (top_ads.content.data.result | default([])) %}
+{%- if ads | count > 0 %}
+<li><b>Top blocked:</b> {% for a in ads %}<code>{{ a.metric.domain | default('?') }}</code> ({{ a.value[1] | float | round | int }}){% if not loop.last %} · {% endif %}{% endfor %}</li>
+{%- endif %}
+{%- set src = (top_sources.content.data.result | default([])) %}
+{%- if src | count > 0 %}
+<li><b>Top clients:</b> {% for s in src %}<code>{{ s.metric.source | default('?') }}</code> ({{ s.value[1] | float | round | int }}){% if not loop.last %} · {% endif %}{% endfor %}</li>
+{%- endif %}
+</ul>

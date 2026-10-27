@@ -14,6 +14,9 @@
         "/var/lib/sops-nix"
         "/var/lib/nixos"
         "/var/lib/OpenRGB"
+        # restic's index/metadata cache — without this the nightly /projects
+        # backup refetches the whole repo index from the NAS after every boot.
+        "/var/cache/restic"
       ];
       files = [
         "/etc/machine-id"

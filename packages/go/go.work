@@ -1,0 +1,45 @@
+// go.work joins every module under packages/go into one workspace so gopls,
+// `go test ./...` and cross-module refactors see them together.
+//
+// It is also the registry: `just _go-modules` reads it with `go work edit
+// -json`, so a module that is listed here is linted, tested and covered, and
+// one that is not is invisible to the whole gate.
+//
+// Development-time only. Nix builds each module independently with its own
+// vendored dependencies and set GOWORK=off, because nixpkgs' buildGoModule
+// vendors per module and a workspace would override -mod=vendor.
+go 1.26
+
+use (
+	./beets-lidarr-import
+	./flac-util
+	./forgejo-token-inject
+	./ha-seeders
+	./hermes-resolve-rooms
+	./jellyfin-refresh
+	./lib
+	./managarr-autobrr
+	./managarr-bazarr
+	./managarr-beets
+	./managarr-crossseed
+	./managarr-lidarr
+	./managarr-prowlarr
+	./managarr-qbittorrent
+	./managarr-radarr
+	./managarr-seasonpackarr
+	./managarr-slskd
+	./managarr-sonarr
+	./managarr-soularr
+	./managarr-unpackerr
+	./managarr
+	./mousetrap
+	./nixos-notify
+	./qbt-scripts
+	./qui-provision
+	./slskd-prune
+	./soularr-reclaim
+	./sys-mcp
+	./thelounge-seed
+	./topology
+	./tuwunel-init
+)

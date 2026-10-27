@@ -1,0 +1,7 @@
+{% set p = trigger.payload_json %}📚 <b>Bindery · imported</b>
+<b>{{ p.item | default(p.message) | default('—') }}</b>
+<ul>
+<li><b>Author:</b> {{ p.author | default('—') }}</li>
+<li><b>Format:</b> <code>{{ p.mediaFormat | default(p.format) | default('—') }}</code></li>
+<li><b>Path:</b> <code>{{ p.path | default('—') }}</code></li>
+</ul>

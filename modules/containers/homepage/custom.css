@@ -12,18 +12,38 @@
 :root {
   --day-accent: var(--accent-blue);
 }
-body[data-daypart="morning"]   { --day-accent: var(--accent-yellow); }
-body[data-daypart="afternoon"] { --day-accent: var(--accent-cyan); }
-body[data-daypart="evening"]   { --day-accent: var(--accent-magenta); }
-body[data-daypart="night"]     { --day-accent: var(--accent-blue); }
+body[data-daypart="morning"] {
+  --day-accent: var(--accent-yellow);
+}
+body[data-daypart="afternoon"] {
+  --day-accent: var(--accent-cyan);
+}
+body[data-daypart="evening"] {
+  --day-accent: var(--accent-magenta);
+}
+body[data-daypart="night"] {
+  --day-accent: var(--accent-blue);
+}
 
 /* ── Page canvas: deep base00 with a faint accent aurora ──────────────── */
 body {
   background-color: rgb(var(--base-bg)) !important;
   background-image:
-    radial-gradient(1200px 600px at 12% -8%, rgba(var(--day-accent), 0.10), transparent 60%),
-    radial-gradient(1000px 500px at 100% 0%, rgba(var(--accent-magenta), 0.07), transparent 55%),
-    linear-gradient(180deg, rgb(var(--base-bg)) 0%, rgb(var(--base-bg-alt)) 100%) !important;
+    radial-gradient(
+      1200px 600px at 12% -8%,
+      rgba(var(--day-accent), 0.1),
+      transparent 60%
+    ),
+    radial-gradient(
+      1000px 500px at 100% 0%,
+      rgba(var(--accent-magenta), 0.07),
+      transparent 55%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--base-bg)) 0%,
+      rgb(var(--base-bg-alt)) 100%
+    ) !important;
   background-attachment: fixed !important;
 }
 
@@ -72,12 +92,24 @@ ul[data-testid="tablist"] li a[aria-selected="true"],
 }
 
 /* Cycle the accent across successive groups for visual rhythm. */
-#page_container > div > div:nth-of-type(6n + 1) h2 { border-left-color: rgba(var(--accent-blue), 0.9); }
-#page_container > div > div:nth-of-type(6n + 2) h2 { border-left-color: rgba(var(--accent-green), 0.9); }
-#page_container > div > div:nth-of-type(6n + 3) h2 { border-left-color: rgba(var(--accent-magenta), 0.9); }
-#page_container > div > div:nth-of-type(6n + 4) h2 { border-left-color: rgba(var(--accent-orange), 0.9); }
-#page_container > div > div:nth-of-type(6n + 5) h2 { border-left-color: rgba(var(--accent-cyan), 0.9); }
-#page_container > div > div:nth-of-type(6n + 6) h2 { border-left-color: rgba(var(--accent-yellow), 0.9); }
+#page_container > div > div:nth-of-type(6n + 1) h2 {
+  border-left-color: rgba(var(--accent-blue), 0.9);
+}
+#page_container > div > div:nth-of-type(6n + 2) h2 {
+  border-left-color: rgba(var(--accent-green), 0.9);
+}
+#page_container > div > div:nth-of-type(6n + 3) h2 {
+  border-left-color: rgba(var(--accent-magenta), 0.9);
+}
+#page_container > div > div:nth-of-type(6n + 4) h2 {
+  border-left-color: rgba(var(--accent-orange), 0.9);
+}
+#page_container > div > div:nth-of-type(6n + 5) h2 {
+  border-left-color: rgba(var(--accent-cyan), 0.9);
+}
+#page_container > div > div:nth-of-type(6n + 6) h2 {
+  border-left-color: rgba(var(--accent-yellow), 0.9);
+}
 
 /* ── Service & bookmark cards → distinct panel with a visible border ───── */
 /* Homepage's card element is the direct div child of `li.service` (class
@@ -94,7 +126,9 @@ li.service > div,
   border: 1px solid rgba(var(--base-fg), 0.35) !important;
   border-radius: 0.7rem !important;
   box-shadow: none !important;
-  transition: border-color 0.14s ease, background-color 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease;
 }
 
 li.service > .service-card:hover,
@@ -134,9 +168,14 @@ a:hover .service-title,
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--base-surface)) transparent;
 }
-*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
 *::-webkit-scrollbar-thumb {
   background: rgba(var(--base-surface), 0.9);
   border-radius: 9999px;
 }
-*::-webkit-scrollbar-thumb:hover { background: rgba(var(--day-accent), 0.7); }
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--day-accent), 0.7);
+}

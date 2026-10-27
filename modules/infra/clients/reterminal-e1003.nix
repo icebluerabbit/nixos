@@ -1,8 +1,14 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "reTerminal E1003";
-  mac = "44:1b:f6:c0:04:54";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "reterminal-e1003";
+    resourceName = "reterminal_e1003";
+    name = "reTerminal E1003";
+    mac = "44:1b:f6:c0:04:54";
+    vlan = "iot";
+    kind = "physical";
+  };
 in
 {
   den.aspects.infra._.clients._.reterminal-e1003 = {
@@ -10,44 +16,11 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.iot
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.iot.staticAddresses.reterminal-e1003;
-      in
-      {
-        infra.clients.reterminal-e1003 = {
-          inherit name mac ip;
-        };
-      };
-
+    os = { config, ... }: client.mkOs config.infra.vlans.iot.staticAddresses.reterminal-e1003;
     terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.iot.staticAddresses.reterminal-e1003;
-      in
-      {
-        infra.clients.reterminal-e1003 = {
-          inherit name mac ip;
-        };
-
-        resource.unifi_client.reterminal_e1003 = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-        };
-
-        import = [
-          {
-            to = "unifi_client.reterminal_e1003";
-            id = mac;
-          }
-        ];
-      };
+      { config, ... }: client.mkTerranix config.infra.vlans.iot.staticAddresses.reterminal-e1003;
   };
 }

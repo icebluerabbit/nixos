@@ -1,8 +1,15 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Server Game Bridge";
-  mac = "82:13:8a:a0:4f:70";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "server-bridge-game";
+    resourceName = "server_bridge_game";
+    name = "Server Game Bridge";
+    mac = "82:13:8a:a0:4f:70";
+    vlan = "game";
+    kind = "virtual";
+    dependsOn = [ "server_vlan_game" ];
+  };
 in
 {
   den.aspects.infra._.clients._.server-bridge-game = {
@@ -10,54 +17,10 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
-
+      den.aspects.infra._.networks._.game
     ];
 
-    os =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.game.staticAddresses.server;
-      in
-      {
-        infra.clients.server-bridge-game = {
-          inherit
-            name
-            mac
-            ip
-            ;
-        };
-      };
-
-    terranix =
-      { config, ... }:
-      let
-        ip = config.infra.vlans.game.staticAddresses.server;
-      in
-      {
-        infra.clients.server-bridge-game = {
-          inherit
-            name
-            mac
-            ip
-            ;
-        };
-
-        resource.unifi_client.server_bridge_game = {
-          inherit mac name;
-          fixed_ip = ip;
-          allow_existing = true;
-          blocked = false;
-          site = "default";
-          skip_forget_on_destroy = false;
-          depends_on = [ "unifi_client.server_vlan_game" ];
-        };
-
-        import = [
-          {
-            to = "unifi_client.server_bridge_game";
-            id = mac;
-          }
-        ];
-      };
+    os = { config, ... }: client.mkOs config.infra.vlans.game.staticAddresses.server;
+    terranix = { config, ... }: client.mkTerranix config.infra.vlans.game.staticAddresses.server;
   };
 }

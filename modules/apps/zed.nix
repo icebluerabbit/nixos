@@ -11,6 +11,7 @@
       den.aspects.dev._.nixd
       den.aspects.dev._.lua-language-server
       den.aspects.dev._.yaml-language-server
+      den.aspects.dev._.gopls
     ];
 
     homeManager =
@@ -33,10 +34,17 @@
             "jetbrains-new-ui-icons"
           ];
           userSettings = {
-            trusted_directories = [
-              "/etc/nixos"
-              "/src"
-            ];
+            # Where this repo and the scratch tree live, which differs by
+            # platform: the Linux hosts bind-mount them at the top level,
+            # the Mac keeps a plain checkout under $HOME.
+            trusted_directories =
+              if pkgs.stdenv.hostPlatform.isDarwin then
+                [ "${config.home.homeDirectory}/Projects" ]
+              else
+                [
+                  "/etc/nixos"
+                  "/src"
+                ];
             telemetry = {
               diagnostics = false;
               metrics = false;
@@ -68,6 +76,11 @@
                 path = lib.getExe pkgs.yaml-language-server;
                 arguments = [ "--stdio" ];
               };
+              # Pinned so Zed uses the toolchain from dev.gopls rather than
+              # downloading its own copy into ~/.local/share/zed, outside Nix.
+              # Go needs no extension entry — unlike nix, lua, toml and yaml,
+              # its support is built into Zed itself.
+              gopls.binary.path = lib.getExe pkgs.gopls;
             };
 
             languages = {

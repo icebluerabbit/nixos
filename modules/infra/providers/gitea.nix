@@ -1,5 +1,13 @@
 # Gitea provider configuration
 { den, ... }:
+let
+  provider = (import ../_mk-provider.nix null) {
+    secrets = {
+      gitea-api-token = { };
+      github-access-token-nixos = { }; # reused: migration + push-mirror auth
+    };
+  };
+in
 {
   den.aspects.infra._.providers._.gitea = {
     aspect-name = "infra.providers.gitea";
@@ -8,10 +16,7 @@
       den.aspects.infra._.clients._.container-gitea
     ];
 
-    provides.to-users.homeManager = _: {
-      sops.secrets.gitea-api-token = { };
-      sops.secrets.github-access-token-nixos = { }; # reused: migration + push-mirror auth
-    };
+    provides = provider.mkProvides;
 
     terranix =
       { config, ... }:

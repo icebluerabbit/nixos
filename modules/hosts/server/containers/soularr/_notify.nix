@@ -13,6 +13,7 @@
         album = null
         artist = null
         count = null
+        album_id = null
         m = parse_regex(msg, r'Total Downloads added: (?P<n>\d+)') ?? null
         if !is_null(m) {
             if (to_int(m.n) ?? 0) > 0 {
@@ -29,11 +30,17 @@
             }
         }
         if is_null(ev) {
-            m = parse_regex(msg, r'Added to failed import denylist: (?P<artist>.+) - (?P<album>.+) \(ID:') ?? null
+            # The trailing id is CAPTURED, not just matched. soularr prints a
+            # Lidarr album id on this line and on no other, which makes this
+            # the only one of its events that can be tied to a piece of
+            # content — everything else it logs is album and artist as text,
+            # and managarr resolves by identifier, never by title.
+            m = parse_regex(msg, r'Added to failed import denylist: (?P<artist>.+) - (?P<album>.+) \(ID: (?P<album_id>\d+)\)') ?? null
             if !is_null(m) {
                 ev = "import_failed"
                 artist = m.artist
                 album = m.album
+                album_id = m.album_id
             }
         }
         if is_null(ev) {
@@ -47,7 +54,7 @@
         if is_null(ev) {
             abort
         }
-        .message = encode_json({"source": "soularr", "event": ev, "album": album, "artist": artist, "count": count})
+        .message = encode_json({"source": "soularr", "event": ev, "album": album, "artist": artist, "count": count, "album_id": album_id})
       '';
     };
     sinks.soularr_notify_mqtt = {
@@ -60,6 +67,16 @@
       quality_of_service = "atleastonce";
       retain = false;
       encoding.codec = "text"; # emit .message (the single-event JSON)
+    };
+    # Second consumer of the same transform — the acquisition half of the
+    # Soulseek path. Lidarr's import webhook already covers the library half.
+    sinks.soularr_notify_managarr = {
+      type = "http";
+      inputs = [ "soularr_notify" ];
+      uri = "http://${config.infra.clients.container-managarr.ip}:${toString config.infra.clients.container-managarr.ports.default}/hook/soularr";
+      method = "post";
+      encoding.codec = "text";
+      request.headers."Content-Type" = "application/json";
     };
   };
 }

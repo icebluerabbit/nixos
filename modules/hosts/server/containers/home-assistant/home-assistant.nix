@@ -151,8 +151,11 @@
                 "#myanonamouse:matrix.services.internal"
                 "#qbittorrent:matrix.services.internal"
                 "#cross-seed:matrix.services.internal"
+                "#seasonpackarr:matrix.services.internal"
                 "#soulseek:matrix.services.internal"
-                "#lazylibrarian:matrix.services.internal"
+                "#bindery:matrix.services.internal"
+                "#komga:matrix.services.internal"
+                "#audiobookshelf:matrix.services.internal"
                 "#automations:matrix.services.internal"
                 "#home-assistant:matrix.services.internal"
                 "#alerts:matrix.services.internal"
@@ -169,13 +172,18 @@
                 "#commits:matrix.services.internal"
                 "#stars:matrix.services.internal"
               ];
-              commands = [ (import ./matrix-commands/_autobrr-grab.nix) ];
+              commands = [
+                (import ./matrix-commands/_autobrr-grab.nix)
+                (import ./matrix-commands/_mail-unsub.nix)
+              ];
             };
             rest_command =
               (import ./rest-commands/_matrix-login.nix { inherit config; })
               // (import ./rest-commands/_matrix-get-event.nix { inherit config; })
               // (import ./rest-commands/_qbt-add.nix { inherit config; })
-              // (import ./rest-commands/_vpn-rotate.nix { inherit config; });
+              // (import ./rest-commands/_vpn-rotate.nix { inherit config; })
+              // (import ./rest-commands/_prometheus-query.nix { inherit config; })
+              // (import ./rest-commands/_mail-unsubscribe.nix { });
             automation = [
               (import ./automations/_moes-button-1-living-33.nix { })
               (import ./automations/_moes-button-2-living-66.nix { })
@@ -189,22 +197,26 @@
               (import ./automations/_prowlarr-webhook.nix { })
               (import ./automations/_autobrr-webhook.nix { })
               (import ./automations/_mousetrap-webhook.nix { })
+              (import ./automations/_bindery-webhook.nix { })
               (import ./automations/_qbittorrent_webhook.nix { })
               (import ./automations/_bazarr-webhook.nix { })
-              (import ./automations/_lazylibrarian-webhook.nix { })
               (import ./automations/_automations-relay.nix { })
               (import ./automations/_ha-startup.nix { })
               (import ./automations/_ha-updates.nix { })
               (import ./automations/_nixos-webhook.nix { })
               (import ./automations/_backup-webhook.nix { })
               (import ./automations/_grafana-alerts-webhook.nix { inherit lib; })
+              (import ./automations/_dns-events-webhook.nix { })
+              (import ./automations/_dns-digest.nix { })
               (import ./automations/_cross-seed-webhook.nix { })
+              (import ./automations/_seasonpackarr-webhook.nix { })
               (import ./automations/_presence.nix { })
               (import ./automations/_new-client.nix { })
               (import ./automations/_device-down.nix { })
               (import ./automations/_away-motion-alert.nix { })
               (import ./automations/_living-room-auto-light.nix { })
               (import ./automations/_mail-relay.nix { })
+              (import ./automations/_mail-unsubscribe.nix { })
               (import ./automations/_github-releases.nix { inherit lib; })
               (import ./automations/_github-pull-requests.nix { inherit lib; })
               (import ./automations/_github-issues.nix { inherit lib; })

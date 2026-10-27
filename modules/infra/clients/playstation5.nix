@@ -1,9 +1,15 @@
 # home network
-{ den, ... }:
+{ den, lib, ... }:
 let
-  name = "Sony PlayStation 5";
-  mac = "b4:0a:d8:2b:e5:68";
-  ip = "10.10.80.45";
+  client = (import ../_mk-client.nix { inherit lib; }) {
+    id = "playstation5";
+    resourceName = "playstation5";
+    name = "Sony PlayStation 5";
+    mac = "b4:0a:d8:2b:e5:68";
+    vlan = "game";
+    kind = "physical";
+    portProfile = "game-playstation5";
+  };
 in
 {
   den.aspects.infra._.clients._.playstation5 = {
@@ -11,30 +17,11 @@ in
     includes = [
       den.aspects.infra._.providers._.unifi
       den.aspects.infra._.options
+      den.aspects.infra._.networks._.game
+      den.aspects.infra._.ports._.game-playstation5
     ];
 
-    os = _: {
-      infra.clients.playstation5 = {
-        inherit name mac ip;
-      };
-    };
-
-    terranix = {
-      resource.unifi_client.playstation5 = {
-        inherit mac name;
-        fixed_ip = ip;
-        allow_existing = true;
-        blocked = false;
-        site = "default";
-        skip_forget_on_destroy = false;
-      };
-
-      import = [
-        {
-          to = "unifi_client.playstation5";
-          id = mac;
-        }
-      ];
-    };
+    os = _: client.mkOs "10.10.80.45";
+    terranix = _: client.mkTerranix "10.10.80.45";
   };
 }
